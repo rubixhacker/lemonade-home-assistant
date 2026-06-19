@@ -30,18 +30,7 @@ async def async_setup_entry(
 
 def _first_catalog_model_id(entry: LemonadeConfigEntry, capability: str) -> str | None:
     """Return the first catalog model ID for a capability."""
-    catalog = entry.runtime_data.coordinator.catalog
-    if hasattr(catalog, "first_model_id"):
-        model = catalog.first_model_id(capability)
-        if isinstance(model, str) and model:
-            return model
-    if hasattr(catalog, "model_ids"):
-        model_ids = catalog.model_ids(capability)
-        return model_ids[0] if model_ids else None
-    if hasattr(catalog, "models_for"):
-        models = catalog.models_for(capability)
-        return models[0].id if models else None
-    return None
+    return entry.runtime_data.coordinator.catalog.first_model_id(capability)
 
 
 def _error_result() -> stt.SpeechResult:
@@ -114,6 +103,8 @@ class LemonadeSTTEntity(stt.SpeechToTextEntity):
             _LOGGER.warning("No Lemonade STT model is available")
             return _error_result()
 
+        # Lemonade's transcription endpoint currently accepts multipart file uploads,
+        # so buffer the stream before passing it to the client.
         audio = b"".join([chunk async for chunk in stream])
         try:
             response = await self.entry.runtime_data.client.transcribe_audio(
@@ -123,7 +114,15 @@ class LemonadeSTTEntity(stt.SpeechToTextEntity):
                 language=getattr(metadata, "language", None),
             )
             text = response["text"]
-        except (LemonadeError, aiohttp.ClientError, KeyError, TypeError) as err:
+            if not isinstance(text, str):
+                raise TypeError("Lemonade transcription response missing valid text")
+        except (
+            LemonadeError,
+            aiohttp.ClientError,
+            TimeoutError,
+            KeyError,
+            TypeError,
+        ) as err:
             _LOGGER.error("Error transcribing audio with Lemonade: %s", err)
             return _error_result()
 

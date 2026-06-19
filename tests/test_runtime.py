@@ -623,6 +623,10 @@ class FakeCatalog:
             SimpleNamespace(id=model_id) for model_id in self._model_ids.get(capability, [])
         )
 
+    def first_model_id(self, capability: str) -> str | None:
+        model_ids = self.model_ids(capability)
+        return model_ids[0] if model_ids else None
+
 
 class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
@@ -2267,6 +2271,92 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             client.calls,
         )
 
+    async def test_tts_translates_client_errors_to_home_assistant_error(self) -> None:
+        import aiohttp
+        from homeassistant.exceptions import HomeAssistantError
+        from lemonade.api import LemonadeError
+
+        tts_module = _require_module("lemonade.tts")
+
+        cases = (
+            (LemonadeError("boom"), "Error generating speech with Lemonade: boom"),
+            (
+                aiohttp.ClientError("network down"),
+                "Error generating speech with Lemonade: network down",
+            ),
+            (TimeoutError("slow"), "Timeout communicating with Lemonade Server"),
+        )
+
+        for error, expected_message in cases:
+            with self.subTest(error=type(error).__name__):
+
+                class Client:
+                    async def text_to_speech(self, **kwargs: Any) -> tuple[bytes, str]:
+                        raise error
+
+                entry = FakeEntry()
+                entry.options = {}
+                entry.runtime_data = SimpleNamespace(
+                    client=Client(),
+                    coordinator=SimpleNamespace(
+                        catalog=FakeCatalog({CAPABILITY_TTS: ["catalog-tts"]})
+                    ),
+                )
+                entity = tts_module.LemonadeTTSEntity(entry)
+
+                with self.assertRaisesRegex(HomeAssistantError, expected_message):
+                    await entity.async_get_tts_audio("Hello", "en")
+
+    async def test_tts_entity_is_unavailable_without_model(self) -> None:
+        from homeassistant.exceptions import HomeAssistantError
+
+        tts_module = _require_module("lemonade.tts")
+        entry = FakeEntry()
+        entry.options = {}
+        entry.runtime_data = SimpleNamespace(
+            client=object(),
+            coordinator=SimpleNamespace(catalog=FakeCatalog({CAPABILITY_TTS: []})),
+        )
+        entity = tts_module.LemonadeTTSEntity(entry)
+
+        self.assertFalse(entity.available)
+        with self.assertRaisesRegex(
+            HomeAssistantError, "No Lemonade TTS model is available"
+        ):
+            await entity.async_get_tts_audio("Hello", "en")
+
+    async def test_tts_model_resolution_prefers_request_then_entry_then_catalog(self) -> None:
+        tts_module = _require_module("lemonade.tts")
+
+        class Client:
+            def __init__(self) -> None:
+                self.calls: list[dict[str, Any]] = []
+
+            async def text_to_speech(self, **kwargs: Any) -> tuple[bytes, str]:
+                self.calls.append(kwargs)
+                return b"voice-bytes", "audio/mpeg"
+
+        client = Client()
+        entry = FakeEntry()
+        entry.options = {CONF_DEFAULT_TTS_MODEL: "entry-tts"}
+        entry.runtime_data = SimpleNamespace(
+            client=client,
+            coordinator=SimpleNamespace(
+                catalog=FakeCatalog({CAPABILITY_TTS: ["catalog-tts"]})
+            ),
+        )
+        entity = tts_module.LemonadeTTSEntity(entry)
+
+        await entity.async_get_tts_audio("Hello", "en", {"model": "request-tts"})
+        await entity.async_get_tts_audio("Hello", "en")
+        entry.options = {}
+        await entity.async_get_tts_audio("Hello", "en")
+
+        self.assertEqual(
+            ["request-tts", "entry-tts", "catalog-tts"],
+            [call["model"] for call in client.calls],
+        )
+
     async def test_stt_platform_adds_entity_and_transcribes_stream_with_default_model(self) -> None:
         from homeassistant.components import stt
 
@@ -2357,6 +2447,77 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertIn("No Lemonade STT model is available", logs.output[0])
+        self.assertIsNone(result.text)
+        self.assertEqual(stt.SpeechResultState.ERROR, result.result)
+
+    async def test_stt_returns_error_for_client_errors(self) -> None:
+        import aiohttp
+        from homeassistant.components import stt
+        from lemonade.api import LemonadeError
+
+        stt_module = _require_module("lemonade.stt")
+
+        async def audio_stream() -> Any:
+            yield b"audio"
+
+        for error in (
+            LemonadeError("boom"),
+            aiohttp.ClientError("network down"),
+            TimeoutError("slow"),
+        ):
+            with self.subTest(error=type(error).__name__):
+
+                class Client:
+                    async def transcribe_audio(self, **kwargs: Any) -> dict[str, str]:
+                        raise error
+
+                entry = FakeEntry()
+                entry.options = {}
+                entry.runtime_data = SimpleNamespace(
+                    client=Client(),
+                    coordinator=SimpleNamespace(
+                        catalog=FakeCatalog({CAPABILITY_STT: ["catalog-stt"]})
+                    ),
+                )
+                entity = stt_module.LemonadeSTTEntity(entry)
+
+                with self.assertLogs(stt_module._LOGGER.name, level="ERROR") as logs:
+                    result = await entity.async_process_audio_stream(
+                        SimpleNamespace(language="en"), audio_stream()
+                    )
+
+                self.assertIn("Error transcribing audio with Lemonade", logs.output[0])
+                self.assertIsNone(result.text)
+                self.assertEqual(stt.SpeechResultState.ERROR, result.result)
+
+    async def test_stt_returns_error_when_response_text_is_invalid(self) -> None:
+        from homeassistant.components import stt
+
+        stt_module = _require_module("lemonade.stt")
+
+        class Client:
+            async def transcribe_audio(self, **kwargs: Any) -> dict[str, Any]:
+                return {"text": None}
+
+        async def audio_stream() -> Any:
+            yield b"audio"
+
+        entry = FakeEntry()
+        entry.options = {}
+        entry.runtime_data = SimpleNamespace(
+            client=Client(),
+            coordinator=SimpleNamespace(
+                catalog=FakeCatalog({CAPABILITY_STT: ["catalog-stt"]})
+            ),
+        )
+        entity = stt_module.LemonadeSTTEntity(entry)
+
+        with self.assertLogs(stt_module._LOGGER.name, level="ERROR") as logs:
+            result = await entity.async_process_audio_stream(
+                SimpleNamespace(language="en"), audio_stream()
+            )
+
+        self.assertIn("Error transcribing audio with Lemonade", logs.output[0])
         self.assertIsNone(result.text)
         self.assertEqual(stt.SpeechResultState.ERROR, result.result)
 

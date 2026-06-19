@@ -39,18 +39,7 @@ async def async_setup_entry(
 
 def _first_catalog_model_id(entry: LemonadeConfigEntry, capability: str) -> str | None:
     """Return the first catalog model ID for a capability."""
-    catalog = entry.runtime_data.coordinator.catalog
-    if hasattr(catalog, "first_model_id"):
-        model = catalog.first_model_id(capability)
-        if isinstance(model, str) and model:
-            return model
-    if hasattr(catalog, "model_ids"):
-        model_ids = catalog.model_ids(capability)
-        return model_ids[0] if model_ids else None
-    if hasattr(catalog, "models_for"):
-        models = catalog.models_for(capability)
-        return models[0].id if models else None
-    return None
+    return entry.runtime_data.coordinator.catalog.first_model_id(capability)
 
 
 def _audio_extension(content_type: str | None, response_format: Any) -> str:
@@ -122,6 +111,10 @@ class LemonadeTTSEntity(TextToSpeechEntity):
                 voice=options.get("voice"),
                 response_format=options.get("response_format"),
             )
+        except TimeoutError as err:
+            raise HomeAssistantError(
+                "Timeout communicating with Lemonade Server"
+            ) from err
         except (LemonadeError, aiohttp.ClientError) as err:
             raise HomeAssistantError(
                 f"Error generating speech with Lemonade: {err}"
