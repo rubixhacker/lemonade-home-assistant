@@ -128,6 +128,14 @@ def _install_homeassistant_stubs() -> None:
     voluptuous.Invalid = type("Invalid", (Exception,), {})
     sys.modules.setdefault("voluptuous", voluptuous)
 
+    voluptuous_openapi = ModuleType("voluptuous_openapi")
+
+    def convert(schema: Any, *, custom_serializer: Any = None) -> dict[str, Any]:
+        return {"schema": schema, "custom_serializer": custom_serializer}
+
+    voluptuous_openapi.convert = convert
+    sys.modules.setdefault("voluptuous_openapi", voluptuous_openapi)
+
     homeassistant = ModuleType("homeassistant")
     homeassistant.__path__ = []
     sys.modules.setdefault("homeassistant", homeassistant)
@@ -146,6 +154,80 @@ def _install_homeassistant_stubs() -> None:
     select_component.SelectEntity = type("SelectEntity", (), {})
     sys.modules.setdefault("homeassistant.components.select", select_component)
     components.select = select_component
+
+    conversation_component = ModuleType("homeassistant.components.conversation")
+
+    class SystemContent:
+        def __init__(self, content: str) -> None:
+            self.content = content
+
+    class UserContent:
+        def __init__(
+            self, content: str, attachments: list[Any] | None = None
+        ) -> None:
+            self.content = content
+            self.attachments = attachments or []
+
+    class AssistantContent:
+        def __init__(
+            self, content: str | None = None, tool_calls: list[Any] | None = None
+        ) -> None:
+            self.content = content
+            self.tool_calls = tool_calls or []
+
+    class ToolResultContent:
+        def __init__(
+            self,
+            tool_result: Any,
+            tool_call_id: str | None = None,
+            tool_name: str | None = None,
+        ) -> None:
+            self.tool_result = tool_result
+            self.tool_call_id = tool_call_id
+            self.tool_name = tool_name
+
+    class ConversationEntity:
+        pass
+
+    class AbstractConversationAgent:
+        pass
+
+    class ConverseError(Exception):
+        def as_conversation_result(self) -> dict[str, Any]:
+            return {"error": str(self)}
+
+    def async_set_agent(hass: Any, entry: Any, agent: Any) -> None:
+        hass.set_agents.append((entry, agent))
+
+    def async_unset_agent(hass: Any, entry: Any) -> None:
+        hass.unset_agents.append(entry)
+
+    def async_get_result_from_chat_log(user_input: Any, chat_log: Any) -> dict[str, Any]:
+        return {
+            "conversation_id": getattr(user_input, "conversation_id", None),
+            "deltas": getattr(chat_log, "deltas", []),
+        }
+
+    conversation_component.SystemContent = SystemContent
+    conversation_component.UserContent = UserContent
+    conversation_component.AssistantContent = AssistantContent
+    conversation_component.ToolResultContent = ToolResultContent
+    conversation_component.AssistantContentDeltaDict = dict
+    conversation_component.ChatLog = object
+    conversation_component.ConversationInput = object
+    conversation_component.ConversationResult = dict
+    conversation_component.ConversationEntity = ConversationEntity
+    conversation_component.AbstractConversationAgent = AbstractConversationAgent
+    conversation_component.ConverseError = ConverseError
+    conversation_component.ConversationEntityFeature = SimpleNamespace(CONTROL=1)
+    conversation_component.MATCH_ALL = "*"
+    conversation_component.async_set_agent = async_set_agent
+    conversation_component.async_unset_agent = async_unset_agent
+    conversation_component.async_get_result_from_chat_log = async_get_result_from_chat_log
+    sys.modules.setdefault(
+        "homeassistant.components.conversation", conversation_component
+    )
+    components.conversation = conversation_component
 
     config_entries = ModuleType("homeassistant.config_entries")
     config_entries.ConfigEntry = type(
@@ -197,6 +279,13 @@ def _install_homeassistant_stubs() -> None:
     helpers.__path__ = []
     sys.modules.setdefault("homeassistant.helpers", helpers)
 
+    util = ModuleType("homeassistant.util")
+    util.__path__ = []
+    util_json = ModuleType("homeassistant.util.json")
+    util_json.json_dumps = lambda value: json.dumps(value, sort_keys=True)
+    sys.modules.setdefault("homeassistant.util", util)
+    sys.modules.setdefault("homeassistant.util.json", util_json)
+
     config_validation = ModuleType("homeassistant.helpers.config_validation")
     config_validation.config_entry_only_config_schema = lambda domain: None
     config_validation.string = str
@@ -228,6 +317,28 @@ def _install_homeassistant_stubs() -> None:
     sys.modules.setdefault("homeassistant.helpers.aiohttp_client", aiohttp_client)
 
     llm = ModuleType("homeassistant.helpers.llm")
+
+    class ToolInput:
+        def __init__(
+            self,
+            *,
+            tool_name: str,
+            tool_args: dict[str, Any] | None = None,
+            id: str | None = None,
+        ) -> None:
+            self.tool_name = tool_name
+            self.tool_args = tool_args or {}
+            self.id = id
+
+        def __eq__(self, other: Any) -> bool:
+            return (
+                isinstance(other, ToolInput)
+                and self.tool_name == other.tool_name
+                and self.tool_args == other.tool_args
+                and self.id == other.id
+            )
+
+    llm.ToolInput = ToolInput
     llm.async_get_apis = lambda hass: getattr(hass, "llm_apis", [])
     sys.modules.setdefault("homeassistant.helpers.llm", llm)
     helpers.llm = llm
@@ -368,6 +479,8 @@ class FakeHass:
     def __init__(self) -> None:
         self.data: dict[str, Any] = {}
         self.config_entries = FakeConfigEntries()
+        self.set_agents: list[tuple[Any, Any]] = []
+        self.unset_agents: list[Any] = []
 
 
 class FakeEntry:
@@ -694,6 +807,443 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         models = await client.models()
 
         self.assertEqual([{"id": "raw-model"}], models)
+
+    async def test_chat_completion_accepts_tools_and_response_format(self) -> None:
+        session = FakeSession({"choices": []})
+        client = LemonadeClient(session, "http://server")
+        tools = [{"type": "function", "function": {"name": "turn_on"}}]
+        response_format = {"type": "json_object"}
+
+        try:
+            await client.chat_completion(
+                model="chat-model",
+                messages=[{"role": "user", "content": "Hi"}],
+                tools=tools,
+                response_format=response_format,
+            )
+        except TypeError as err:
+            self.fail(f"chat_completion should accept tools and response_format: {err}")
+
+        payload = session.requests[-1][2]["json"]
+        self.assertEqual(tools, payload["tools"])
+        self.assertEqual(response_format, payload["response_format"])
+
+        await client.chat_completion(
+            model="chat-model", messages=[{"role": "user", "content": "Hi"}]
+        )
+
+        payload = session.requests[-1][2]["json"]
+        self.assertNotIn("tools", payload)
+        self.assertNotIn("response_format", payload)
+
+    def test_llm_converts_content_and_tools_to_openai_shapes(self) -> None:
+        from homeassistant.components.conversation import (
+            AssistantContent,
+            ToolResultContent,
+            UserContent,
+        )
+        from homeassistant.exceptions import HomeAssistantError
+
+        llm_module = _require_module("lemonade.llm")
+        tool = SimpleNamespace(
+            name="HassTurnOn",
+            description="Turn on an entity",
+            parameters={"type": "object"},
+        )
+
+        formatted_tool = llm_module.format_tool(tool, "serializer")
+
+        self.assertEqual(
+            {
+                "type": "function",
+                "function": {
+                    "name": "HassTurnOn",
+                    "description": "Turn on an entity",
+                    "parameters": {
+                        "schema": {"type": "object"},
+                        "custom_serializer": "serializer",
+                    },
+                },
+            },
+            formatted_tool,
+        )
+
+        image_message = llm_module.content_to_message(
+            UserContent(
+                "Look",
+                attachments=[
+                    SimpleNamespace(mime_type="image/png", content=b"image-bytes")
+                ],
+            )
+        )
+        self.assertEqual("user", image_message["role"])
+        self.assertEqual({"type": "text", "text": "Look"}, image_message["content"][0])
+        self.assertEqual(
+            "data:image/png;base64,aW1hZ2UtYnl0ZXM=",
+            image_message["content"][1]["image_url"]["url"],
+        )
+
+        assistant_message = llm_module.content_to_message(
+            AssistantContent(
+                "I will help",
+                tool_calls=[
+                    SimpleNamespace(
+                        id="call-1",
+                        tool_name="HassTurnOn",
+                        tool_args={"entity_id": "light.kitchen"},
+                    )
+                ],
+            )
+        )
+        self.assertEqual("assistant", assistant_message["role"])
+        self.assertEqual("I will help", assistant_message["content"])
+        self.assertEqual(
+            [
+                {
+                    "id": "call-1",
+                    "type": "function",
+                    "function": {
+                        "name": "HassTurnOn",
+                        "arguments": '{"entity_id": "light.kitchen"}',
+                    },
+                }
+            ],
+            assistant_message["tool_calls"],
+        )
+
+        tool_result_message = llm_module.content_to_message(
+            ToolResultContent(
+                {"ok": True}, tool_call_id="call-1", tool_name="HassTurnOn"
+            )
+        )
+        self.assertEqual(
+            {
+                "role": "tool",
+                "content": '{"ok": true}',
+                "tool_call_id": "call-1",
+                "name": "HassTurnOn",
+            },
+            tool_result_message,
+        )
+
+        with self.assertRaises(HomeAssistantError):
+            llm_module.content_to_message(
+                UserContent(
+                    "Read",
+                    attachments=[
+                        SimpleNamespace(mime_type="application/pdf", content=b"pdf")
+                    ],
+                )
+            )
+
+    def test_llm_converts_tool_result_object_payloads(self) -> None:
+        from homeassistant.components.conversation import ToolResultContent
+
+        llm_module = _require_module("lemonade.llm")
+
+        message = llm_module.content_to_message(
+            ToolResultContent(
+                SimpleNamespace(
+                    tool_name="HassTurnOn",
+                    result={"ok": True},
+                ),
+                tool_call_id="call-1",
+            )
+        )
+
+        self.assertEqual(
+            {
+                "role": "tool",
+                "content": '{"ok": true}',
+                "tool_call_id": "call-1",
+                "name": "HassTurnOn",
+            },
+            message,
+        )
+
+    def test_llm_response_to_delta_returns_single_chat_log_delta(self) -> None:
+        from homeassistant.helpers.llm import ToolInput
+
+        llm_module = _require_module("lemonade.llm")
+
+        delta = llm_module.response_to_delta(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": "Done",
+                            "tool_calls": [
+                                {
+                                    "id": "call-1",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "HassTurnOn",
+                                        "arguments": '{"entity_id": "light.kitchen"}',
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ]
+            }
+        )
+
+        self.assertEqual(
+            {
+                "content": "Done",
+                "tool_calls": [
+                    ToolInput(
+                        id="call-1",
+                        tool_name="HassTurnOn",
+                        tool_args={"entity_id": "light.kitchen"},
+                    )
+                ],
+            },
+            delta,
+        )
+
+    async def test_llm_handle_chat_log_adds_response_delta_and_passes_tools(self) -> None:
+        from homeassistant.components.conversation import SystemContent, UserContent
+        from homeassistant.helpers.llm import ToolInput
+
+        llm_module = _require_module("lemonade.llm")
+
+        class Client:
+            def __init__(self) -> None:
+                self.calls: list[dict[str, Any]] = []
+
+            async def chat_completion(self, **kwargs: Any) -> dict[str, Any]:
+                self.calls.append(kwargs)
+                return {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "Done",
+                                "tool_calls": [
+                                    {
+                                        "id": "call-1",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "HassTurnOn",
+                                            "arguments": '{"entity_id": "light.kitchen"}',
+                                        },
+                                    }
+                                ],
+                            }
+                        }
+                    ]
+                }
+
+        class ChatLog:
+            def __init__(self) -> None:
+                self.content = [SystemContent("You are helpful"), UserContent("Hi")]
+                self.llm_api = SimpleNamespace(
+                    tools=[
+                        SimpleNamespace(
+                            name="HassTurnOn",
+                            description=None,
+                            parameters={"type": "object"},
+                        )
+                    ],
+                    custom_serializer="serializer",
+                )
+                self.unresponded_tool_results: list[Any] = []
+                self.deltas: list[dict[str, Any]] = []
+                self.agent_ids: list[str] = []
+
+            async def async_add_delta_content_stream(
+                self, agent_id: str, stream: Any
+            ) -> None:
+                self.agent_ids.append(agent_id)
+                async for delta in stream:
+                    self.deltas.append(delta)
+
+        client = Client()
+        chat_log = ChatLog()
+
+        await llm_module.async_handle_chat_log(
+            "conversation.lemonade",
+            client,
+            "chat-model",
+            chat_log,
+            structure={"type": "json_object"},
+        )
+
+        self.assertEqual(["conversation.lemonade"], chat_log.agent_ids)
+        self.assertEqual("chat-model", client.calls[0]["model"])
+        self.assertEqual(
+            [
+                {"role": "system", "content": "You are helpful"},
+                {"role": "user", "content": "Hi"},
+            ],
+            client.calls[0]["messages"],
+        )
+        self.assertEqual(
+            [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "HassTurnOn",
+                        "parameters": {
+                            "schema": {"type": "object"},
+                            "custom_serializer": "serializer",
+                        },
+                    },
+                }
+            ],
+            client.calls[0]["tools"],
+        )
+        self.assertEqual({"type": "json_object"}, client.calls[0]["response_format"])
+        self.assertEqual(
+            [
+                {
+                    "content": "Done",
+                    "tool_calls": [
+                        ToolInput(
+                            id="call-1",
+                            tool_name="HassTurnOn",
+                            tool_args={"entity_id": "light.kitchen"},
+                        )
+                    ],
+                }
+            ],
+            chat_log.deltas,
+        )
+
+    async def test_conversation_platform_adds_only_conversation_subentries(self) -> None:
+        conversation_module = _require_module("lemonade.conversation")
+        entry = SimpleNamespace(
+            subentries={
+                "conv-1": SimpleNamespace(
+                    subentry_id="conv-1",
+                    subentry_type=SUBENTRY_TYPE_CONVERSATION,
+                    data={},
+                ),
+                "task-1": SimpleNamespace(
+                    subentry_id="task-1",
+                    subentry_type=SUBENTRY_TYPE_AI_TASK,
+                    data={},
+                ),
+            }
+        )
+        calls: list[tuple[list[Any], dict[str, Any]]] = []
+
+        def add_entities(entities: list[Any], **kwargs: Any) -> None:
+            calls.append((entities, kwargs))
+
+        await conversation_module.async_setup_entry(FakeHass(), entry, add_entities)
+
+        self.assertEqual(1, len(calls))
+        self.assertEqual({"config_subentry_id": "conv-1"}, calls[0][1])
+        entity = calls[0][0][0]
+        self.assertIsInstance(entity, conversation_module.LemonadeConversationEntity)
+        self.assertEqual("conv-1", entity._attr_unique_id)
+        self.assertIsNone(entity._attr_name)
+        self.assertTrue(entity._attr_has_entity_name)
+        self.assertFalse(entity._attr_supports_streaming)
+
+    async def test_conversation_entity_handles_message_with_resolved_model(self) -> None:
+        from homeassistant.components import conversation
+
+        conversation_module = _require_module("lemonade.conversation")
+
+        class Client:
+            def __init__(self) -> None:
+                self.models: list[str] = []
+
+            async def chat_completion(self, **kwargs: Any) -> dict[str, Any]:
+                self.models.append(kwargs["model"])
+                return {"choices": [{"message": {"content": "Hello"}}]}
+
+        class ChatLog:
+            def __init__(self) -> None:
+                self.content = []
+                self.llm_api = None
+                self.unresponded_tool_results: list[Any] = []
+                self.provided: list[tuple[Any, Any, Any, Any]] = []
+                self.deltas: list[dict[str, Any]] = []
+
+            async def async_provide_llm_data(self, *args: Any) -> None:
+                self.provided.append(args)
+
+            async def async_add_delta_content_stream(
+                self, agent_id: str, stream: Any
+            ) -> None:
+                async for delta in stream:
+                    self.deltas.append(delta)
+
+        client = Client()
+        entry = SimpleNamespace(
+            options={CONF_DEFAULT_CONVERSATION_MODEL: "entry-chat"},
+            runtime_data=SimpleNamespace(
+                client=client,
+                coordinator=SimpleNamespace(
+                    catalog=FakeCatalog({CAPABILITY_CONVERSATION: ["catalog-chat"]})
+                ),
+            ),
+        )
+        subentry = SimpleNamespace(
+            subentry_id="conv-1",
+            data={
+                CONF_LLM_HASS_API: ["assist"],
+                CONF_PROMPT: "Be helpful",
+            },
+        )
+        entity = conversation_module.LemonadeConversationEntity(entry, subentry)
+        entity.hass = FakeHass()
+        entity.entity_id = "conversation.lemonade"
+        chat_log = ChatLog()
+        user_input = SimpleNamespace(
+            conversation_id="abc",
+            extra_system_prompt="extra",
+            as_llm_context=lambda domain: {"domain": domain},
+        )
+
+        self.assertEqual(
+            conversation.ConversationEntityFeature.CONTROL,
+            entity._attr_supported_features,
+        )
+        self.assertEqual(conversation.MATCH_ALL, entity.supported_languages)
+
+        await entity.async_added_to_hass()
+        await entity.async_will_remove_from_hass()
+        result = await entity._async_handle_message(user_input, chat_log)
+
+        self.assertEqual([(entry, entity)], entity.hass.set_agents)
+        self.assertEqual([entry], entity.hass.unset_agents)
+        self.assertEqual(["entry-chat"], client.models)
+        self.assertEqual(
+            [({"domain": DOMAIN}, ["assist"], "Be helpful", "extra")],
+            chat_log.provided,
+        )
+        self.assertEqual(
+            {"conversation_id": "abc", "deltas": [{"content": "Hello"}]},
+            result,
+        )
+
+        subentry.data[CONF_MODEL] = "profile-chat"
+        await entity._async_handle_message(user_input, ChatLog())
+        self.assertEqual("profile-chat", client.models[-1])
+
+    async def test_conversation_entity_errors_when_no_model_is_available(self) -> None:
+        from homeassistant.exceptions import HomeAssistantError
+
+        conversation_module = _require_module("lemonade.conversation")
+        entry = SimpleNamespace(
+            options={},
+            runtime_data=SimpleNamespace(
+                client=object(),
+                coordinator=SimpleNamespace(catalog=FakeCatalog({CAPABILITY_CONVERSATION: []})),
+            ),
+        )
+        entity = conversation_module.LemonadeConversationEntity(
+            entry, SimpleNamespace(subentry_id="conv-1", data={})
+        )
+
+        with self.assertRaisesRegex(
+            HomeAssistantError, "No Lemonade conversation model is available"
+        ):
+            await entity._async_handle_message(SimpleNamespace(), SimpleNamespace())
 
     async def test_coordinator_refreshes_health_models_and_catalog(self) -> None:
         from lemonade.coordinator import LemonadeCoordinator

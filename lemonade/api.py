@@ -121,6 +121,8 @@ class LemonadeClient:
         messages: list[dict[str, Any]],
         temperature: float | None = None,
         max_tokens: int | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        response_format: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Create a chat completion."""
         payload: dict[str, Any] = {
@@ -132,6 +134,10 @@ class LemonadeClient:
             payload["temperature"] = temperature
         if max_tokens is not None:
             payload["max_tokens"] = max_tokens
+        if tools is not None:
+            payload["tools"] = tools
+        if response_format is not None:
+            payload["response_format"] = response_format
         return await self._request_json("POST", ENDPOINT_CHAT, json=payload)
 
     async def generate_image(
