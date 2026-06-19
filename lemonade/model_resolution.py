@@ -4,45 +4,62 @@ from __future__ import annotations
 
 from typing import Any
 
+from .models import Capability, ModelId
+
 
 def _model_id(value: Any) -> str | None:
     """Return a non-empty model ID."""
-    if isinstance(value, str) and value:
-        return value
-    return None
+    model_id = ModelId.parse(value)
+    return str(model_id) if model_id is not None else None
 
 
-def catalog_model_ids(catalog: Any, capability: str) -> list[str]:
+def _capability(value: Any) -> Capability | None:
+    """Return a known model capability."""
+    return Capability.parse(value)
+
+
+def catalog_model_ids(catalog: Any, capability: Capability | str) -> list[str]:
     """Return catalog model IDs for a capability."""
+    parsed_capability = _capability(capability)
+    if parsed_capability is None:
+        return []
+
     if hasattr(catalog, "model_ids"):
         return [
-            model_id
-            for model_id in catalog.model_ids(capability)
-            if isinstance(model_id, str) and model_id
+            str(model_id)
+            for model_id in (
+                ModelId.parse(model_id)
+                for model_id in catalog.model_ids(parsed_capability)
+            )
+            if model_id is not None
         ]
     if hasattr(catalog, "models_for"):
         return [
             model_id
-            for model in catalog.models_for(capability)
+            for model in catalog.models_for(parsed_capability)
             if (model_id := _model_id(getattr(model, "id", None))) is not None
         ]
     return []
 
 
-def first_catalog_model_id(catalog: Any, capability: str) -> str | None:
+def first_catalog_model_id(catalog: Any, capability: Capability | str) -> str | None:
     """Return the first compatible model ID for a capability."""
+    parsed_capability = _capability(capability)
+    if parsed_capability is None:
+        return None
+
     if hasattr(catalog, "first_model_id"):
-        model = _model_id(catalog.first_model_id(capability))
+        model = _model_id(catalog.first_model_id(parsed_capability))
         if model is not None:
             return model
 
-    model_ids = catalog_model_ids(catalog, capability)
+    model_ids = catalog_model_ids(catalog, parsed_capability)
     return model_ids[0] if model_ids else None
 
 
 def resolve_model(
     catalog: Any,
-    capability: str,
+    capability: Capability | str,
     *,
     explicit_model: Any = None,
     profile_model: Any = None,
@@ -57,7 +74,7 @@ def resolve_model(
 
 def resolve_entry_model(
     entry: Any,
-    capability: str,
+    capability: Capability | str,
     *,
     explicit_model: Any = None,
     profile_model: Any = None,

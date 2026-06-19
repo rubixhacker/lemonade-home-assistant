@@ -5,11 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components import conversation
-from homeassistant.const import CONF_MODEL
-try:
-    from homeassistant.const import CONF_PROMPT
-except ImportError:  # pragma: no cover - older Home Assistant compatibility
-    CONF_PROMPT = "prompt"
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
@@ -18,7 +13,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import (
     CAPABILITY_CONVERSATION,
     CONF_DEFAULT_CONVERSATION_MODEL,
-    CONF_LLM_HASS_API,
     DOMAIN,
     SUBENTRY_TYPE_CONVERSATION,
 )
@@ -26,7 +20,12 @@ from .data import LemonadeConfigEntry
 from .errors import LEMONADE_CLIENT_EXCEPTIONS, lemonade_home_assistant_error
 from .llm import async_handle_chat_log
 from .model_resolution import resolve_entry_model
-from .profiles import async_add_profile_entity, profile_data, profile_subentries
+from .profiles import (
+    ConversationProfile,
+    async_add_profile_entity,
+    parse_profile,
+    profile_subentries,
+)
 
 
 async def async_setup_entry(
@@ -70,15 +69,24 @@ class LemonadeConversationEntity(
                 entry_type=DeviceEntryType.SERVICE,
             )
 
-        if profile_data(subentry).get(CONF_LLM_HASS_API):
-            self._attr_supported_features = (
-                conversation.ConversationEntityFeature.CONTROL
-            )
-
     @property
     def supported_languages(self) -> Any:
         """Return supported languages for the conversation agent."""
         return conversation.MATCH_ALL
+
+    @property
+    def profile(self) -> ConversationProfile:
+        """Return the current parsed conversation profile."""
+        profile = parse_profile(self.subentry, SUBENTRY_TYPE_CONVERSATION)
+        assert isinstance(profile, ConversationProfile)
+        return profile
+
+    @property
+    def supported_features(self) -> Any:
+        """Return supported features for the current conversation profile."""
+        if self.profile.hass_api:
+            return conversation.ConversationEntityFeature.CONTROL
+        return 0
 
     async def async_added_to_hass(self) -> None:
         """Register this entity as the conversation agent for the entry."""
@@ -94,11 +102,10 @@ class LemonadeConversationEntity(
 
     def _resolve_model(self) -> str:
         """Return the model configured for this conversation profile."""
-        data = profile_data(self.subentry)
         model = resolve_entry_model(
             self.entry,
             CAPABILITY_CONVERSATION,
-            profile_model=data.get(CONF_MODEL),
+            profile_model=self.profile.model,
             default_option=CONF_DEFAULT_CONVERSATION_MODEL,
         )
         if model is not None:
@@ -110,11 +117,10 @@ class LemonadeConversationEntity(
         """Process a conversation message using Lemonade."""
         try:
             model = self._resolve_model()
-            data = profile_data(self.subentry)
             await chat_log.async_provide_llm_data(
                 user_input.as_llm_context(DOMAIN),
-                data.get(CONF_LLM_HASS_API),
-                data.get(CONF_PROMPT),
+                self.profile.hass_api,
+                self.profile.prompt,
                 user_input.extra_system_prompt,
             )
             try:

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterable, AsyncIterator, Iterable, Mapping
 import base64
+from dataclasses import dataclass
 import inspect
 import json
+from types import MappingProxyType
 from typing import Any
 
 from homeassistant.components import conversation
@@ -37,6 +39,69 @@ MAX_TOOL_ITERATIONS = 10
 
 
 _IMAGES_MIME_PREFIX = "image/"
+
+
+@dataclass(frozen=True)
+class ImagePart:
+    """Normalized image attachment content for LLM messages."""
+
+    mime_type: str
+    url: str
+
+
+@dataclass(frozen=True)
+class ToolCall:
+    """Normalized tool call parsed from HA or OpenAI interop shapes."""
+
+    id: str | None
+    name: str
+    arguments: Any
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "arguments", _deep_freeze(self.arguments))
+
+
+@dataclass(frozen=True)
+class ToolResult:
+    """Normalized tool result parsed from HA interop shapes."""
+
+    value: Any
+    tool_call_id: str | None = None
+    name: str | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "value", _deep_freeze(self.value))
+
+
+@dataclass(frozen=True)
+class Message:
+    """Normalized conversation message parsed from HA interop shapes."""
+
+    role: str
+    content: str | None = None
+    parts: tuple[ImagePart, ...] = ()
+    tool_calls: tuple[ToolCall, ...] = ()
+    tool_result: ToolResult | None = None
+
+
+def _deep_freeze(value: Any) -> Any:
+    """Return an immutable copy of nested JSON-like interop payloads."""
+    if isinstance(value, Mapping):
+        return MappingProxyType(
+            {key: _deep_freeze(item) for key, item in value.items()}
+        )
+    if isinstance(value, (list, tuple)):
+        return tuple(_deep_freeze(item) for item in value)
+    return value
+
+
+def _jsonable_value(value: Any) -> Any:
+    """Return a JSON-serializable copy of normalized payload values."""
+    if isinstance(value, Mapping):
+        return {key: _jsonable_value(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_jsonable_value(item) for item in value]
+    return value
 
 
 def _value(obj: Any, *names: str, default: Any = None) -> Any:
@@ -114,29 +179,48 @@ def _image_url_from_attachment(attachment: Any, mime_type: str) -> str:
     raise HomeAssistantError("Unsupported image attachment: missing image data")
 
 
-def _attachment_to_content_part(attachment: Any) -> dict[str, Any]:
-    """Convert a user attachment into an OpenAI content part."""
+def _image_part_from_attachment(attachment: Any) -> ImagePart:
+    """Parse a user attachment into a normalized image part."""
     mime_type = _attachment_mime_type(attachment)
     if not mime_type.startswith(_IMAGES_MIME_PREFIX):
         raise HomeAssistantError(f"Unsupported attachment type: {mime_type or 'unknown'}")
-    return {
-        "type": "image_url",
-        "image_url": {"url": _image_url_from_attachment(attachment, mime_type)},
-    }
+    return ImagePart(
+        mime_type=mime_type,
+        url=_image_url_from_attachment(attachment, mime_type),
+    )
 
 
-def _extract_tool_call(tool_call: Any) -> tuple[str | None, str | None, Any]:
-    """Return an OpenAI/HA tool call's id, name, and arguments."""
+def _image_part_to_openai(image_part: ImagePart) -> dict[str, Any]:
+    """Convert a normalized image part into an OpenAI content part."""
+    return {"type": "image_url", "image_url": {"url": image_part.url}}
+
+
+def _attachment_to_content_part(attachment: Any) -> dict[str, Any]:
+    """Convert a user attachment into an OpenAI content part."""
+    return _image_part_to_openai(_image_part_from_attachment(attachment))
+
+
+def _tool_call_record_from_interop(tool_call: Any) -> ToolCall:
+    """Parse an OpenAI/HA tool call into a normalized record."""
     tool_call_id = _value(tool_call, "id", "tool_call_id")
     function = _value(tool_call, "function")
     if function is not None:
         name = _value(function, "name")
         arguments = _value(function, "arguments", "args", "tool_args", default={})
-        return tool_call_id, name, arguments
+        return ToolCall(tool_call_id, name or "", arguments)
 
     name = _value(tool_call, "name", "tool_name")
     arguments = _value(tool_call, "arguments", "args", "tool_args", "input", default={})
-    return tool_call_id, name, arguments
+    return ToolCall(tool_call_id, name or "", arguments)
+
+
+def _extract_tool_call(tool_call: Any) -> tuple[str | None, str | None, Any]:
+    """Return an OpenAI/HA tool call's id, name, and arguments."""
+    parsed = (
+        tool_call if isinstance(tool_call, ToolCall)
+        else _tool_call_record_from_interop(tool_call)
+    )
+    return parsed.id, parsed.name, parsed.arguments
 
 
 def _arguments_to_json(arguments: Any) -> str:
@@ -145,21 +229,24 @@ def _arguments_to_json(arguments: Any) -> str:
         return arguments
     if arguments is None:
         arguments = {}
-    return json_dumps(arguments)
+    return json_dumps(_jsonable_value(arguments))
 
 
 def _tool_call_to_openai(tool_call: Any) -> dict[str, Any]:
     """Convert a Home Assistant tool call to an OpenAI tool_call object."""
-    tool_call_id, name, arguments = _extract_tool_call(tool_call)
+    parsed = (
+        tool_call if isinstance(tool_call, ToolCall)
+        else _tool_call_record_from_interop(tool_call)
+    )
     converted = {
         "type": "function",
         "function": {
-            "name": name or "",
-            "arguments": _arguments_to_json(arguments),
+            "name": parsed.name,
+            "arguments": _arguments_to_json(parsed.arguments),
         },
     }
-    if tool_call_id:
-        converted["id"] = tool_call_id
+    if parsed.id:
+        converted["id"] = parsed.id
     return converted
 
 
@@ -172,7 +259,7 @@ def _arguments_to_dict(arguments: Any) -> dict[str, Any]:
             return {"arguments": arguments}
         return loaded if isinstance(loaded, dict) else {"value": loaded}
     if isinstance(arguments, Mapping):
-        return dict(arguments)
+        return _jsonable_value(arguments)
     if arguments is None:
         return {}
     return {"value": arguments}
@@ -180,16 +267,19 @@ def _arguments_to_dict(arguments: Any) -> dict[str, Any]:
 
 def _tool_call_to_tool_input(tool_call: Any) -> Any:
     """Convert an OpenAI tool_call object to a Home Assistant ToolInput."""
-    tool_call_id, name, arguments = _extract_tool_call(tool_call)
-    tool_args = _arguments_to_dict(arguments)
-    tool_name = name or ""
+    parsed = (
+        tool_call if isinstance(tool_call, ToolCall)
+        else _tool_call_record_from_interop(tool_call)
+    )
+    tool_args = _arguments_to_dict(parsed.arguments)
+    tool_name = parsed.name
 
     tool_input = getattr(hass_llm, "ToolInput", None)
     if tool_input is None:
-        return {"id": tool_call_id, "tool_name": tool_name, "tool_args": tool_args}
+        return {"id": parsed.id, "tool_name": tool_name, "tool_args": tool_args}
 
     try:
-        return tool_input(id=tool_call_id, tool_name=tool_name, tool_args=tool_args)
+        return tool_input(id=parsed.id, tool_name=tool_name, tool_args=tool_args)
     except TypeError:
         try:
             return tool_input(tool_name=tool_name, tool_args=tool_args)
@@ -197,59 +287,104 @@ def _tool_call_to_tool_input(tool_call: Any) -> Any:
             return tool_input(tool_name, tool_args)
 
 
-def content_to_message(content: Any) -> dict[str, Any]:
-    """Convert Home Assistant conversation content to an OpenAI message."""
+def _content_to_message_record(content: Any) -> Message:
+    """Parse Home Assistant conversation content into a normalized message."""
     if _is_content(content, SystemContent, "SystemContent"):
-        return {"role": "system", "content": _value(content, "content", default="")}
+        return Message("system", content=_value(content, "content", default=""))
 
     if _is_content(content, UserContent, "UserContent"):
         text = _value(content, "content", default="")
         attachments = _value(content, "attachments", default=None) or []
-        if not attachments:
-            return {"role": "user", "content": text}
-
-        parts: list[dict[str, Any]] = []
-        if text:
-            parts.append({"type": "text", "text": text})
-        parts.extend(_attachment_to_content_part(attachment) for attachment in attachments)
-        return {"role": "user", "content": parts}
+        return Message(
+            "user",
+            content=text,
+            parts=tuple(
+                _image_part_from_attachment(attachment) for attachment in attachments
+            ),
+        )
 
     if _is_content(content, AssistantContent, "AssistantContent"):
         assistant_content = _value(content, "content")
         tool_calls = _value(content, "tool_calls", default=None) or []
-        message: dict[str, Any] = {
-            "role": "assistant",
-            "content": (
-                ""
-                if assistant_content is None and not tool_calls
-                else assistant_content
+        return Message(
+            "assistant",
+            content=assistant_content,
+            tool_calls=tuple(
+                _tool_call_record_from_interop(tool_call) for tool_call in tool_calls
             ),
-        }
-        if tool_calls:
-            message["tool_calls"] = [
-                _tool_call_to_openai(tool_call) for tool_call in tool_calls
-            ]
-        return message
+        )
 
     if _is_content(content, ToolResultContent, "ToolResultContent"):
         tool_result = _value(
             content, "tool_result", "result", "content", default=None
         )
-        message = {
-            "role": "tool",
-            "content": json_dumps(_tool_result_json_value(tool_result)),
-        }
-        tool_call_id = _attribute_value(content, "tool_call_id", "id")
-        if tool_call_id:
-            message["tool_call_id"] = tool_call_id
-        name = _attribute_value(content, "tool_name", "name")
-        if name:
-            message["name"] = name
-        return message
+        return Message(
+            "tool",
+            tool_result=ToolResult(
+                _tool_result_json_value(tool_result),
+                tool_call_id=_attribute_value(content, "tool_call_id", "id"),
+                name=_attribute_value(content, "tool_name", "name"),
+            ),
+        )
 
     raise HomeAssistantError(
         f"Unsupported conversation content: {content.__class__.__name__}"
     )
+
+
+def _message_record_to_openai(message: Message) -> dict[str, Any]:
+    """Convert a normalized message into an OpenAI message."""
+    if message.role == "system":
+        return {
+            "role": "system",
+            "content": message.content if message.content is not None else "",
+        }
+
+    if message.role == "user":
+        if not message.parts:
+            return {
+                "role": "user",
+                "content": message.content if message.content is not None else "",
+            }
+
+        parts: list[dict[str, Any]] = []
+        if message.content:
+            parts.append({"type": "text", "text": message.content})
+        parts.extend(_image_part_to_openai(image_part) for image_part in message.parts)
+        return {"role": "user", "content": parts}
+
+    if message.role == "assistant":
+        converted: dict[str, Any] = {
+            "role": "assistant",
+            "content": (
+                ""
+                if message.content is None and not message.tool_calls
+                else message.content
+            ),
+        }
+        if message.tool_calls:
+            converted["tool_calls"] = [
+                _tool_call_to_openai(tool_call) for tool_call in message.tool_calls
+            ]
+        return converted
+
+    if message.role == "tool" and message.tool_result is not None:
+        converted = {
+            "role": "tool",
+            "content": json_dumps(_jsonable_value(message.tool_result.value)),
+        }
+        if message.tool_result.tool_call_id:
+            converted["tool_call_id"] = message.tool_result.tool_call_id
+        if message.tool_result.name:
+            converted["name"] = message.tool_result.name
+        return converted
+
+    raise HomeAssistantError(f"Unsupported normalized message role: {message.role}")
+
+
+def content_to_message(content: Any) -> dict[str, Any]:
+    """Convert Home Assistant conversation content to an OpenAI message."""
+    return _message_record_to_openai(_content_to_message_record(content))
 
 
 def _response_message(response: Mapping[str, Any]) -> Mapping[str, Any] | None:
@@ -279,8 +414,11 @@ def response_to_delta(
 
     tool_calls = message.get("tool_calls")
     if isinstance(tool_calls, list) and tool_calls:
+        parsed_tool_calls = [
+            _tool_call_record_from_interop(tool_call) for tool_call in tool_calls
+        ]
         delta["tool_calls"] = [
-            _tool_call_to_tool_input(tool_call) for tool_call in tool_calls
+            _tool_call_to_tool_input(tool_call) for tool_call in parsed_tool_calls
         ]
 
     return delta or None

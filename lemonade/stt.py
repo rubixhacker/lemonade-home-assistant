@@ -14,6 +14,7 @@ from .const import CAPABILITY_STT, CONF_DEFAULT_STT_MODEL
 from .data import LemonadeConfigEntry
 from .errors import LEMONADE_CLIENT_EXCEPTIONS
 from .model_resolution import resolve_entry_model
+from .transcription import parse_transcription_result
 
 _LOGGER = logging.getLogger(__name__)
 _STT_TRANSCRIPTION_EXCEPTIONS = (*LEMONADE_CLIENT_EXCEPTIONS, KeyError, TypeError)
@@ -108,11 +109,9 @@ class LemonadeSTTEntity(stt.SpeechToTextEntity):
                 model=model,
                 language=getattr(metadata, "language", None),
             )
-            text = response["text"]
-            if not isinstance(text, str):
-                raise TypeError("Lemonade transcription response missing valid text")
+            result = parse_transcription_result(response)
         except _STT_TRANSCRIPTION_EXCEPTIONS as err:
             _LOGGER.error("Error transcribing audio with Lemonade: %s", err)
             return _error_result()
 
-        return stt.SpeechResult(text, stt.SpeechResultState.SUCCESS)
+        return stt.SpeechResult(result.text, stt.SpeechResultState.SUCCESS)

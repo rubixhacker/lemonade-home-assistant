@@ -3,16 +3,58 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 import inspect
 from types import MappingProxyType
 from typing import Any
 
+from homeassistant.const import CONF_MODEL
+try:
+    from homeassistant.const import CONF_PROMPT
+except ImportError:  # pragma: no cover - older Home Assistant compatibility
+    CONF_PROMPT = "prompt"
+
 from .const import (
     CAPABILITY_AI_TASK,
     CAPABILITY_CONVERSATION,
+    CONF_LLM_HASS_API,
     SUBENTRY_TYPE_AI_TASK,
     SUBENTRY_TYPE_CONVERSATION,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class ConversationProfile:
+    """Parsed conversation profile subentry data."""
+
+    id: str | None
+    profile_type: str
+    model: Any = None
+    prompt: Any = None
+    hass_api: Any = None
+
+
+@dataclass(frozen=True, slots=True)
+class AITaskProfile:
+    """Parsed AI task profile subentry data."""
+
+    id: str | None
+    profile_type: str
+    model: Any = None
+    prompt: Any = None
+
+
+@dataclass(frozen=True, slots=True)
+class UnknownProfile:
+    """Parsed profile wrapper for unsupported subentry types."""
+
+    id: str | None
+    profile_type: str | None
+    data: Mapping[str, Any]
+
+
+Profile = ConversationProfile | AITaskProfile | UnknownProfile
+
 
 PROFILE_CAPABILITY_BY_SUBENTRY_TYPE = MappingProxyType(
     {
@@ -33,6 +75,33 @@ def profile_data(subentry: Any) -> dict[str, Any]:
     if isinstance(data, Mapping):
         return dict(data)
     return {}
+
+
+def parse_profile(subentry: Any, profile_type: str | None = None) -> Profile:
+    """Parse a Home Assistant profile subentry into a typed profile record."""
+    data = profile_data(subentry)
+    resolved_profile_type = profile_type or getattr(subentry, "subentry_type", None)
+    profile_id = getattr(subentry, "subentry_id", None)
+    if resolved_profile_type == SUBENTRY_TYPE_CONVERSATION:
+        return ConversationProfile(
+            id=profile_id,
+            profile_type=SUBENTRY_TYPE_CONVERSATION,
+            model=data.get(CONF_MODEL),
+            prompt=data.get(CONF_PROMPT),
+            hass_api=data.get(CONF_LLM_HASS_API),
+        )
+    if resolved_profile_type == SUBENTRY_TYPE_AI_TASK:
+        return AITaskProfile(
+            id=profile_id,
+            profile_type=SUBENTRY_TYPE_AI_TASK,
+            model=data.get(CONF_MODEL),
+            prompt=data.get(CONF_PROMPT),
+        )
+    return UnknownProfile(
+        id=profile_id,
+        profile_type=resolved_profile_type,
+        data=MappingProxyType(data),
+    )
 
 
 def profile_subentries(entry: Any, profile_type: str) -> list[Any]:

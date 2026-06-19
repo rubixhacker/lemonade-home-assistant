@@ -179,6 +179,8 @@ from lemonade.const import (  # noqa: E402
     CAPABILITY_TTS,
     CAPABILITY_VISION,
 )
+import lemonade.models as lemonade_models  # noqa: E402
+from lemonade.model_resolution import catalog_model_ids, resolve_model  # noqa: E402
 from lemonade.models import parse_models_response  # noqa: E402
 
 
@@ -207,6 +209,71 @@ SAMPLE_MODELS = [
 
 
 class ParseModelsResponseTest(unittest.TestCase):
+    def test_capability_is_closed_and_string_compatible(self) -> None:
+        self.assertTrue(hasattr(lemonade_models, "Capability"))
+        Capability = lemonade_models.Capability
+
+        self.assertIsInstance(Capability.CONVERSATION, str)
+        self.assertEqual(CAPABILITY_CONVERSATION, Capability.CONVERSATION)
+
+        with self.assertRaises(ValueError):
+            Capability("not_a_capability")
+
+    def test_model_id_rejects_blank_values_at_boundary(self) -> None:
+        self.assertTrue(hasattr(lemonade_models, "ModelId"))
+        ModelId = lemonade_models.ModelId
+
+        with self.assertRaises(ValueError):
+            ModelId("")
+        with self.assertRaises(ValueError):
+            ModelId("   ")
+
+        self.assertIsNone(ModelId.parse(""))
+        self.assertIsNone(ModelId.parse("   "))
+        self.assertEqual(ModelId("chat-model"), ModelId.parse(" chat-model "))
+
+    def test_catalog_keeps_typed_model_ids_internal_and_strings_external(self) -> None:
+        self.assertTrue(hasattr(lemonade_models, "Capability"))
+        self.assertTrue(hasattr(lemonade_models, "ModelId"))
+        Capability = lemonade_models.Capability
+        ModelId = lemonade_models.ModelId
+
+        catalog = parse_models_response(
+            {
+                "data": [
+                    {
+                        "id": " chat-model ",
+                        "recipe": "llamacpp",
+                        "labels": [],
+                    }
+                ]
+            }
+        )
+
+        self.assertEqual(ModelId("chat-model"), catalog.models[0].id)
+        self.assertEqual(["chat-model"], catalog.all_model_ids)
+        self.assertEqual(["chat-model"], catalog.model_ids(Capability.CONVERSATION))
+        self.assertEqual("chat-model", catalog.first_model_id(Capability.CONVERSATION))
+
+    def test_model_resolution_accepts_typed_and_legacy_capabilities(self) -> None:
+        self.assertTrue(hasattr(lemonade_models, "Capability"))
+        Capability = lemonade_models.Capability
+
+        catalog = parse_models_response({"data": SAMPLE_MODELS})
+
+        self.assertEqual(
+            ["Bonsai-8B-gguf", "Qwen3.6-27B-GGUF"],
+            catalog_model_ids(catalog, Capability.CONVERSATION),
+        )
+        self.assertEqual(
+            "Bonsai-8B-gguf",
+            resolve_model(catalog, Capability.CONVERSATION),
+        )
+        self.assertEqual(
+            ["Bonsai-8B-gguf", "Qwen3.6-27B-GGUF"],
+            catalog_model_ids(catalog, CAPABILITY_CONVERSATION),
+        )
+
     def test_maps_downloaded_models_to_capabilities(self) -> None:
         catalog = parse_models_response({"data": SAMPLE_MODELS})
 

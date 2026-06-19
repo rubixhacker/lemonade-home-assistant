@@ -7,7 +7,6 @@ from collections.abc import Mapping
 from typing import Any
 
 from homeassistant.components import ai_task
-from homeassistant.const import CONF_MODEL
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
@@ -30,7 +29,12 @@ from .errors import LEMONADE_CLIENT_EXCEPTIONS, lemonade_home_assistant_error
 from .image_result import decode_image_result
 from .llm import async_handle_chat_log
 from .model_resolution import catalog_model_ids, resolve_entry_model
-from .profiles import async_add_profile_entity, profile_data, profile_subentries
+from .profiles import (
+    AITaskProfile,
+    async_add_profile_entity,
+    parse_profile,
+    profile_subentries,
+)
 
 
 async def async_setup_entry(
@@ -100,13 +104,19 @@ class LemonadeAITaskEntity(ai_task.AITaskEntity):
                 entry_type=DeviceEntryType.SERVICE,
             )
 
+    @property
+    def profile(self) -> AITaskProfile:
+        """Return the current parsed AI task profile."""
+        profile = parse_profile(self.subentry, SUBENTRY_TYPE_AI_TASK)
+        assert isinstance(profile, AITaskProfile)
+        return profile
+
     def _resolve_data_model(self) -> str:
         """Return the model configured for this AI task profile."""
-        data = profile_data(self.subentry)
         model = resolve_entry_model(
             self.entry,
             CAPABILITY_AI_TASK,
-            profile_model=data.get(CONF_MODEL),
+            profile_model=self.profile.model,
             default_option=CONF_DEFAULT_AI_TASK_MODEL,
         )
         if model is not None:

@@ -792,6 +792,72 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(CAPABILITY_AI_TASK, profile_capability(SUBENTRY_TYPE_AI_TASK))
         self.assertIsNone(profile_capability("unsupported"))
 
+    def test_parse_profile_returns_typed_immutable_profiles(self) -> None:
+        from dataclasses import FrozenInstanceError
+
+        from lemonade.profiles import (
+            AITaskProfile,
+            ConversationProfile,
+            UnknownProfile,
+            parse_profile,
+        )
+
+        conversation_subentry = SimpleNamespace(
+            subentry_id="conv-1",
+            subentry_type=SUBENTRY_TYPE_CONVERSATION,
+            data=MappingProxyType(
+                {
+                    CONF_MODEL: "chat-a",
+                    CONF_PROMPT: "Be helpful",
+                    CONF_LLM_HASS_API: "assist",
+                }
+            ),
+        )
+        ai_task_data = {
+            CONF_MODEL: "task-a",
+            CONF_PROMPT: "Return JSON",
+        }
+        ai_task_subentry = SimpleNamespace(
+            subentry_id="task-1",
+            subentry_type=SUBENTRY_TYPE_AI_TASK,
+            data=ai_task_data,
+        )
+
+        conversation_profile = parse_profile(conversation_subentry)
+        ai_task_profile = parse_profile(ai_task_subentry)
+        unknown_profile = parse_profile(
+            SimpleNamespace(
+                subentry_id="other-1",
+                subentry_type="unsupported",
+                data={CONF_MODEL: "other-model"},
+            )
+        )
+
+        self.assertIsInstance(conversation_profile, ConversationProfile)
+        self.assertEqual("conv-1", conversation_profile.id)
+        self.assertEqual(SUBENTRY_TYPE_CONVERSATION, conversation_profile.profile_type)
+        self.assertEqual("chat-a", conversation_profile.model)
+        self.assertEqual("Be helpful", conversation_profile.prompt)
+        self.assertEqual("assist", conversation_profile.hass_api)
+        with self.assertRaises(FrozenInstanceError):
+            conversation_profile.model = "chat-b"  # type: ignore[misc]
+
+        self.assertIsInstance(ai_task_profile, AITaskProfile)
+        self.assertEqual("task-1", ai_task_profile.id)
+        self.assertEqual(SUBENTRY_TYPE_AI_TASK, ai_task_profile.profile_type)
+        self.assertEqual("task-a", ai_task_profile.model)
+        self.assertEqual("Return JSON", ai_task_profile.prompt)
+        with self.assertRaises(FrozenInstanceError):
+            ai_task_profile.prompt = "Changed"  # type: ignore[misc]
+
+        ai_task_data[CONF_MODEL] = "changed-outside"
+        self.assertEqual("task-a", ai_task_profile.model)
+
+        self.assertIsInstance(unknown_profile, UnknownProfile)
+        self.assertEqual("other-1", unknown_profile.id)
+        self.assertEqual("unsupported", unknown_profile.profile_type)
+        self.assertEqual({CONF_MODEL: "other-model"}, dict(unknown_profile.data))
+
     async def test_async_add_profile_entity_preserves_subentry_compatibility(self) -> None:
         from lemonade.profiles import async_add_profile_entity
 
@@ -1357,6 +1423,140 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 )
             )
 
+    def test_llm_normalized_records_are_frozen(self) -> None:
+        from dataclasses import FrozenInstanceError
+
+        from homeassistant.components.conversation import AssistantContent, UserContent
+
+        llm_module = _require_module("lemonade.llm")
+
+        user_message = llm_module._content_to_message_record(
+            UserContent(
+                "Look",
+                attachments=[
+                    SimpleNamespace(mime_type="image/png", content=b"image-bytes")
+                ],
+            )
+        )
+        assistant_message = llm_module._content_to_message_record(
+            AssistantContent(
+                None,
+                tool_calls=[
+                    {
+                        "id": "call-1",
+                        "function": {
+                            "name": "HassTurnOn",
+                            "arguments": {"entity_id": "light.kitchen"},
+                        },
+                    }
+                ],
+            )
+        )
+
+        self.assertIsInstance(user_message, llm_module.Message)
+        self.assertEqual("user", user_message.role)
+        self.assertIsInstance(user_message.parts[0], llm_module.ImagePart)
+        with self.assertRaises(FrozenInstanceError):
+            user_message.role = "assistant"  # type: ignore[misc]
+        with self.assertRaises(FrozenInstanceError):
+            user_message.parts[0].url = "https://example/changed.png"  # type: ignore[misc]
+
+        self.assertIsInstance(assistant_message.tool_calls[0], llm_module.ToolCall)
+        self.assertEqual("call-1", assistant_message.tool_calls[0].id)
+        self.assertEqual("HassTurnOn", assistant_message.tool_calls[0].name)
+        self.assertEqual(
+            {"entity_id": "light.kitchen"},
+            dict(assistant_message.tool_calls[0].arguments),
+        )
+        with self.assertRaises(TypeError):
+            assistant_message.tool_calls[0].arguments["entity_id"] = "light.dining"
+
+    def test_llm_tool_records_deep_freeze_direct_constructor_payloads(self) -> None:
+        llm_module = _require_module("lemonade.llm")
+        arguments = {
+            "target": {"entity_id": "light.kitchen"},
+            "steps": [{"name": "turn_on"}],
+        }
+        result_value = {
+            "result": {"ok": True},
+            "events": [{"event": "service_called"}],
+        }
+
+        tool_call = llm_module.ToolCall("call-1", "HassTurnOn", arguments)
+        tool_result = llm_module.ToolResult(result_value, "call-1", "HassTurnOn")
+
+        arguments["target"]["entity_id"] = "light.dining"
+        arguments["steps"][0]["name"] = "turn_off"
+        result_value["result"]["ok"] = False
+        result_value["events"][0]["event"] = "changed"
+
+        self.assertEqual(
+            "light.kitchen",
+            tool_call.arguments["target"]["entity_id"],
+        )
+        self.assertEqual("turn_on", tool_call.arguments["steps"][0]["name"])
+        self.assertIs(True, tool_result.value["result"]["ok"])
+        self.assertEqual("service_called", tool_result.value["events"][0]["event"])
+
+        with self.assertRaises(TypeError):
+            tool_call.arguments["target"]["entity_id"] = "light.porch"
+        with self.assertRaises(AttributeError):
+            tool_call.arguments["steps"].append({"name": "toggle"})
+        with self.assertRaises(TypeError):
+            tool_result.value["result"]["ok"] = False
+        with self.assertRaises(AttributeError):
+            tool_result.value["events"].append({"event": "extra"})
+
+    def test_llm_content_to_message_converts_from_normalized_records(self) -> None:
+        from homeassistant.components.conversation import AssistantContent, UserContent
+
+        llm_module = _require_module("lemonade.llm")
+        seen_messages: list[Any] = []
+        original_converter = llm_module._message_record_to_openai
+
+        def record_converter(message: Any) -> dict[str, Any]:
+            seen_messages.append(message)
+            return original_converter(message)
+
+        llm_module._message_record_to_openai = record_converter
+        try:
+            image_message = llm_module.content_to_message(
+                UserContent(
+                    "Look",
+                    attachments=[
+                        SimpleNamespace(mime_type="image/png", content=b"image-bytes")
+                    ],
+                )
+            )
+            assistant_message = llm_module.content_to_message(
+                AssistantContent(
+                    "I will help",
+                    tool_calls=[
+                        SimpleNamespace(
+                            id="call-1",
+                            tool_name="HassTurnOn",
+                            tool_args={"entity_id": "light.kitchen"},
+                        )
+                    ],
+                )
+            )
+        finally:
+            llm_module._message_record_to_openai = original_converter
+
+        self.assertEqual(
+            "data:image/png;base64,aW1hZ2UtYnl0ZXM=",
+            image_message["content"][1]["image_url"]["url"],
+        )
+        self.assertEqual(
+            "HassTurnOn",
+            assistant_message["tool_calls"][0]["function"]["name"],
+        )
+        self.assertEqual(2, len(seen_messages))
+        self.assertIsInstance(seen_messages[0], llm_module.Message)
+        self.assertIsInstance(seen_messages[0].parts[0], llm_module.ImagePart)
+        self.assertIsInstance(seen_messages[1], llm_module.Message)
+        self.assertIsInstance(seen_messages[1].tool_calls[0], llm_module.ToolCall)
+
     def test_llm_converts_tool_result_object_payloads(self) -> None:
         from homeassistant.components.conversation import ToolResultContent
 
@@ -1414,28 +1614,39 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         from homeassistant.helpers.llm import ToolInput
 
         llm_module = _require_module("lemonade.llm")
+        seen_tool_calls: list[Any] = []
+        original_converter = llm_module._tool_call_to_tool_input
 
-        delta = llm_module.response_to_delta(
-            {
-                "choices": [
-                    {
-                        "message": {
-                            "content": "Done",
-                            "tool_calls": [
-                                {
-                                    "id": "call-1",
-                                    "type": "function",
-                                    "function": {
-                                        "name": "HassTurnOn",
-                                        "arguments": '{"entity_id": "light.kitchen"}',
-                                    },
-                                }
-                            ],
+        def record_converter(tool_call: Any) -> Any:
+            seen_tool_calls.append(tool_call)
+            return original_converter(tool_call)
+
+        llm_module._tool_call_to_tool_input = record_converter
+
+        try:
+            delta = llm_module.response_to_delta(
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "Done",
+                                "tool_calls": [
+                                    {
+                                        "id": "call-1",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "HassTurnOn",
+                                            "arguments": '{"entity_id": "light.kitchen"}',
+                                        },
+                                    }
+                                ],
+                            }
                         }
-                    }
-                ]
-            }
-        )
+                    ]
+                }
+            )
+        finally:
+            llm_module._tool_call_to_tool_input = original_converter
 
         self.assertEqual(
             {
@@ -1450,6 +1661,49 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             },
             delta,
         )
+        self.assertEqual(1, len(seen_tool_calls))
+        self.assertIsInstance(seen_tool_calls[0], llm_module.ToolCall)
+
+    def test_llm_response_to_delta_thaws_mapping_tool_arguments_for_ha(self) -> None:
+        llm_module = _require_module("lemonade.llm")
+
+        delta = llm_module.response_to_delta(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "tool_calls": [
+                                {
+                                    "id": "call-1",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "HassSequence",
+                                        "arguments": {
+                                            "steps": [
+                                                {
+                                                    "name": "one",
+                                                    "metadata": {"enabled": True},
+                                                }
+                                            ]
+                                        },
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        )
+
+        tool_args = delta["tool_calls"][0].tool_args
+        self.assertEqual(
+            {"steps": [{"name": "one", "metadata": {"enabled": True}}]},
+            tool_args,
+        )
+        self.assertIs(dict, type(tool_args))
+        self.assertIs(list, type(tool_args["steps"]))
+        self.assertIs(dict, type(tool_args["steps"][0]))
+        self.assertIs(dict, type(tool_args["steps"][0]["metadata"]))
 
     def test_llm_builds_chat_completion_payload_without_running_tool_loop(self) -> None:
         from homeassistant.components.conversation import SystemContent, UserContent
@@ -1808,10 +2062,14 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
         subentry = SimpleNamespace(
             subentry_id="task-1",
-            data={CONF_MODEL: "profile-task"},
+            subentry_type=SUBENTRY_TYPE_AI_TASK,
+            data={},
         )
         entity = ai_task_module.LemonadeAITaskEntity(entry, subentry)
+        self.assertIsNone(entity.profile.model)
         entity.entity_id = "ai_task.lemonade"
+        subentry.data[CONF_MODEL] = "profile-task"
+        self.assertEqual("profile-task", entity.profile.model)
 
         result = await entity._async_generate_data(
             SimpleNamespace(structure={"type": "json_object"}),
@@ -2367,14 +2625,25 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
         subentry = SimpleNamespace(
             subentry_id="conv-1",
-            data={
-                CONF_LLM_HASS_API: "assist",
-                CONF_PROMPT: "Be helpful",
-            },
+            subentry_type=SUBENTRY_TYPE_CONVERSATION,
+            data={},
         )
         entity = conversation_module.LemonadeConversationEntity(entry, subentry)
+        self.assertIsNone(entity.profile.model)
+        self.assertIsNone(entity.profile.hass_api)
+        self.assertIsNone(entity.profile.prompt)
         entity.hass = FakeHass()
         entity.entity_id = "conversation.lemonade"
+        subentry.data.update(
+            {
+                CONF_MODEL: "profile-chat",
+                CONF_LLM_HASS_API: "assist",
+                CONF_PROMPT: "Be helpful",
+            }
+        )
+        self.assertEqual("profile-chat", entity.profile.model)
+        self.assertEqual("assist", entity.profile.hass_api)
+        self.assertEqual("Be helpful", entity.profile.prompt)
         chat_log = ChatLog()
         user_input = SimpleNamespace(
             conversation_id="abc",
@@ -2384,7 +2653,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(
             conversation.ConversationEntityFeature.CONTROL,
-            entity._attr_supported_features,
+            entity.supported_features,
         )
         self.assertEqual(conversation.MATCH_ALL, entity.supported_languages)
 
@@ -2394,7 +2663,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual([(entry, entity)], entity.hass.set_agents)
         self.assertEqual([entry], entity.hass.unset_agents)
-        self.assertEqual(["entry-chat"], client.models)
+        self.assertEqual(["profile-chat"], client.models)
         self.assertEqual(
             [({"domain": DOMAIN}, "assist", "Be helpful", "extra")],
             chat_log.provided,
@@ -2403,10 +2672,6 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             {"conversation_id": "abc", "deltas": [{"content": "Hello"}]},
             result,
         )
-
-        subentry.data[CONF_MODEL] = "profile-chat"
-        await entity._async_handle_message(user_input, ChatLog())
-        self.assertEqual("profile-chat", client.models[-1])
 
     async def test_conversation_entity_errors_when_no_model_is_available(self) -> None:
         from homeassistant.exceptions import HomeAssistantError
@@ -2670,10 +2935,8 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 async_entries=lambda domain: [entry],
             ),
         )
-        call = SimpleNamespace(data={CONF_ENTRY_ID: entry.entry_id})
-
         try:
-            selected_entry, selected_client = _get_entry_and_client(hass, call)
+            selected_entry, selected_client = _get_entry_and_client(hass, entry.entry_id)
         except HomeAssistantError as err:
             self.fail(f"Expected runtime data client, got error: {err}")
 
@@ -2723,6 +2986,215 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             extract_image_bytes({"image": "cm9vdC1pbWFnZQ=="}),
         )
         self.assertEqual((None, None), extract_image_bytes({"data": [{"url": "https://example/image.png"}]}))
+
+    def test_parse_transcription_response_returns_frozen_result_and_rejects_invalid_text(self) -> None:
+        from dataclasses import FrozenInstanceError
+
+        from lemonade.transcription import (
+            TranscriptionResult,
+            parse_transcription_result,
+        )
+
+        result = parse_transcription_result({"text": "turn on lights", "extra": True})
+
+        self.assertIsInstance(result, TranscriptionResult)
+        self.assertEqual("turn on lights", result.text)
+        with self.assertRaises(FrozenInstanceError):
+            result.text = "changed"  # type: ignore[misc]
+        with self.assertRaisesRegex(KeyError, "text"):
+            parse_transcription_result({})
+        with self.assertRaisesRegex(
+            TypeError,
+            "Lemonade transcription response missing valid text",
+        ):
+            parse_transcription_result({"text": None})
+        with self.assertRaisesRegex(
+            TypeError,
+            "Lemonade transcription response missing valid text",
+        ):
+            parse_transcription_result({"text": 123})
+
+    def test_chat_completion_request_parses_service_call_data_once(self) -> None:
+        from dataclasses import FrozenInstanceError
+
+        from homeassistant.const import CONF_MODEL
+        from homeassistant.exceptions import HomeAssistantError
+        from lemonade.const import ATTR_MESSAGES, ATTR_PROMPT, ATTR_SYSTEM_PROMPT
+        from lemonade.service_requests import ChatCompletionRequest
+
+        request = ChatCompletionRequest.from_service_call(
+            SimpleNamespace(
+                data={
+                    CONF_MODEL: "chat-model",
+                    ATTR_SYSTEM_PROMPT: "Be concise",
+                    ATTR_PROMPT: "Hello",
+                    "temperature": 0.25,
+                    "max_tokens": 64,
+                }
+            )
+        )
+
+        self.assertIsInstance(request, ChatCompletionRequest)
+        self.assertEqual("chat-model", request.model)
+        self.assertEqual(
+            (
+                {"role": "system", "content": "Be concise"},
+                {"role": "user", "content": "Hello"},
+            ),
+            request.messages,
+        )
+        self.assertEqual(0.25, request.temperature)
+        self.assertEqual(64, request.max_tokens)
+        with self.assertRaises(FrozenInstanceError):
+            request.model = "other-model"  # type: ignore[misc]
+        with self.assertRaisesRegex(
+            HomeAssistantError,
+            "Either 'prompt' or 'messages' is required",
+        ):
+            ChatCompletionRequest.from_service_call(SimpleNamespace(data={}))
+
+        message_data = {
+            ATTR_MESSAGES: [{"role": "user", "content": "Original"}],
+        }
+        request = ChatCompletionRequest.from_service_call(
+            SimpleNamespace(data=message_data)
+        )
+
+        message_data[ATTR_MESSAGES][0]["content"] = "Changed outside"
+        self.assertEqual("Original", request.messages[0]["content"])
+        with self.assertRaises(TypeError):
+            request.messages[0]["content"] = "Changed through request"
+
+    def test_chat_completion_request_deep_freezes_nested_messages(self) -> None:
+        from lemonade.const import ATTR_MESSAGES
+        from lemonade.service_requests import ChatCompletionRequest
+
+        message_data = {
+            ATTR_MESSAGES: [
+                {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "Original"}],
+                    "tool_calls": [
+                        {
+                            "id": "call-1",
+                            "function": {
+                                "name": "turn_on",
+                                "arguments": {"entity_id": "light.kitchen"},
+                            },
+                        }
+                    ],
+                }
+            ],
+        }
+        request = ChatCompletionRequest.from_service_call(
+            SimpleNamespace(data=message_data)
+        )
+
+        message_data[ATTR_MESSAGES][0]["content"][0]["text"] = "Changed outside"
+        message_data[ATTR_MESSAGES][0]["tool_calls"][0]["function"]["name"] = "turn_off"
+        message_data[ATTR_MESSAGES][0]["tool_calls"][0]["function"]["arguments"][
+            "entity_id"
+        ] = "light.dining"
+
+        self.assertEqual("Original", request.messages[0]["content"][0]["text"])
+        self.assertEqual(
+            "turn_on",
+            request.messages[0]["tool_calls"][0]["function"]["name"],
+        )
+        self.assertEqual(
+            "light.kitchen",
+            request.messages[0]["tool_calls"][0]["function"]["arguments"]["entity_id"],
+        )
+        with self.assertRaises(TypeError):
+            request.messages[0]["content"][0]["text"] = "Changed through request"
+        with self.assertRaises(AttributeError):
+            request.messages[0]["content"].append({"type": "text", "text": "New"})
+        with self.assertRaises(TypeError):
+            request.messages[0]["tool_calls"][0]["function"]["arguments"][
+                "entity_id"
+            ] = "light.porch"
+
+    def test_direct_service_requests_parse_service_call_data_once(self) -> None:
+        from dataclasses import FrozenInstanceError
+
+        from homeassistant.const import CONF_MODEL
+        from lemonade.const import (
+            ATTR_FILENAME,
+            ATTR_FILE_PATH,
+            ATTR_LANGUAGE,
+            ATTR_PROMPT,
+            ATTR_RESPONSE_FORMAT,
+            ATTR_SAVE,
+            ATTR_SIZE,
+            ATTR_TEXT,
+            ATTR_VOICE,
+            CONF_ENTRY_ID,
+        )
+        from lemonade.service_requests import (
+            GenerateImageRequest,
+            TextToSpeechRequest,
+            TranscribeAudioRequest,
+        )
+
+        image_request = GenerateImageRequest.from_service_call(
+            SimpleNamespace(
+                data={
+                    CONF_ENTRY_ID: "entry-1",
+                    CONF_MODEL: "image-model",
+                    ATTR_PROMPT: "Draw a lemon",
+                    ATTR_SIZE: "1024x1024",
+                    ATTR_FILENAME: "lemon.png",
+                }
+            )
+        )
+        self.assertIsInstance(image_request, GenerateImageRequest)
+        self.assertEqual("entry-1", image_request.entry_id)
+        self.assertEqual("image-model", image_request.model)
+        self.assertEqual("Draw a lemon", image_request.prompt)
+        self.assertEqual("1024x1024", image_request.size)
+        self.assertIs(False, image_request.save)
+        self.assertEqual("lemon.png", image_request.filename)
+        with self.assertRaises(FrozenInstanceError):
+            image_request.prompt = "Draw a lime"  # type: ignore[misc]
+
+        transcribe_request = TranscribeAudioRequest.from_service_call(
+            SimpleNamespace(
+                data={
+                    CONF_MODEL: "stt-model",
+                    ATTR_FILE_PATH: "/tmp/speech.wav",
+                    ATTR_LANGUAGE: "en",
+                }
+            )
+        )
+        self.assertIsInstance(transcribe_request, TranscribeAudioRequest)
+        self.assertEqual("stt-model", transcribe_request.model)
+        self.assertEqual(Path("/tmp/speech.wav").resolve(), transcribe_request.file_path)
+        self.assertEqual("en", transcribe_request.language)
+        with self.assertRaises(FrozenInstanceError):
+            transcribe_request.language = "es"  # type: ignore[misc]
+
+        tts_request = TextToSpeechRequest.from_service_call(
+            SimpleNamespace(
+                data={
+                    CONF_MODEL: "tts-model",
+                    ATTR_TEXT: "Hello",
+                    ATTR_VOICE: "alloy",
+                    ATTR_RESPONSE_FORMAT: "mp3",
+                }
+            )
+        )
+        self.assertIsInstance(tts_request, TextToSpeechRequest)
+        self.assertEqual("tts-model", tts_request.model)
+        self.assertEqual("Hello", tts_request.text)
+        self.assertEqual("alloy", tts_request.voice)
+        self.assertEqual("mp3", tts_request.response_format)
+        with self.assertRaises(FrozenInstanceError):
+            tts_request.voice = "nova"  # type: ignore[misc]
+
+        saved_image_request = GenerateImageRequest.from_service_call(
+            SimpleNamespace(data={ATTR_PROMPT: "Draw", ATTR_SAVE: True})
+        )
+        self.assertIs(True, saved_image_request.save)
 
     async def test_direct_services_resolve_model_from_request_default_then_catalog(self) -> None:
         import tempfile
@@ -3007,6 +3479,43 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 f"Audio file not found: {missing_file.resolve()}",
                 str(raised.exception),
             )
+
+    async def test_transcribe_audio_service_uses_shared_parser_and_preserves_invalid_shape(self) -> None:
+        import tempfile
+
+        from lemonade.const import ATTR_FILE_PATH, CAPABILITY_STT
+
+        services_module = _require_module("lemonade.services")
+
+        response: dict[str, Any] = {"text": None}
+        parser_calls: list[Any] = []
+
+        class Client:
+            async def transcribe_audio(self, **kwargs: Any) -> dict[str, Any]:
+                return response
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_file = Path(tmpdir) / "speech.wav"
+            audio_file.write_bytes(b"speech")
+            entry = _service_entry(Client(), {CAPABILITY_STT: ["catalog-stt"]})
+            hass = FakeServiceHass(entry)
+
+            original_parser = services_module.parse_transcription_result
+
+            def parser(value: Any) -> Any:
+                parser_calls.append(value)
+                raise TypeError("Lemonade transcription response missing valid text")
+
+            services_module.parse_transcription_result = parser
+            try:
+                result = await services_module._async_transcribe_audio(
+                    hass, SimpleNamespace(data={ATTR_FILE_PATH: str(audio_file)})
+                )
+            finally:
+                services_module.parse_transcription_result = original_parser
+
+        self.assertEqual([response], parser_calls)
+        self.assertEqual({"text": None, "response": response}, result)
 
     async def test_direct_services_translate_client_errors_to_home_assistant_error(self) -> None:
         import aiohttp
@@ -3699,6 +4208,81 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 SimpleNamespace(language="en"), audio_stream()
             )
 
+        self.assertIn("Error transcribing audio with Lemonade", logs.output[0])
+        self.assertIsNone(result.text)
+        self.assertEqual(stt.SpeechResultState.ERROR, result.result)
+
+    async def test_stt_returns_error_when_response_text_is_missing(self) -> None:
+        from homeassistant.components import stt
+
+        stt_module = _require_module("lemonade.stt")
+
+        class Client:
+            async def transcribe_audio(self, **kwargs: Any) -> dict[str, Any]:
+                return {}
+
+        async def audio_stream() -> Any:
+            yield b"audio"
+
+        entry = FakeEntry()
+        entry.options = {}
+        entry.runtime_data = SimpleNamespace(
+            client=Client(),
+            coordinator=SimpleNamespace(
+                catalog=FakeCatalog({CAPABILITY_STT: ["catalog-stt"]})
+            ),
+        )
+        entity = stt_module.LemonadeSTTEntity(entry)
+
+        with self.assertLogs(stt_module._LOGGER.name, level="ERROR") as logs:
+            result = await entity.async_process_audio_stream(
+                SimpleNamespace(language="en"), audio_stream()
+            )
+
+        self.assertIn("Error transcribing audio with Lemonade", logs.output[0])
+        self.assertIsNone(result.text)
+        self.assertEqual(stt.SpeechResultState.ERROR, result.result)
+
+    async def test_stt_uses_shared_parser_for_transcription_text(self) -> None:
+        from homeassistant.components import stt
+
+        stt_module = _require_module("lemonade.stt")
+
+        response = {"text": "valid text"}
+        parser_calls: list[Any] = []
+
+        class Client:
+            async def transcribe_audio(self, **kwargs: Any) -> dict[str, Any]:
+                return response
+
+        async def audio_stream() -> Any:
+            yield b"audio"
+
+        entry = FakeEntry()
+        entry.options = {}
+        entry.runtime_data = SimpleNamespace(
+            client=Client(),
+            coordinator=SimpleNamespace(
+                catalog=FakeCatalog({CAPABILITY_STT: ["catalog-stt"]})
+            ),
+        )
+        entity = stt_module.LemonadeSTTEntity(entry)
+        original_parser = stt_module.parse_transcription_result
+
+        def parser(value: Any) -> Any:
+            parser_calls.append(value)
+            raise TypeError("Lemonade transcription response missing valid text")
+
+        stt_module.parse_transcription_result = parser
+        try:
+            with self.assertLogs(stt_module._LOGGER.name, level="ERROR") as logs:
+                result = await entity.async_process_audio_stream(
+                    SimpleNamespace(language="en"), audio_stream()
+                )
+        finally:
+            stt_module.parse_transcription_result = original_parser
+
+        self.assertEqual([response], parser_calls)
         self.assertIn("Error transcribing audio with Lemonade", logs.output[0])
         self.assertIsNone(result.text)
         self.assertEqual(stt.SpeechResultState.ERROR, result.result)

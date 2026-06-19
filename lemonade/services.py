@@ -21,6 +21,14 @@ from .data import LemonadeRuntimeData
 from .errors import LEMONADE_CLIENT_EXCEPTIONS, lemonade_home_assistant_error
 from .image_result import image_bytes_and_extension
 from .model_resolution import resolve_entry_model
+from .service_requests import (
+    ChatCompletionRequest,
+    GenerateImageRequest,
+    TextToSpeechRequest,
+    TranscribeAudioRequest,
+    thaw_chat_messages,
+)
+from .transcription import parse_transcription_result
 from .const import (
     ATTR_FILENAME,
     ATTR_FILE_PATH,
@@ -100,10 +108,9 @@ _SAFE_FILENAME = re.compile(r"[^A-Za-z0-9._-]+")
 
 def _get_entry_and_client(
     hass: HomeAssistant,
-    call: ServiceCall,
+    requested_entry_id: str | None,
 ) -> tuple[ConfigEntry, LemonadeClient]:
     """Return the selected config entry and client for a service call."""
-    requested_entry_id = call.data.get(CONF_ENTRY_ID)
     entries = hass.config_entries.async_entries(DOMAIN)
 
     for entry in entries:
@@ -158,25 +165,6 @@ def extract_image_bytes(response: Any) -> tuple[bytes | None, str | None]:
     return image_bytes_and_extension(response)
 
 
-def _messages_from_call(call: ServiceCall) -> list[dict[str, Any]]:
-    """Build OpenAI-compatible chat messages from service data."""
-    messages = call.data.get(ATTR_MESSAGES)
-    if messages:
-        return list(messages)
-
-    prompt = call.data.get(ATTR_PROMPT)
-    if not prompt:
-        raise HomeAssistantError(
-            f"Either '{ATTR_PROMPT}' or '{ATTR_MESSAGES}' is required"
-        )
-
-    built_messages: list[dict[str, Any]] = []
-    if system_prompt := call.data.get(ATTR_SYSTEM_PROMPT):
-        built_messages.append({"role": "system", "content": system_prompt})
-    built_messages.append({"role": "user", "content": prompt})
-    return built_messages
-
-
 def _utcnow_slug() -> str:
     """Return a UTC timestamp slug for generated media filenames."""
     return datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -210,10 +198,11 @@ async def _async_chat_completion(
     call: ServiceCall,
 ) -> dict[str, Any]:
     """Handle lemonade.chat_completion."""
-    entry, client = _get_entry_and_client(hass, call)
+    request = ChatCompletionRequest.from_service_call(call)
+    entry, client = _get_entry_and_client(hass, request.entry_id)
     model = _resolve_service_model(
         entry,
-        call.data.get(CONF_MODEL),
+        request.model,
         CAPABILITY_CONVERSATION,
         CONF_DEFAULT_CONVERSATION_MODEL,
         "conversation",
@@ -222,9 +211,9 @@ async def _async_chat_completion(
     try:
         response = await client.chat_completion(
             model=model,
-            messages=_messages_from_call(call),
-            temperature=call.data.get(ATTR_TEMPERATURE),
-            max_tokens=call.data.get(ATTR_MAX_TOKENS),
+            messages=thaw_chat_messages(request.messages),
+            temperature=request.temperature,
+            max_tokens=request.max_tokens,
         )
     except LEMONADE_CLIENT_EXCEPTIONS as err:
         raise _client_error(err, "Error completing chat with Lemonade") from err
@@ -236,23 +225,24 @@ async def _async_generate_image(
     call: ServiceCall,
 ) -> dict[str, Any]:
     """Handle lemonade.generate_image."""
-    entry, client = _get_entry_and_client(hass, call)
+    request = GenerateImageRequest.from_service_call(call)
+    entry, client = _get_entry_and_client(hass, request.entry_id)
     model = _resolve_service_model(
         entry,
-        call.data.get(CONF_MODEL),
+        request.model,
         CAPABILITY_IMAGE,
         CONF_DEFAULT_IMAGE_MODEL,
         "image",
     )
     try:
         response = await client.generate_image(
-            prompt=call.data[ATTR_PROMPT],
+            prompt=request.prompt,
             model=model,
-            size=call.data.get(ATTR_SIZE),
+            size=request.size,
         )
     except LEMONADE_CLIENT_EXCEPTIONS as err:
         raise _client_error(err, "Error generating image with Lemonade") from err
-    if not call.data.get(ATTR_SAVE):
+    if not request.save:
         return {"response": response}
 
     image_bytes, extension = extract_image_bytes(response)
@@ -262,7 +252,7 @@ async def _async_generate_image(
         )
 
     default_filename = f"lemonade_{_utcnow_slug()}.{extension or 'png'}"
-    filename = _safe_media_filename(call.data.get(ATTR_FILENAME), default_filename)
+    filename = _safe_media_filename(request.filename, default_filename)
     media_dir = hass.config.path("media", "lemonade")
     path = Path(media_dir) / filename
     await hass.async_add_executor_job(_write_image_file, path, image_bytes)
@@ -277,33 +267,36 @@ async def _async_transcribe_audio(
     call: ServiceCall,
 ) -> dict[str, Any]:
     """Handle lemonade.transcribe_audio."""
-    entry, client = _get_entry_and_client(hass, call)
+    request = TranscribeAudioRequest.from_service_call(call)
+    entry, client = _get_entry_and_client(hass, request.entry_id)
     model = _resolve_service_model(
         entry,
-        call.data.get(CONF_MODEL),
+        request.model,
         CAPABILITY_STT,
         CONF_DEFAULT_STT_MODEL,
         "STT",
     )
-    file_path = Path(call.data[ATTR_FILE_PATH]).resolve()
-    if not file_path.is_file():
-        raise HomeAssistantError(f"Audio file not found: {file_path}")
+    if not request.file_path.is_file():
+        raise HomeAssistantError(f"Audio file not found: {request.file_path}")
 
     try:
-        audio = await hass.async_add_executor_job(file_path.read_bytes)
+        audio = await hass.async_add_executor_job(request.file_path.read_bytes)
     except OSError as err:
         raise HomeAssistantError(f"Could not read audio file: {err}") from err
 
     try:
         response = await client.transcribe_audio(
             audio=audio,
-            filename=file_path.name,
+            filename=request.file_path.name,
             model=model,
-            language=call.data.get(ATTR_LANGUAGE),
+            language=request.language,
         )
     except LEMONADE_CLIENT_EXCEPTIONS as err:
         raise _client_error(err, "Error transcribing audio with Lemonade") from err
-    text = response.get("text") if isinstance(response.get("text"), str) else None
+    try:
+        text = parse_transcription_result(response).text
+    except (KeyError, TypeError):
+        text = None
     return {"text": text, "response": response}
 
 
@@ -312,20 +305,21 @@ async def _async_text_to_speech(
     call: ServiceCall,
 ) -> dict[str, Any]:
     """Handle lemonade.text_to_speech."""
-    entry, client = _get_entry_and_client(hass, call)
+    request = TextToSpeechRequest.from_service_call(call)
+    entry, client = _get_entry_and_client(hass, request.entry_id)
     model = _resolve_service_model(
         entry,
-        call.data.get(CONF_MODEL),
+        request.model,
         CAPABILITY_TTS,
         CONF_DEFAULT_TTS_MODEL,
         "TTS",
     )
     try:
         audio, content_type = await client.text_to_speech(
-            text=call.data[ATTR_TEXT],
+            text=request.text,
             model=model,
-            voice=call.data.get(ATTR_VOICE),
-            response_format=call.data.get(ATTR_RESPONSE_FORMAT),
+            voice=request.voice,
+            response_format=request.response_format,
         )
     except LEMONADE_CLIENT_EXCEPTIONS as err:
         raise _client_error(err, "Error generating speech with Lemonade") from err
