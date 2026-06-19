@@ -72,15 +72,19 @@ def _async_delete_missing_capability_issues(
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Lemonade Server from a config entry."""
+    api_key = entry.options.get(CONF_API_KEY, entry.data.get(CONF_API_KEY))
+    timeout = entry.options.get(
+        CONF_TIMEOUT, entry.data.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)
+    )
     client = LemonadeClient(
         async_get_clientsession(hass),
         entry.data[CONF_URL],
-        entry.data.get(CONF_API_KEY),
-        entry.data.get(CONF_TIMEOUT, DEFAULT_TIMEOUT),
+        api_key,
+        timeout,
     )
 
     try:
-        async with asyncio.timeout(entry.data.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)):
+        async with asyncio.timeout(timeout):
             await client.health()
     except LemonadeAuthError as err:
         raise ConfigEntryAuthFailed from err

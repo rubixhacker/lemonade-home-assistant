@@ -1969,6 +1969,67 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         ):
             await entity._async_handle_message(SimpleNamespace(), SimpleNamespace())
 
+    async def test_conversation_entity_translates_chat_log_errors(self) -> None:
+        import aiohttp
+
+        from homeassistant.exceptions import HomeAssistantError
+        from lemonade.api import LemonadeError
+
+        conversation_module = _require_module("lemonade.conversation")
+
+        class ChatLog:
+            async def async_provide_llm_data(self, *args: Any) -> None:
+                return None
+
+        entry = SimpleNamespace(
+            options={CONF_DEFAULT_CONVERSATION_MODEL: "entry-chat"},
+            runtime_data=SimpleNamespace(
+                client=object(),
+                coordinator=SimpleNamespace(
+                    catalog=FakeCatalog({CAPABILITY_CONVERSATION: ["catalog-chat"]})
+                ),
+            ),
+        )
+        entity = conversation_module.LemonadeConversationEntity(
+            entry, SimpleNamespace(subentry_id="conv-1", data={})
+        )
+        user_input = SimpleNamespace(
+            extra_system_prompt=None,
+            as_llm_context=lambda domain: {"domain": domain},
+        )
+        original_handle = conversation_module.async_handle_chat_log
+        self.addCleanup(
+            setattr, conversation_module, "async_handle_chat_log", original_handle
+        )
+
+        errors = (
+            LemonadeError("server down"),
+            aiohttp.ClientError("offline"),
+            TimeoutError("slow"),
+        )
+        for error in errors:
+            with self.subTest(error=error.__class__.__name__):
+
+                async def raise_error(*args: Any, **kwargs: Any) -> None:
+                    raise error
+
+                conversation_module.async_handle_chat_log = raise_error
+
+                try:
+                    await entity._async_handle_message(user_input, ChatLog())
+                except Exception as err:  # noqa: BLE001 - assert translation below
+                    raised_error = err
+                else:
+                    self.fail("Expected conversation error to be translated")
+
+                self.assertIsInstance(raised_error, HomeAssistantError)
+                self.assertEqual(
+                    f"Error talking to Lemonade Server: {error}",
+                    str(raised_error),
+                )
+                self.assertIs(error, raised_error.__cause__)
+
+
     async def test_coordinator_refreshes_health_models_and_catalog(self) -> None:
         from lemonade.coordinator import LemonadeCoordinator
 
@@ -2622,6 +2683,63 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             ],
             [call[0] for call in ir.DELETED],
         )
+
+    async def test_setup_entry_prefers_options_api_key_and_timeout(self) -> None:
+        class Client:
+            def __init__(
+                self,
+                session: Any,
+                url: str,
+                api_key: str | None = None,
+                timeout: float = 30.0,
+            ) -> None:
+                self.session = session
+                self.url = url
+                self.api_key = api_key
+                self.timeout = timeout
+
+            async def health(self) -> dict[str, Any]:
+                return {"status": "ok"}
+
+            async def models(self) -> dict[str, Any]:
+                return {"data": []}
+
+        class TimeoutContext:
+            async def __aenter__(self) -> None:
+                return None
+
+            async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+                return None
+
+        health_timeouts: list[float] = []
+
+        def timeout(delay: float) -> TimeoutContext:
+            health_timeouts.append(delay)
+            return TimeoutContext()
+
+        original_client = integration.LemonadeClient
+        original_timeout = integration.asyncio.timeout
+        integration.LemonadeClient = Client
+        integration.asyncio.timeout = timeout
+        self.addCleanup(setattr, integration, "LemonadeClient", original_client)
+        self.addCleanup(setattr, integration.asyncio, "timeout", original_timeout)
+        hass = FakeHass()
+        entry = FakeEntry()
+        entry.data = {
+            CONF_URL: "http://lemonade.local",
+            CONF_API_KEY: "data-secret",
+            CONF_TIMEOUT: 12.0,
+        }
+        entry.options = {CONF_API_KEY: "option-secret", CONF_TIMEOUT: 3.5}
+
+        self.assertTrue(await integration.async_setup_entry(hass, entry))
+
+        self.assertIsInstance(entry.runtime_data.client, Client)
+        self.assertEqual("http://lemonade.local", entry.runtime_data.client.url)
+        self.assertEqual("option-secret", entry.runtime_data.client.api_key)
+        self.assertEqual(3.5, entry.runtime_data.client.timeout)
+        self.assertEqual([3.5], health_timeouts)
+
 
     async def test_setup_entry_stores_runtime_data_and_updates_capability_repairs(self) -> None:
         class Client:

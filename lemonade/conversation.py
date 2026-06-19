@@ -5,6 +5,8 @@ from __future__ import annotations
 import inspect
 from typing import Any
 
+import aiohttp
+
 from homeassistant.components import conversation
 from homeassistant.const import CONF_MODEL
 try:
@@ -23,6 +25,7 @@ from .const import (
     DOMAIN,
     SUBENTRY_TYPE_CONVERSATION,
 )
+from .api import LemonadeError
 from .data import LemonadeConfigEntry
 from .llm import async_handle_chat_log
 
@@ -150,12 +153,17 @@ class LemonadeConversationEntity(
                 data.get(CONF_PROMPT),
                 user_input.extra_system_prompt,
             )
-            await async_handle_chat_log(
-                getattr(self, "entity_id", None) or self._attr_unique_id,
-                self.entry.runtime_data.client,
-                model,
-                chat_log,
-            )
+            try:
+                await async_handle_chat_log(
+                    getattr(self, "entity_id", None) or self._attr_unique_id,
+                    self.entry.runtime_data.client,
+                    model,
+                    chat_log,
+                )
+            except (TimeoutError, LemonadeError, aiohttp.ClientError) as err:
+                raise HomeAssistantError(
+                    f"Error talking to Lemonade Server: {err}"
+                ) from err
             return conversation.async_get_result_from_chat_log(user_input, chat_log)
         except conversation.ConverseError as err:
             return err.as_conversation_result()
