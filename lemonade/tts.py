@@ -6,25 +6,10 @@ from typing import Any
 
 from homeassistant.components.tts import TextToSpeechEntity
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CAPABILITY_TTS, CONF_DEFAULT_TTS_MODEL
 from .data import LemonadeConfigEntry
-from .errors import LEMONADE_CLIENT_EXCEPTIONS, lemonade_home_assistant_error
-from .model_resolution import resolve_entry_model
-
-_CONTENT_TYPE_EXTENSIONS = {
-    "audio/aac": "aac",
-    "audio/flac": "flac",
-    "audio/mpeg": "mp3",
-    "audio/mp3": "mp3",
-    "audio/ogg": "ogg",
-    "audio/wav": "wav",
-    "audio/wave": "wav",
-    "audio/webm": "webm",
-    "audio/x-wav": "wav",
-}
+from .voice import audio_extension, generate_entry_voice, resolve_voice_model
 
 
 async def async_setup_entry(
@@ -38,21 +23,7 @@ async def async_setup_entry(
 
 def _audio_extension(content_type: str | None, response_format: Any) -> str:
     """Return a Home Assistant TTS audio extension."""
-    if isinstance(content_type, str):
-        media_type = content_type.partition(";")[0].strip().lower()
-        if media_type in _CONTENT_TYPE_EXTENSIONS:
-            return _CONTENT_TYPE_EXTENSIONS[media_type]
-        if media_type.startswith("audio/"):
-            extension = media_type.partition("/")[2]
-            if extension.startswith("x-"):
-                extension = extension[2:]
-            if extension:
-                return extension
-
-    if isinstance(response_format, str) and response_format.strip():
-        return response_format.strip().lower().lstrip(".")
-
-    return "mp3"
+    return audio_extension(content_type, response_format)
 
 
 class LemonadeTTSEntity(TextToSpeechEntity):
@@ -71,12 +42,7 @@ class LemonadeTTSEntity(TextToSpeechEntity):
 
     def _resolve_model(self, options: dict[str, Any] | None = None) -> str | None:
         """Return the requested, configured, or first catalog TTS model."""
-        return resolve_entry_model(
-            self.entry,
-            CAPABILITY_TTS,
-            explicit_model=(options or {}).get("model"),
-            default_option=CONF_DEFAULT_TTS_MODEL,
-        )
+        return resolve_voice_model(self.entry, (options or {}).get("model"))
 
     @property
     def available(self) -> bool:
@@ -91,21 +57,11 @@ class LemonadeTTSEntity(TextToSpeechEntity):
     ) -> tuple[str, bytes]:
         """Generate speech audio with Lemonade Server."""
         options = options or {}
-        model = self._resolve_model(options)
-        if model is None:
-            raise HomeAssistantError("No Lemonade TTS model is available")
-
-        try:
-            audio, content_type = await self.entry.runtime_data.client.text_to_speech(
-                text=message,
-                model=model,
-                voice=options.get("voice"),
-                response_format=options.get("response_format"),
-            )
-        except LEMONADE_CLIENT_EXCEPTIONS as err:
-            raise lemonade_home_assistant_error(
-                err,
-                "Error generating speech with Lemonade",
-            ) from err
-
-        return _audio_extension(content_type, options.get("response_format")), audio
+        result = await generate_entry_voice(
+            self.entry,
+            text=message,
+            explicit_model=options.get("model"),
+            voice=options.get("voice"),
+            response_format=options.get("response_format"),
+        )
+        return result.extension, result.audio

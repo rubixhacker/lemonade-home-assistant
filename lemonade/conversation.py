@@ -18,7 +18,7 @@ from .const import (
 )
 from .data import LemonadeConfigEntry
 from .errors import LEMONADE_CLIENT_EXCEPTIONS, lemonade_home_assistant_error
-from .llm import async_handle_chat_log
+from .llm import async_execute_chat_log_turn
 from .model_resolution import resolve_entry_model
 from .profiles import (
     ConversationProfile,
@@ -124,11 +124,12 @@ class LemonadeConversationEntity(
                 user_input.extra_system_prompt,
             )
             try:
-                await async_handle_chat_log(
-                    getattr(self, "entity_id", None) or self._attr_unique_id,
-                    self.entry.runtime_data.client,
-                    model,
-                    chat_log,
+                await async_execute_chat_log_turn(
+                    entity_id=getattr(self, "entity_id", None)
+                    or self._attr_unique_id,
+                    client=self.entry.runtime_data.client,
+                    model=model,
+                    chat_log=chat_log,
                 )
             except LEMONADE_CLIENT_EXCEPTIONS as err:
                 raise lemonade_home_assistant_error(

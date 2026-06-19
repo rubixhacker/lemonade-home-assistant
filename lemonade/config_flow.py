@@ -21,35 +21,19 @@ except ImportError:  # pragma: no cover - older Home Assistant compatibility
 
 from .api import LemonadeAuthError, LemonadeClient, LemonadeError
 from .const import (
-    CAPABILITY_AI_TASK,
-    CAPABILITY_CONVERSATION,
-    CAPABILITY_IMAGE,
-    CAPABILITY_STT,
-    CAPABILITY_TTS,
-    CONF_DEFAULT_AI_TASK_MODEL,
-    CONF_DEFAULT_CONVERSATION_MODEL,
-    CONF_DEFAULT_IMAGE_MODEL,
-    CONF_DEFAULT_STT_MODEL,
-    CONF_DEFAULT_TTS_MODEL,
-    CONF_LLM_HASS_API,
     CONF_TIMEOUT,
     DEFAULT_MODEL,
     DEFAULT_NAME,
     DEFAULT_TIMEOUT,
     DEFAULT_URL,
     DOMAIN,
-    SUBENTRY_TYPE_AI_TASK,
-    SUBENTRY_TYPE_CONVERSATION,
+    default_model_capability_presentations,
 )
-from .model_resolution import catalog_model_ids
-from .profiles import profile_capability
-
-_DEFAULT_MODEL_FIELDS = (
-    (CAPABILITY_CONVERSATION, CONF_DEFAULT_CONVERSATION_MODEL),
-    (CAPABILITY_AI_TASK, CONF_DEFAULT_AI_TASK_MODEL),
-    (CAPABILITY_IMAGE, CONF_DEFAULT_IMAGE_MODEL),
-    (CAPABILITY_TTS, CONF_DEFAULT_TTS_MODEL),
-    (CAPABILITY_STT, CONF_DEFAULT_STT_MODEL),
+from .model_resolution import runtime_model_view
+from .profiles import (
+    ProfileDefinition,
+    profile_definition,
+    profile_definitions,
 )
 
 def _entry_current_value(
@@ -139,8 +123,8 @@ class LemonadeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> dict[str, type[config_entries.ConfigSubentryFlow]]:
         """Return supported subentry types."""
         return {
-            SUBENTRY_TYPE_CONVERSATION: LemonadeProfileSubentryFlow,
-            SUBENTRY_TYPE_AI_TASK: LemonadeProfileSubentryFlow,
+            definition.profile_type: LemonadeProfileSubentryFlow
+            for definition in profile_definitions()
         }
 
     async def async_step_user(
@@ -237,9 +221,12 @@ class LemonadeOptionsFlow(config_entries.OptionsFlow):
             ): vol.Coerce(float),
         }
 
-        catalog = config_entry.runtime_data.coordinator.catalog
-        for capability, option_key in _DEFAULT_MODEL_FIELDS:
-            model_ids = catalog_model_ids(catalog, capability)
+        model_view = runtime_model_view(config_entry)
+        for presentation in default_model_capability_presentations():
+            option_key = presentation.default_option_key
+            if option_key is None:
+                continue
+            model_ids = model_view.model_ids(presentation.capability)
             if not model_ids:
                 continue
             schema[
@@ -284,7 +271,10 @@ class LemonadeProfileSubentryFlow(config_entries.ConfigSubentryFlow):
         )
 
     def _profile_schema(
-        self, model_ids: list[str], profile_data: dict[str, Any]
+        self,
+        definition: ProfileDefinition,
+        model_ids: list[str],
+        profile_data: dict[str, Any],
     ) -> vol.Schema:
         """Return the schema for a Lemonade profile."""
 
@@ -294,17 +284,20 @@ class LemonadeProfileSubentryFlow(config_entries.ConfigSubentryFlow):
                 return factory(key, default=profile_data[key])
             return factory(key)
 
-        schema: dict[Any, Any] = {
-            marker(CONF_NAME, required=True): str,
-            marker(CONF_MODEL): _model_select_selector(model_ids),
-            marker(CONF_PROMPT): selector.TemplateSelector(),
-        }
-        if self._profile_type == SUBENTRY_TYPE_CONVERSATION:
-            schema[marker(CONF_LLM_HASS_API)] = selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=_llm_api_options(self.hass),
+        schema: dict[Any, Any] = {}
+        for field in definition.supported_fields:
+            if field == CONF_NAME:
+                schema[marker(field, required=True)] = str
+            elif field == CONF_MODEL:
+                schema[marker(field)] = _model_select_selector(model_ids)
+            elif field == CONF_PROMPT:
+                schema[marker(field)] = selector.TemplateSelector()
+            elif field == definition.llm_hass_api_field:
+                schema[marker(field)] = selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=_llm_api_options(self.hass),
+                    )
                 )
-            )
 
         return vol.Schema(schema)
 
@@ -324,14 +317,11 @@ class LemonadeProfileSubentryFlow(config_entries.ConfigSubentryFlow):
             return self.async_abort(reason="entry_not_loaded")
 
         profile_type = self._profile_type
-        capability = profile_capability(profile_type)
-        if capability is None:
+        definition = profile_definition(profile_type)
+        if definition is None:
             return self.async_abort(reason="unknown_profile_type")
 
-        model_ids = catalog_model_ids(
-            config_entry.runtime_data.coordinator.catalog,
-            capability,
-        )
+        model_ids = runtime_model_view(config_entry).model_ids(definition.capability)
         if not model_ids:
             return self.async_abort(reason="no_models")
 
@@ -346,7 +336,7 @@ class LemonadeProfileSubentryFlow(config_entries.ConfigSubentryFlow):
 
         return self.async_show_form(
             step_id=step_id,
-            data_schema=self._profile_schema(model_ids, profile_data),
+            data_schema=self._profile_schema(definition, model_ids, profile_data),
         )
 
     async def async_step_user(

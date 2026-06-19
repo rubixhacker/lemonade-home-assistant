@@ -12,6 +12,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .api import LemonadeClient
 from .const import DEFAULT_SCAN_INTERVAL_SECONDS, DOMAIN
+from .model_resolution import RuntimeModelView
 from .models import LemonadeModelCatalog, parse_models_response
 
 _LOGGER = logging.getLogger(__name__)
@@ -62,6 +63,11 @@ class LemonadeCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if isinstance(catalog, LemonadeModelCatalog):
                 return catalog
         return parse_models_response({})
+
+    @property
+    def model_view(self) -> RuntimeModelView:
+        """Return the latest runtime model view."""
+        return RuntimeModelView(self.catalog)
 
     @property
     def server_status(self) -> str | None:

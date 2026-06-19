@@ -14,10 +14,10 @@ from .const import CAPABILITY_STT, CONF_DEFAULT_STT_MODEL
 from .data import LemonadeConfigEntry
 from .errors import LEMONADE_CLIENT_EXCEPTIONS
 from .model_resolution import resolve_entry_model
-from .transcription import parse_transcription_result
+from .transcription import transcribe_stream_result
 
 _LOGGER = logging.getLogger(__name__)
-_STT_TRANSCRIPTION_EXCEPTIONS = (*LEMONADE_CLIENT_EXCEPTIONS, KeyError, TypeError)
+_STT_TRANSCRIPTION_EXCEPTIONS = LEMONADE_CLIENT_EXCEPTIONS
 
 
 async def async_setup_entry(
@@ -99,18 +99,17 @@ class LemonadeSTTEntity(stt.SpeechToTextEntity):
             _LOGGER.warning("No Lemonade STT model is available")
             return _error_result()
 
-        # Lemonade's transcription endpoint currently accepts multipart file uploads,
-        # so buffer the stream before passing it to the client.
-        audio = b"".join([chunk async for chunk in stream])
         try:
-            response = await self.entry.runtime_data.client.transcribe_audio(
-                audio=audio,
-                filename="speech.wav",
+            result = await transcribe_stream_result(
+                self.entry.runtime_data.client,
+                stream,
                 model=model,
                 language=getattr(metadata, "language", None),
             )
-            result = parse_transcription_result(response)
         except _STT_TRANSCRIPTION_EXCEPTIONS as err:
+            _LOGGER.error("Error transcribing audio with Lemonade: %s", err)
+            return _error_result()
+        except (KeyError, TypeError) as err:
             _LOGGER.error("Error transcribing audio with Lemonade: %s", err)
             return _error_result()
 

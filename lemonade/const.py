@@ -1,5 +1,10 @@
 """Constants for the Lemonade Server integration."""
 
+from __future__ import annotations
+
+from collections.abc import Iterable
+from dataclasses import dataclass
+
 from homeassistant.const import Platform
 
 DOMAIN = "lemonade"
@@ -48,6 +53,74 @@ MODEL_OPTION_BY_CAPABILITY = {
     CAPABILITY_TTS: CONF_DEFAULT_TTS_MODEL,
     CAPABILITY_STT: CONF_DEFAULT_STT_MODEL,
 }
+
+
+@dataclass(frozen=True, slots=True)
+class CapabilityPresentation:
+    """Presentation metadata for a Lemonade model capability."""
+
+    capability: str
+    default_option_key: str | None = None
+    model_count_translation_key: str | None = None
+    repair_issue: bool = False
+
+
+CAPABILITY_PRESENTATIONS = (
+    CapabilityPresentation(
+        CAPABILITY_CONVERSATION,
+        default_option_key=CONF_DEFAULT_CONVERSATION_MODEL,
+        model_count_translation_key="conversation_model_count",
+    ),
+    CapabilityPresentation(
+        CAPABILITY_AI_TASK,
+        default_option_key=CONF_DEFAULT_AI_TASK_MODEL,
+    ),
+    CapabilityPresentation(
+        CAPABILITY_IMAGE,
+        default_option_key=CONF_DEFAULT_IMAGE_MODEL,
+        model_count_translation_key="image_model_count",
+        repair_issue=True,
+    ),
+    CapabilityPresentation(
+        CAPABILITY_TTS,
+        default_option_key=CONF_DEFAULT_TTS_MODEL,
+        model_count_translation_key="tts_model_count",
+        repair_issue=True,
+    ),
+    CapabilityPresentation(
+        CAPABILITY_STT,
+        default_option_key=CONF_DEFAULT_STT_MODEL,
+        model_count_translation_key="stt_model_count",
+        repair_issue=True,
+    ),
+)
+
+
+def default_model_capability_presentations() -> Iterable[CapabilityPresentation]:
+    """Iterate capabilities configurable as default model options."""
+    return (
+        presentation
+        for presentation in CAPABILITY_PRESENTATIONS
+        if presentation.default_option_key is not None
+    )
+
+
+def model_count_capability_presentations() -> Iterable[CapabilityPresentation]:
+    """Iterate capabilities shown as model count sensors."""
+    return (
+        presentation
+        for presentation in CAPABILITY_PRESENTATIONS
+        if presentation.model_count_translation_key is not None
+    )
+
+
+def repair_issue_capabilities() -> Iterable[str]:
+    """Iterate capabilities that surface missing-capability repair issues."""
+    return (
+        presentation.capability
+        for presentation in CAPABILITY_PRESENTATIONS
+        if presentation.repair_issue
+    )
 
 SERVICE_CHAT_COMPLETION = "chat_completion"
 SERVICE_GENERATE_IMAGE = "generate_image"

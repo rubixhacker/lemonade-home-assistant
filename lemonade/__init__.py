@@ -18,22 +18,18 @@ from homeassistant.helpers.typing import ConfigType
 
 from .api import LemonadeAuthError, LemonadeClient, LemonadeError
 from .const import (
-    CAPABILITY_IMAGE,
-    CAPABILITY_STT,
-    CAPABILITY_TTS,
     CONF_TIMEOUT,
     DEFAULT_TIMEOUT,
     DOMAIN,
     PLATFORMS,
+    repair_issue_capabilities,
 )
-from .model_resolution import catalog_model_ids
+from .model_resolution import runtime_model_view
 from .services import async_register_services
 
 _LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
-
-_REPAIR_CAPABILITIES = (CAPABILITY_IMAGE, CAPABILITY_TTS, CAPABILITY_STT)
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -54,8 +50,9 @@ def _async_update_missing_capability_issues(
         async_delete_missing_capability_issue,
     )
 
-    for capability in _REPAIR_CAPABILITIES:
-        if catalog_model_ids(coordinator.catalog, capability):
+    model_view = runtime_model_view(coordinator)
+    for capability in repair_issue_capabilities():
+        if model_view.has_models(capability):
             async_delete_missing_capability_issue(hass, entry_id, capability)
         else:
             async_create_missing_capability_issue(hass, entry_id, capability)
@@ -67,7 +64,7 @@ def _async_delete_missing_capability_issues(
     """Delete repair issues for optional capabilities tied to an entry."""
     from .repairs import async_delete_missing_capability_issue
 
-    for capability in _REPAIR_CAPABILITIES:
+    for capability in repair_issue_capabilities():
         async_delete_missing_capability_issue(hass, entry_id, capability)
 
 

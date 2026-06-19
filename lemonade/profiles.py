@@ -8,7 +8,7 @@ import inspect
 from types import MappingProxyType
 from typing import Any
 
-from homeassistant.const import CONF_MODEL
+from homeassistant.const import CONF_MODEL, CONF_NAME
 try:
     from homeassistant.const import CONF_PROMPT
 except ImportError:  # pragma: no cover - older Home Assistant compatibility
@@ -56,17 +56,50 @@ class UnknownProfile:
 Profile = ConversationProfile | AITaskProfile | UnknownProfile
 
 
-PROFILE_CAPABILITY_BY_SUBENTRY_TYPE = MappingProxyType(
-    {
-        SUBENTRY_TYPE_CONVERSATION: CAPABILITY_CONVERSATION,
-        SUBENTRY_TYPE_AI_TASK: CAPABILITY_AI_TASK,
-    }
+@dataclass(frozen=True, slots=True)
+class ProfileDefinition:
+    """Definition for a Lemonade profile subentry type."""
+
+    profile_type: str
+    capability: str
+    supported_fields: tuple[str, ...]
+    llm_hass_api_field: str | None = None
+
+
+CONVERSATION_PROFILE_DEFINITION = ProfileDefinition(
+    profile_type=SUBENTRY_TYPE_CONVERSATION,
+    capability=CAPABILITY_CONVERSATION,
+    supported_fields=(CONF_NAME, CONF_MODEL, CONF_PROMPT, CONF_LLM_HASS_API),
+    llm_hass_api_field=CONF_LLM_HASS_API,
 )
+AI_TASK_PROFILE_DEFINITION = ProfileDefinition(
+    profile_type=SUBENTRY_TYPE_AI_TASK,
+    capability=CAPABILITY_AI_TASK,
+    supported_fields=(CONF_NAME, CONF_MODEL, CONF_PROMPT),
+)
+PROFILE_DEFINITIONS = (
+    CONVERSATION_PROFILE_DEFINITION,
+    AI_TASK_PROFILE_DEFINITION,
+)
+PROFILE_DEFINITION_BY_TYPE = MappingProxyType(
+    {definition.profile_type: definition for definition in PROFILE_DEFINITIONS}
+)
+
+
+def profile_definitions() -> tuple[ProfileDefinition, ...]:
+    """Return supported Lemonade profile definitions."""
+    return PROFILE_DEFINITIONS
+
+
+def profile_definition(profile_type: str | None) -> ProfileDefinition | None:
+    """Return the definition for a Lemonade profile type."""
+    return PROFILE_DEFINITION_BY_TYPE.get(profile_type)
 
 
 def profile_capability(profile_type: str) -> str | None:
     """Return the model capability required by a Lemonade profile type."""
-    return PROFILE_CAPABILITY_BY_SUBENTRY_TYPE.get(profile_type)
+    definition = profile_definition(profile_type)
+    return definition.capability if definition is not None else None
 
 
 def profile_data(subentry: Any) -> dict[str, Any]:
@@ -82,18 +115,19 @@ def parse_profile(subentry: Any, profile_type: str | None = None) -> Profile:
     data = profile_data(subentry)
     resolved_profile_type = profile_type or getattr(subentry, "subentry_type", None)
     profile_id = getattr(subentry, "subentry_id", None)
-    if resolved_profile_type == SUBENTRY_TYPE_CONVERSATION:
+    definition = profile_definition(resolved_profile_type)
+    if definition == CONVERSATION_PROFILE_DEFINITION:
         return ConversationProfile(
             id=profile_id,
-            profile_type=SUBENTRY_TYPE_CONVERSATION,
+            profile_type=definition.profile_type,
             model=data.get(CONF_MODEL),
             prompt=data.get(CONF_PROMPT),
-            hass_api=data.get(CONF_LLM_HASS_API),
+            hass_api=data.get(definition.llm_hass_api_field),
         )
-    if resolved_profile_type == SUBENTRY_TYPE_AI_TASK:
+    if definition == AI_TASK_PROFILE_DEFINITION:
         return AITaskProfile(
             id=profile_id,
-            profile_type=SUBENTRY_TYPE_AI_TASK,
+            profile_type=definition.profile_type,
             model=data.get(CONF_MODEL),
             prompt=data.get(CONF_PROMPT),
         )

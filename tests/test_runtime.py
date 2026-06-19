@@ -749,11 +749,117 @@ class ModelResolutionTest(unittest.TestCase):
         )
         self.assertIsNone(resolve_model(FakeCatalog({}), CAPABILITY_CONVERSATION))
 
+    def test_runtime_model_view_owns_entry_selection_and_current_option_policy(
+        self,
+    ) -> None:
+        from lemonade.model_resolution import runtime_model_view
+
+        entry = SimpleNamespace(
+            data={
+                CONF_DEFAULT_AI_TASK_MODEL: "data-task",
+                CONF_DEFAULT_IMAGE_MODEL: "missing-image",
+            },
+            options={
+                CONF_DEFAULT_CONVERSATION_MODEL: " option-chat ",
+                CONF_DEFAULT_IMAGE_MODEL: "missing-image",
+            },
+            runtime_data=SimpleNamespace(
+                coordinator=SimpleNamespace(
+                    catalog=FakeCatalog(
+                        {
+                            CAPABILITY_CONVERSATION: ["catalog-chat"],
+                            CAPABILITY_AI_TASK: ["catalog-task"],
+                            CAPABILITY_IMAGE: ["catalog-image"],
+                        }
+                    )
+                )
+            ),
+        )
+
+        view = runtime_model_view(entry)
+
+        self.assertEqual(
+            "explicit-chat",
+            view.resolve_entry_model(
+                entry,
+                CAPABILITY_CONVERSATION,
+                explicit_model="explicit-chat",
+                profile_model="profile-chat",
+                default_option=CONF_DEFAULT_CONVERSATION_MODEL,
+            ),
+        )
+        self.assertEqual(
+            "profile-chat",
+            view.resolve_entry_model(
+                entry,
+                CAPABILITY_CONVERSATION,
+                explicit_model=" ",
+                profile_model="profile-chat",
+                default_option=CONF_DEFAULT_CONVERSATION_MODEL,
+            ),
+        )
+        self.assertEqual(
+            "option-chat",
+            view.resolve_entry_model(
+                entry,
+                CAPABILITY_CONVERSATION,
+                default_option=CONF_DEFAULT_CONVERSATION_MODEL,
+            ),
+        )
+        self.assertEqual(
+            "data-task",
+            view.resolve_entry_model(
+                entry,
+                CAPABILITY_AI_TASK,
+                default_option=CONF_DEFAULT_AI_TASK_MODEL,
+            ),
+        )
+        self.assertEqual(
+            "catalog-image",
+            view.current_entry_model_option(
+                entry,
+                CAPABILITY_IMAGE,
+                CONF_DEFAULT_IMAGE_MODEL,
+            ),
+        )
+        self.assertEqual(1, view.model_count(CAPABILITY_IMAGE))
+        self.assertTrue(view.has_models(CAPABILITY_IMAGE))
+        self.assertEqual(3, view.total_model_count)
+
+    def test_coordinator_exposes_runtime_model_view(self) -> None:
+        import asyncio
+
+        from lemonade.coordinator import LemonadeCoordinator
+
+        class Client:
+            async def health(self) -> dict[str, str]:
+                return {"status": "ok"}
+
+            async def models(self) -> dict[str, Any]:
+                return {
+                    "data": [
+                        {
+                            "id": "voice-model",
+                            "recipe": "tts",
+                            "labels": ["tts"],
+                        }
+                    ]
+                }
+
+        coordinator = LemonadeCoordinator(SimpleNamespace(), SimpleNamespace(), Client())
+        data = asyncio.run(coordinator._async_update_data())
+        coordinator.data = data
+
+        self.assertEqual(["voice-model"], coordinator.model_view.model_ids(CAPABILITY_TTS))
+        self.assertEqual(1, coordinator.model_view.model_count(CAPABILITY_TTS))
+
 
 class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
 
     def test_profile_runtime_filters_profiles_and_maps_capabilities(self) -> None:
         from lemonade.profiles import (
+            profile_definition,
+            profile_definitions,
             profile_capability,
             profile_data,
             profile_subentries,
@@ -791,6 +897,64 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(CAPABILITY_AI_TASK, profile_capability(SUBENTRY_TYPE_AI_TASK))
         self.assertIsNone(profile_capability("unsupported"))
+        self.assertEqual(
+            (SUBENTRY_TYPE_CONVERSATION, SUBENTRY_TYPE_AI_TASK),
+            tuple(definition.profile_type for definition in profile_definitions()),
+        )
+        conversation_definition = profile_definition(SUBENTRY_TYPE_CONVERSATION)
+        self.assertIsNotNone(conversation_definition)
+        assert conversation_definition is not None
+        self.assertEqual(CAPABILITY_CONVERSATION, conversation_definition.capability)
+        self.assertIn(CONF_LLM_HASS_API, conversation_definition.supported_fields)
+        self.assertEqual(
+            CONF_LLM_HASS_API,
+            conversation_definition.llm_hass_api_field,
+        )
+        ai_task_definition = profile_definition(SUBENTRY_TYPE_AI_TASK)
+        self.assertIsNotNone(ai_task_definition)
+        assert ai_task_definition is not None
+        self.assertEqual(CAPABILITY_AI_TASK, ai_task_definition.capability)
+        self.assertNotIn(CONF_LLM_HASS_API, ai_task_definition.supported_fields)
+        self.assertIsNone(profile_definition("unsupported"))
+
+    def test_capability_presentation_metadata_groups_callers(self) -> None:
+        from lemonade.const import (
+            default_model_capability_presentations,
+            model_count_capability_presentations,
+            repair_issue_capabilities,
+        )
+
+        default_records = tuple(default_model_capability_presentations())
+
+        self.assertEqual(
+            (
+                (CAPABILITY_CONVERSATION, CONF_DEFAULT_CONVERSATION_MODEL),
+                (CAPABILITY_AI_TASK, CONF_DEFAULT_AI_TASK_MODEL),
+                (CAPABILITY_IMAGE, CONF_DEFAULT_IMAGE_MODEL),
+                (CAPABILITY_TTS, CONF_DEFAULT_TTS_MODEL),
+                (CAPABILITY_STT, CONF_DEFAULT_STT_MODEL),
+            ),
+            tuple(
+                (record.capability, record.default_option_key)
+                for record in default_records
+            ),
+        )
+        self.assertEqual(
+            (
+                (CAPABILITY_CONVERSATION, "conversation_model_count"),
+                (CAPABILITY_IMAGE, "image_model_count"),
+                (CAPABILITY_TTS, "tts_model_count"),
+                (CAPABILITY_STT, "stt_model_count"),
+            ),
+            tuple(
+                (record.capability, record.model_count_translation_key)
+                for record in model_count_capability_presentations()
+            ),
+        )
+        self.assertEqual(
+            (CAPABILITY_IMAGE, CAPABILITY_TTS, CAPABILITY_STT),
+            tuple(repair_issue_capabilities()),
+        )
 
     def test_parse_profile_returns_typed_immutable_profiles(self) -> None:
         from dataclasses import FrozenInstanceError
@@ -921,6 +1085,35 @@ class LemonadeImageResultTest(unittest.TestCase):
         self.assertEqual(b"jpeg-image", result.image_bytes)
         self.assertEqual("image/jpeg", result.mime_type)
         self.assertEqual("jpg", result.extension)
+
+    def test_generated_image_artifact_owns_safe_filename_and_media_path(self) -> None:
+        image_result_module = _require_module("lemonade.image_result")
+
+        artifact = image_result_module.generated_image_artifact(
+            {"data": [{"url": "data:image/jpeg;base64,aW1hZ2U="}]},
+            "../unsafe/lemon.png",
+            timestamp_slug="20260102_030405",
+        )
+
+        self.assertIsNotNone(artifact)
+        assert artifact is not None
+        self.assertEqual(b"image", artifact.image_bytes)
+        self.assertEqual("jpg", artifact.extension)
+        self.assertEqual("lemon.png", artifact.filename)
+        self.assertEqual(
+            "media-source://media_source/local/lemonade/lemon.png",
+            artifact.media_path,
+        )
+
+        default_artifact = image_result_module.generated_image_artifact(
+            {"image": "aW1hZ2U="},
+            "../../",
+            timestamp_slug="20260102_030405",
+        )
+
+        self.assertIsNotNone(default_artifact)
+        assert default_artifact is not None
+        self.assertEqual("lemonade_20260102_030405.png", default_artifact.filename)
 
 
 class FakeServiceHass:
@@ -1723,12 +1916,14 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             ),
         )
 
-        payload = llm_module._build_chat_completion_payload(
+        payload_record = llm_module.build_chat_turn_payload(
             "chat-model",
             chat_log,
             {"type": "json_object"},
         )
+        payload = payload_record.to_chat_completion_kwargs()
 
+        self.assertIsInstance(payload_record, llm_module.ChatTurnPayload)
         self.assertEqual(
             {
                 "model": "chat-model",
@@ -1751,6 +1946,14 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 "response_format": {"type": "json_object"},
             },
             payload,
+        )
+        self.assertEqual(
+            payload,
+            llm_module._build_chat_completion_payload(
+                "chat-model",
+                chat_log,
+                {"type": "json_object"},
+            ),
         )
 
     def test_llm_converts_schema_structure_to_response_format(self) -> None:
@@ -1941,6 +2144,103 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 }
             ],
             chat_log.deltas,
+        )
+
+    async def test_llm_execute_chat_log_turn_returns_outcome_after_tool_loop(self) -> None:
+        from homeassistant.components.conversation import (
+            AssistantContent,
+            ToolResultContent,
+            UserContent,
+        )
+
+        llm_module = _require_module("lemonade.llm")
+
+        class Client:
+            def __init__(self) -> None:
+                self.calls: list[dict[str, Any]] = []
+
+            async def chat_completion(self, **kwargs: Any) -> dict[str, Any]:
+                self.calls.append(kwargs)
+                if len(self.calls) == 1:
+                    return {
+                        "choices": [
+                            {
+                                "message": {
+                                    "tool_calls": [
+                                        {
+                                            "id": "call-1",
+                                            "type": "function",
+                                            "function": {
+                                                "name": "HassTurnOn",
+                                                "arguments": '{"entity_id": "light.kitchen"}',
+                                            },
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                return {"choices": [{"message": {"content": '{"ok": true}'}}]}
+
+        class ChatLog:
+            def __init__(self) -> None:
+                self.content = [UserContent("Turn on the kitchen light")]
+                self.llm_api = None
+                self.unresponded_tool_results: list[Any] = []
+                self.deltas: list[dict[str, Any]] = []
+
+            async def async_add_delta_content_stream(
+                self, agent_id: str, stream: Any
+            ) -> None:
+                async for delta in stream:
+                    self.deltas.append(delta)
+                    if delta.get("tool_calls"):
+                        self.content.append(
+                            AssistantContent(None, delta["tool_calls"])
+                        )
+                        self.content.append(
+                            ToolResultContent(
+                                {"ok": True},
+                                tool_call_id="call-1",
+                                tool_name="HassTurnOn",
+                            )
+                        )
+                        self.unresponded_tool_results = [{"ok": True}]
+                    else:
+                        self.unresponded_tool_results = []
+
+        client = Client()
+        chat_log = ChatLog()
+
+        outcome = await llm_module.async_execute_chat_log_turn(
+            entity_id="conversation.lemonade",
+            client=client,
+            model="chat-model",
+            chat_log=chat_log,
+            structure={"type": "json_object"},
+        )
+
+        self.assertIsInstance(outcome, llm_module.ChatTurnOutcome)
+        self.assertEqual(2, outcome.iterations)
+        self.assertEqual('{"ok": true}', outcome.final_assistant_content)
+        self.assertEqual(
+            {"ok": True},
+            llm_module.chat_turn_data(
+                outcome,
+                {"type": "json_object"},
+            ),
+        )
+        self.assertEqual(2, len(client.calls))
+        self.assertEqual("tool", client.calls[1]["messages"][-1]["role"])
+        self.assertEqual({"type": "json_object"}, client.calls[1]["response_format"])
+        self.assertIsInstance(
+            llm_module.ChatTurnRequest(
+                entity_id="conversation.lemonade",
+                client=client,
+                model="chat-model",
+                chat_log=chat_log,
+            ),
+            llm_module.ChatTurnRequest,
         )
 
     async def test_conversation_platform_adds_only_conversation_subentries(self) -> None:
@@ -2177,6 +2477,52 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             "assistant text",
             ai_task_module._final_assistant_content(chat_log),
         )
+
+    async def test_ai_task_generate_data_uses_chat_log_data_interface(self) -> None:
+        from homeassistant.components import ai_task
+
+        ai_task_module = _require_module("lemonade.ai_task")
+        requests: list[dict[str, Any]] = []
+
+        async def fake_generate_chat_log_data(**kwargs: Any) -> Any:
+            requests.append(kwargs)
+            return {"ok": True}
+
+        original_generate = ai_task_module.async_generate_chat_log_data
+        self.addCleanup(
+            setattr,
+            ai_task_module,
+            "async_generate_chat_log_data",
+            original_generate,
+        )
+        ai_task_module.async_generate_chat_log_data = fake_generate_chat_log_data
+
+        entry = SimpleNamespace(
+            options={CONF_DEFAULT_AI_TASK_MODEL: "entry-task"},
+            runtime_data=SimpleNamespace(
+                client=object(),
+                coordinator=SimpleNamespace(
+                    catalog=FakeCatalog({CAPABILITY_AI_TASK: ["catalog-task"]})
+                ),
+            ),
+        )
+        entity = ai_task_module.LemonadeAITaskEntity(
+            entry, SimpleNamespace(subentry_id="task-1", data={})
+        )
+        entity.entity_id = "ai_task.lemonade"
+
+        result = await entity._async_generate_data(
+            SimpleNamespace(structure={"type": "json_object"}),
+            SimpleNamespace(conversation_id="conversation-1"),
+        )
+
+        self.assertIsInstance(result, ai_task.GenDataTaskResult)
+        self.assertEqual({"ok": True}, result.data)
+        self.assertEqual(1, len(requests))
+        self.assertEqual("ai_task.lemonade", requests[0]["entity_id"])
+        self.assertIs(entry.runtime_data.client, requests[0]["client"])
+        self.assertEqual("entry-task", requests[0]["model"])
+        self.assertEqual({"type": "json_object"}, requests[0]["structure"])
 
     def test_ai_task_resolve_data_model_falls_back_to_default_then_catalog(self) -> None:
         ai_task_module = _require_module("lemonade.ai_task")
@@ -2721,9 +3067,12 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             extra_system_prompt=None,
             as_llm_context=lambda domain: {"domain": domain},
         )
-        original_handle = conversation_module.async_handle_chat_log
+        original_execute = conversation_module.async_execute_chat_log_turn
         self.addCleanup(
-            setattr, conversation_module, "async_handle_chat_log", original_handle
+            setattr,
+            conversation_module,
+            "async_execute_chat_log_turn",
+            original_execute,
         )
 
         errors = (
@@ -2737,7 +3086,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 async def raise_error(*args: Any, **kwargs: Any) -> None:
                     raise error
 
-                conversation_module.async_handle_chat_log = raise_error
+                conversation_module.async_execute_chat_log_turn = raise_error
 
                 try:
                     await entity._async_handle_message(user_input, ChatLog())
@@ -3013,6 +3362,220 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             "Lemonade transcription response missing valid text",
         ):
             parse_transcription_result({"text": 123})
+
+    async def test_transcription_helpers_build_requests_and_capture_invalid_outcomes(self) -> None:
+        import tempfile
+
+        from lemonade.transcription import (
+            file_transcription_request,
+            request_transcription,
+            stream_transcription_request,
+            transcribe_file,
+            transcribe_stream_result,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_file = Path(tmpdir) / "speech.wav"
+            audio_file.write_bytes(b"file-audio")
+
+            async def read_file_bytes(file_path: Path) -> bytes:
+                return file_path.read_bytes()
+
+            file_request = await file_transcription_request(
+                audio_file,
+                model="stt-model",
+                language="en",
+                read_file_bytes=read_file_bytes,
+            )
+
+        self.assertEqual(b"file-audio", file_request.audio)
+        self.assertEqual("speech.wav", file_request.filename)
+        self.assertEqual("stt-model", file_request.model)
+        self.assertEqual("en", file_request.language)
+
+        async def audio_stream() -> Any:
+            yield b"stream-"
+            yield b"audio"
+
+        stream_request = await stream_transcription_request(
+            audio_stream(),
+            model="stream-model",
+            language=None,
+        )
+
+        self.assertEqual(b"stream-audio", stream_request.audio)
+        self.assertEqual("speech.wav", stream_request.filename)
+        self.assertEqual("stream-model", stream_request.model)
+
+        class Client:
+            async def transcribe_audio(self, **kwargs: Any) -> dict[str, Any]:
+                self.kwargs = kwargs
+                return {"text": None}
+
+        client = Client()
+        outcome = await request_transcription(client, stream_request)
+
+        self.assertEqual(
+            {
+                "audio": b"stream-audio",
+                "filename": "speech.wav",
+                "model": "stream-model",
+                "language": None,
+            },
+            client.kwargs,
+        )
+        self.assertIsNone(outcome.text)
+        self.assertFalse(outcome.is_valid)
+        with self.assertRaisesRegex(
+            TypeError,
+            "Lemonade transcription response missing valid text",
+        ):
+            outcome.require_result()
+
+        class ValidClient:
+            async def transcribe_audio(self, **kwargs: Any) -> dict[str, Any]:
+                self.kwargs = kwargs
+                return {"text": "stream text"}
+
+        valid_client = ValidClient()
+        stream_result = await transcribe_stream_result(
+            valid_client,
+            audio_stream(),
+            model="stream-model",
+            language="en",
+        )
+
+        self.assertEqual("stream text", stream_result.text)
+        self.assertEqual(
+            {
+                "audio": b"stream-audio",
+                "filename": "speech.wav",
+                "model": "stream-model",
+                "language": "en",
+            },
+            valid_client.kwargs,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_file = Path(tmpdir) / "speech.wav"
+            audio_file.write_bytes(b"file-audio")
+            file_outcome = await transcribe_file(
+                valid_client,
+                audio_file,
+                model="file-model",
+                language=None,
+                read_file_bytes=read_file_bytes,
+            )
+
+        self.assertEqual("stream text", file_outcome.text)
+        self.assertEqual(
+            {
+                "audio": b"file-audio",
+                "filename": "speech.wav",
+                "model": "file-model",
+                "language": None,
+            },
+            valid_client.kwargs,
+        )
+
+    async def test_voice_generation_resolves_model_generates_audio_and_metadata(self) -> None:
+        import aiohttp
+
+        from homeassistant.exceptions import HomeAssistantError
+        from lemonade.api import LemonadeError
+        from lemonade.voice import (
+            VoiceGenerationRequest,
+            audio_extension,
+            generate_entry_voice,
+            generate_voice,
+            resolve_voice_model,
+        )
+
+        class Client:
+            def __init__(self) -> None:
+                self.calls: list[dict[str, Any]] = []
+
+            async def text_to_speech(self, **kwargs: Any) -> tuple[bytes, str | None]:
+                self.calls.append(kwargs)
+                return b"voice", "audio/x-wav; charset=binary"
+
+        client = Client()
+        entry = _service_entry(
+            client,
+            {CAPABILITY_TTS: ["catalog-tts"]},
+            {CONF_DEFAULT_TTS_MODEL: "entry-tts"},
+        )
+
+        self.assertEqual("entry-tts", resolve_voice_model(entry))
+        result = await generate_entry_voice(
+            entry,
+            text="Hello",
+            explicit_model="request-tts",
+            voice="alloy",
+            response_format="mp3",
+        )
+
+        self.assertEqual(b"voice", result.audio)
+        self.assertEqual("audio/x-wav; charset=binary", result.content_type)
+        self.assertEqual("wav", result.extension)
+        self.assertEqual(
+            [
+                {
+                    "text": "Hello",
+                    "model": "request-tts",
+                    "voice": "alloy",
+                    "response_format": "mp3",
+                }
+            ],
+            client.calls,
+        )
+        self.assertEqual("flac", audio_extension(None, ".flac"))
+        self.assertEqual("mp3", audio_extension(None, None))
+
+        generated = await generate_voice(
+            client,
+            VoiceGenerationRequest(
+                text="Again",
+                model="model",
+                voice=None,
+                response_format=None,
+            ),
+        )
+        self.assertEqual(("wav", b"voice"), (generated.extension, generated.audio))
+
+        empty_entry = _service_entry(Client(), {CAPABILITY_TTS: []})
+        with self.assertRaisesRegex(
+            HomeAssistantError,
+            "No Lemonade TTS model is available",
+        ):
+            await generate_entry_voice(empty_entry, text="Hello")
+
+        for error, expected_message in (
+            (LemonadeError("boom"), "Error generating speech with Lemonade: boom"),
+            (
+                aiohttp.ClientError("network down"),
+                "Error generating speech with Lemonade: network down",
+            ),
+            (TimeoutError("slow"), "Timeout communicating with Lemonade Server"),
+        ):
+            with self.subTest(error=type(error).__name__):
+
+                class ErrorClient:
+                    async def text_to_speech(
+                        self, **kwargs: Any
+                    ) -> tuple[bytes, str | None]:
+                        raise error
+
+                with self.assertRaisesRegex(HomeAssistantError, expected_message):
+                    await generate_voice(
+                        ErrorClient(),
+                        VoiceGenerationRequest(
+                            text="Hello",
+                            model="tts",
+                            voice=None,
+                            response_format=None,
+                        ),
+                    )
 
     def test_chat_completion_request_parses_service_call_data_once(self) -> None:
         from dataclasses import FrozenInstanceError
@@ -3480,19 +4043,20 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 str(raised.exception),
             )
 
-    async def test_transcribe_audio_service_uses_shared_parser_and_preserves_invalid_shape(self) -> None:
+    async def test_transcribe_audio_service_uses_shared_transcription_and_preserves_invalid_shape(self) -> None:
         import tempfile
 
         from lemonade.const import ATTR_FILE_PATH, CAPABILITY_STT
 
         services_module = _require_module("lemonade.services")
+        transcription_module = _require_module("lemonade.transcription")
 
         response: dict[str, Any] = {"text": None}
-        parser_calls: list[Any] = []
+        request_calls: list[dict[str, Any]] = []
 
         class Client:
             async def transcribe_audio(self, **kwargs: Any) -> dict[str, Any]:
-                return response
+                raise AssertionError("transcribe_file should call the client")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             audio_file = Path(tmpdir) / "speech.wav"
@@ -3500,21 +4064,33 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             entry = _service_entry(Client(), {CAPABILITY_STT: ["catalog-stt"]})
             hass = FakeServiceHass(entry)
 
-            original_parser = services_module.parse_transcription_result
+            original_transcribe_file = services_module.transcribe_file
 
-            def parser(value: Any) -> Any:
-                parser_calls.append(value)
-                raise TypeError("Lemonade transcription response missing valid text")
+            async def transcribe_file(client: Any, file_path: Path, **kwargs: Any) -> Any:
+                request_calls.append(
+                    {
+                        "client": client,
+                        "audio": await kwargs["read_file_bytes"](file_path),
+                        "filename": file_path.name,
+                        "model": kwargs["model"],
+                        "language": kwargs["language"],
+                    }
+                )
+                return transcription_module.transcription_outcome(response)
 
-            services_module.parse_transcription_result = parser
+            services_module.transcribe_file = transcribe_file
             try:
                 result = await services_module._async_transcribe_audio(
                     hass, SimpleNamespace(data={ATTR_FILE_PATH: str(audio_file)})
                 )
             finally:
-                services_module.parse_transcription_result = original_parser
+                services_module.transcribe_file = original_transcribe_file
 
-        self.assertEqual([response], parser_calls)
+        self.assertEqual(1, len(request_calls))
+        self.assertIsInstance(request_calls[0]["client"], Client)
+        self.assertEqual(b"speech", request_calls[0]["audio"])
+        self.assertEqual("speech.wav", request_calls[0]["filename"])
+        self.assertEqual("catalog-stt", request_calls[0]["model"])
         self.assertEqual({"text": None, "response": response}, result)
 
     async def test_direct_services_translate_client_errors_to_home_assistant_error(self) -> None:
@@ -4243,17 +4819,16 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(result.text)
         self.assertEqual(stt.SpeechResultState.ERROR, result.result)
 
-    async def test_stt_uses_shared_parser_for_transcription_text(self) -> None:
+    async def test_stt_uses_shared_transcription_helper_for_transcription_text(self) -> None:
         from homeassistant.components import stt
 
         stt_module = _require_module("lemonade.stt")
 
-        response = {"text": "valid text"}
-        parser_calls: list[Any] = []
+        request_calls: list[dict[str, Any]] = []
 
         class Client:
             async def transcribe_audio(self, **kwargs: Any) -> dict[str, Any]:
-                return response
+                raise AssertionError("transcribe_stream_result should call the client")
 
         async def audio_stream() -> Any:
             yield b"audio"
@@ -4267,27 +4842,41 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             ),
         )
         entity = stt_module.LemonadeSTTEntity(entry)
-        original_parser = stt_module.parse_transcription_result
+        original_transcribe_stream_result = stt_module.transcribe_stream_result
 
-        def parser(value: Any) -> Any:
-            parser_calls.append(value)
+        async def transcribe_stream_result(client: Any, stream: Any, **kwargs: Any) -> Any:
+            audio = b"".join([chunk async for chunk in stream])
+            request_calls.append(
+                {
+                    "client": client,
+                    "audio": audio,
+                    "model": kwargs["model"],
+                    "language": kwargs["language"],
+                }
+            )
             raise TypeError("Lemonade transcription response missing valid text")
 
-        stt_module.parse_transcription_result = parser
+        stt_module.transcribe_stream_result = transcribe_stream_result
         try:
             with self.assertLogs(stt_module._LOGGER.name, level="ERROR") as logs:
                 result = await entity.async_process_audio_stream(
                     SimpleNamespace(language="en"), audio_stream()
                 )
         finally:
-            stt_module.parse_transcription_result = original_parser
+            stt_module.transcribe_stream_result = original_transcribe_stream_result
 
-        self.assertEqual([response], parser_calls)
+        self.assertEqual(1, len(request_calls))
+        self.assertIsInstance(request_calls[0]["client"], Client)
+        self.assertEqual(b"audio", request_calls[0]["audio"])
+        self.assertEqual("catalog-stt", request_calls[0]["model"])
+        self.assertEqual("en", request_calls[0]["language"])
         self.assertIn("Error transcribing audio with Lemonade", logs.output[0])
         self.assertIsNone(result.text)
         self.assertEqual(stt.SpeechResultState.ERROR, result.result)
 
     async def test_select_platform_adds_default_model_selects_and_updates_options(self) -> None:
+        from lemonade.const import default_model_capability_presentations
+
         select_module = _require_module("lemonade.select")
         hass = FakeHass()
         coordinator = SimpleNamespace(
@@ -4313,11 +4902,9 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         entities = {entity._attr_translation_key: entity for entity in added}
         self.assertEqual(
             {
-                CONF_DEFAULT_CONVERSATION_MODEL,
-                CONF_DEFAULT_AI_TASK_MODEL,
-                CONF_DEFAULT_IMAGE_MODEL,
-                CONF_DEFAULT_TTS_MODEL,
-                CONF_DEFAULT_STT_MODEL,
+                presentation.default_option_key
+                for presentation in default_model_capability_presentations()
+                if presentation.default_option_key is not None
             },
             set(entities),
         )

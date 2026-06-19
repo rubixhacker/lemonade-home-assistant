@@ -6,22 +6,10 @@ from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import (
-    CAPABILITY_CONVERSATION,
-    CAPABILITY_IMAGE,
-    CAPABILITY_STT,
-    CAPABILITY_TTS,
-)
+from .const import model_count_capability_presentations
 from .data import LemonadeConfigEntry
 from .entity import LemonadeEntity
-from .model_resolution import catalog_model_ids
-
-_CAPABILITY_COUNT_SENSORS = (
-    (CAPABILITY_CONVERSATION, "conversation_model_count"),
-    (CAPABILITY_IMAGE, "image_model_count"),
-    (CAPABILITY_TTS, "tts_model_count"),
-    (CAPABILITY_STT, "stt_model_count"),
-)
+from .model_resolution import runtime_model_view
 
 
 async def async_setup_entry(
@@ -35,8 +23,13 @@ async def async_setup_entry(
             LemonadeServerStatusSensor(entry),
             LemonadeTotalModelCountSensor(entry),
             *(
-                LemonadeCapabilityCountSensor(entry, capability, translation_key)
-                for capability, translation_key in _CAPABILITY_COUNT_SENSORS
+                LemonadeCapabilityCountSensor(
+                    entry,
+                    presentation.capability,
+                    presentation.model_count_translation_key,
+                )
+                for presentation in model_count_capability_presentations()
+                if presentation.model_count_translation_key is not None
             ),
         ]
     )
@@ -79,7 +72,7 @@ class LemonadeTotalModelCountSensor(LemonadeSensor):
     @property
     def native_value(self) -> int:
         """Return the total parsed model count."""
-        return len(self.coordinator.catalog.models)
+        return runtime_model_view(self.coordinator).total_model_count
 
 
 class LemonadeCapabilityCountSensor(LemonadeSensor):
@@ -101,4 +94,4 @@ class LemonadeCapabilityCountSensor(LemonadeSensor):
     @property
     def native_value(self) -> int:
         """Return the model count for the capability."""
-        return len(catalog_model_ids(self.coordinator.catalog, self._capability))
+        return runtime_model_view(self.coordinator).model_count(self._capability)

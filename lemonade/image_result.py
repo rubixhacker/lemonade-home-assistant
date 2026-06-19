@@ -6,6 +6,8 @@ import base64
 import binascii
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
 import re
 from typing import Any
 
@@ -14,6 +16,8 @@ DEFAULT_IMAGE_EXTENSION = "png"
 
 _IMAGE_VALUE_KEYS = ("b64_json", "url", "image")
 _SAFE_EXTENSION = re.compile(r"[^A-Za-z0-9._-]+")
+_SAFE_FILENAME = re.compile(r"[^A-Za-z0-9._-]+")
+_MEDIA_SOURCE_PREFIX = "media-source://media_source/local/lemonade"
 
 
 @dataclass(frozen=True)
@@ -23,6 +27,17 @@ class LemonadeImageResult:
     image_bytes: bytes
     mime_type: str
     extension: str
+
+
+@dataclass(frozen=True)
+class GeneratedImageArtifact:
+    """Image bytes and Lemonade media artifact metadata ready to save."""
+
+    image_bytes: bytes
+    mime_type: str
+    extension: str
+    filename: str
+    media_path: str
 
 
 def extension_from_mime_type(mime_type: str) -> str:
@@ -74,6 +89,46 @@ def image_bytes_and_extension(response: Any) -> tuple[bytes | None, str | None]:
     if result is None:
         return None, None
     return result.image_bytes, result.extension
+
+
+def generated_image_artifact(
+    response: Any,
+    requested_filename: Any = None,
+    *,
+    timestamp_slug: str | None = None,
+) -> GeneratedImageArtifact | None:
+    """Return decoded image bytes plus media-save artifact semantics."""
+    result = decode_image_result(response)
+    if result is None:
+        return None
+
+    extension = result.extension or DEFAULT_IMAGE_EXTENSION
+    default_filename = f"lemonade_{timestamp_slug or _utcnow_slug()}.{extension}"
+    filename = safe_media_filename(requested_filename, default_filename)
+    return GeneratedImageArtifact(
+        image_bytes=result.image_bytes,
+        mime_type=result.mime_type,
+        extension=extension,
+        filename=filename,
+        media_path=f"{_MEDIA_SOURCE_PREFIX}/{filename}",
+    )
+
+
+def safe_media_filename(filename: Any, default_filename: str) -> str:
+    """Return a filename safe to place under the Lemonade media directory."""
+    if not isinstance(filename, str) or not filename.strip():
+        return default_filename
+
+    basename = Path(filename.replace("\\", "/")).name
+    basename = _SAFE_FILENAME.sub("_", basename).strip("._")
+    if not basename or basename in {".", ".."}:
+        return default_filename
+    return basename
+
+
+def _utcnow_slug() -> str:
+    """Return a UTC timestamp slug for generated media filenames."""
+    return datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
 
 def _image_response_values(response: Any) -> Iterator[Any]:

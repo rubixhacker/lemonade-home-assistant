@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-from collections.abc import Mapping
 from typing import Any
 
 from homeassistant.components import ai_task
@@ -11,10 +9,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-try:
-    from homeassistant.util.json import json_loads
-except ImportError:  # pragma: no cover - Home Assistant always provides this
-    json_loads = json.loads
 
 from .const import (
     CAPABILITY_AI_TASK,
@@ -27,8 +21,11 @@ from .const import (
 from .data import LemonadeConfigEntry
 from .errors import LEMONADE_CLIENT_EXCEPTIONS, lemonade_home_assistant_error
 from .image_result import decode_image_result
-from .llm import async_handle_chat_log
-from .model_resolution import catalog_model_ids, resolve_entry_model
+from .llm import (
+    async_generate_chat_log_data,
+    final_assistant_content as _llm_final_assistant_content,
+)
+from .model_resolution import resolve_entry_model, runtime_model_view
 from .profiles import (
     AITaskProfile,
     async_add_profile_entity,
@@ -52,29 +49,9 @@ async def async_setup_entry(
         )
 
 
-def _value(obj: Any, name: str, default: Any = None) -> Any:
-    """Return a mapping key or attribute value from an object."""
-    if isinstance(obj, Mapping) and name in obj:
-        return obj[name]
-    return getattr(obj, name, default)
-
-
 def _final_assistant_content(chat_log: Any) -> str:
     """Return the latest assistant text from a chat log."""
-    for delta in reversed(getattr(chat_log, "deltas", []) or []):
-        content = _value(delta, "content")
-        if isinstance(content, str):
-            return content
-
-    for content_item in reversed(getattr(chat_log, "content", []) or []):
-        role = _value(content_item, "role")
-        if role != "assistant":
-            continue
-        content = _value(content_item, "content")
-        if isinstance(content, str):
-            return content
-
-    return ""
+    return _llm_final_assistant_content(chat_log)
 
 
 class LemonadeAITaskEntity(ai_task.AITaskEntity):
@@ -92,7 +69,7 @@ class LemonadeAITaskEntity(ai_task.AITaskEntity):
             ai_task.AITaskEntityFeature.GENERATE_DATA
             | ai_task.AITaskEntityFeature.SUPPORT_ATTACHMENTS
         )
-        if catalog_model_ids(entry.runtime_data.coordinator.catalog, CAPABILITY_IMAGE):
+        if runtime_model_view(entry).has_models(CAPABILITY_IMAGE):
             self._attr_supported_features |= ai_task.AITaskEntityFeature.GENERATE_IMAGE
 
         entry_id = getattr(entry, "entry_id", None)
@@ -141,11 +118,11 @@ class LemonadeAITaskEntity(ai_task.AITaskEntity):
         structure = getattr(task, "structure", None)
         model = self._resolve_data_model()
         try:
-            await async_handle_chat_log(
-                getattr(self, "entity_id", None) or self._attr_unique_id,
-                self.entry.runtime_data.client,
-                model,
-                chat_log,
+            data = await async_generate_chat_log_data(
+                entity_id=getattr(self, "entity_id", None) or self._attr_unique_id,
+                client=self.entry.runtime_data.client,
+                model=model,
+                chat_log=chat_log,
                 structure=structure,
             )
         except LEMONADE_CLIENT_EXCEPTIONS as err:
@@ -153,17 +130,9 @@ class LemonadeAITaskEntity(ai_task.AITaskEntity):
                 err,
                 "Error generating data with Lemonade",
             ) from err
-        content = _final_assistant_content(chat_log)
-        if structure is not None:
-            try:
-                content = json_loads(content)
-            except (TypeError, ValueError) as err:
-                raise HomeAssistantError(
-                    "Error with Lemonade structured response"
-                ) from err
         return ai_task.GenDataTaskResult(
             conversation_id=getattr(chat_log, "conversation_id", None),
-            data=content,
+            data=data,
         )
 
     async def _async_generate_image(self, task: Any, chat_log: Any) -> Any:

@@ -33,6 +33,10 @@ try:
     from homeassistant.util.json import json_dumps
 except ImportError:  # pragma: no cover - Home Assistant always provides this
     json_dumps = json.dumps
+try:
+    from homeassistant.util.json import json_loads
+except ImportError:  # pragma: no cover - Home Assistant always provides this
+    json_loads = json.loads
 from voluptuous_openapi import convert
 
 MAX_TOOL_ITERATIONS = 10
@@ -82,6 +86,60 @@ class Message:
     parts: tuple[ImagePart, ...] = ()
     tool_calls: tuple[ToolCall, ...] = ()
     tool_result: ToolResult | None = None
+
+
+@dataclass(frozen=True)
+class ChatTurnRequest:
+    """Inputs needed to execute one Lemonade chat turn sequence."""
+
+    entity_id: str
+    client: Any
+    model: str
+    chat_log: Any
+    structure: Any | None = None
+
+
+@dataclass(frozen=True)
+class ChatTurnPayload:
+    """OpenAI-compatible payload for a Lemonade chat completion request."""
+
+    model: str
+    messages: tuple[Mapping[str, Any], ...]
+    tools: tuple[Mapping[str, Any], ...] | None = None
+    response_format: Mapping[str, Any] | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "messages", _deep_freeze(self.messages))
+        object.__setattr__(self, "tools", _deep_freeze(self.tools))
+        object.__setattr__(
+            self, "response_format", _deep_freeze(self.response_format)
+        )
+
+    def to_chat_completion_kwargs(self) -> dict[str, Any]:
+        """Return kwargs accepted by LemonadeClient.chat_completion."""
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "messages": _jsonable_value(self.messages),
+        }
+        if self.tools is not None:
+            payload["tools"] = _jsonable_value(self.tools)
+        if self.response_format is not None:
+            payload["response_format"] = _jsonable_value(self.response_format)
+        return payload
+
+
+@dataclass(frozen=True)
+class ChatTurnOutcome:
+    """Result of applying Lemonade responses to a chat log."""
+
+    iterations: int
+    responses: tuple[Mapping[str, Any], ...]
+    final_delta: AssistantContentDeltaDict | None
+    final_assistant_content: str
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "responses", _deep_freeze(self.responses))
+        object.__setattr__(self, "final_delta", _deep_freeze(self.final_delta))
 
 
 def _deep_freeze(value: Any) -> Any:
@@ -489,31 +547,146 @@ def _response_format_from_structure(structure: Any) -> Mapping[str, Any]:
     }
 
 
+def build_chat_turn_payload(
+    model: str,
+    chat_log: Any,
+    structure: Any | None = None,
+) -> ChatTurnPayload:
+    """Return a normalized payload record for a chat log turn."""
+    tools = _format_llm_api_tools(getattr(chat_log, "llm_api", None))
+    response_format = (
+        _response_format_from_structure(structure) if structure is not None else None
+    )
+    return ChatTurnPayload(
+        model=model,
+        messages=tuple(_chat_log_messages(chat_log)),
+        tools=tuple(tools) if tools is not None else None,
+        response_format=response_format,
+    )
+
+
 def _build_chat_completion_payload(
     model: str,
     chat_log: Any,
     structure: Any | None = None,
 ) -> dict[str, Any]:
     """Return the OpenAI chat completion payload for a chat log turn."""
-    payload: dict[str, Any] = {
-        "model": model,
-        "messages": _chat_log_messages(chat_log),
-    }
-    tools = _format_llm_api_tools(getattr(chat_log, "llm_api", None))
-    if tools is not None:
-        payload["tools"] = tools
-    if structure is not None:
-        payload["response_format"] = _response_format_from_structure(structure)
-    return payload
+    return build_chat_turn_payload(
+        model,
+        chat_log,
+        structure,
+    ).to_chat_completion_kwargs()
 
 
 async def _apply_chat_response_to_chat_log(
     chat_log: Any,
     entity_id: str,
     response: Mapping[str, Any],
-) -> None:
+) -> AssistantContentDeltaDict | None:
     """Convert a Lemonade response and append its delta to a chat log."""
-    await _async_add_delta_content_stream(chat_log, entity_id, response_to_delta(response))
+    delta = response_to_delta(response)
+    await _async_add_delta_content_stream(chat_log, entity_id, delta)
+    return delta
+
+
+def final_assistant_content(chat_log: Any) -> str:
+    """Return the latest assistant text from a chat log."""
+    for delta in reversed(getattr(chat_log, "deltas", []) or []):
+        content = _value(delta, "content")
+        if isinstance(content, str):
+            return content
+
+    for content_item in reversed(getattr(chat_log, "content", []) or []):
+        role = _value(content_item, "role")
+        if role != "assistant":
+            continue
+        content = _value(content_item, "content")
+        if isinstance(content, str):
+            return content
+
+    return ""
+
+
+def chat_turn_data(outcome: ChatTurnOutcome, structure: Any | None = None) -> Any:
+    """Return a chat-turn text result, parsing structured responses when requested."""
+    content = outcome.final_assistant_content
+    if structure is None:
+        return content
+    try:
+        return json_loads(content)
+    except (TypeError, ValueError) as err:
+        raise HomeAssistantError("Error with Lemonade structured response") from err
+
+
+async def async_execute_chat_turn(request: ChatTurnRequest) -> ChatTurnOutcome:
+    """Run Lemonade chat completions until tool results are answered."""
+    responses: list[Mapping[str, Any]] = []
+    final_delta: AssistantContentDeltaDict | None = None
+
+    for iteration in range(1, MAX_TOOL_ITERATIONS + 1):
+        payload = build_chat_turn_payload(
+            request.model,
+            request.chat_log,
+            request.structure,
+        )
+        response = await request.client.chat_completion(
+            **payload.to_chat_completion_kwargs()
+        )
+        responses.append(response)
+        final_delta = await _apply_chat_response_to_chat_log(
+            request.chat_log,
+            request.entity_id,
+            response,
+        )
+
+        if not getattr(request.chat_log, "unresponded_tool_results", []):
+            return ChatTurnOutcome(
+                iterations=iteration,
+                responses=tuple(responses),
+                final_delta=final_delta,
+                final_assistant_content=final_assistant_content(request.chat_log),
+            )
+
+    raise HomeAssistantError("Maximum Lemonade tool call iterations reached")
+
+
+async def async_execute_chat_log_turn(
+    *,
+    entity_id: str,
+    client: Any,
+    model: str,
+    chat_log: Any,
+    structure: Any | None = None,
+) -> ChatTurnOutcome:
+    """Execute one Lemonade chat log turn, including any required tool loop."""
+    return await async_execute_chat_turn(
+        ChatTurnRequest(
+            entity_id=entity_id,
+            client=client,
+            model=model,
+            chat_log=chat_log,
+            structure=structure,
+        )
+    )
+
+
+async def async_generate_chat_log_data(
+    *,
+    entity_id: str,
+    client: Any,
+    model: str,
+    chat_log: Any,
+    structure: Any | None = None,
+) -> Any:
+    """Execute a Lemonade chat log turn and return parsed task data."""
+    outcome = await async_execute_chat_log_turn(
+        entity_id=entity_id,
+        client=client,
+        model=model,
+        chat_log=chat_log,
+        structure=structure,
+    )
+    return chat_turn_data(outcome, structure)
 
 
 async def async_handle_chat_log(
@@ -524,12 +697,10 @@ async def async_handle_chat_log(
     structure: Any | None = None,
 ) -> None:
     """Run Lemonade chat completion turns until tool results are answered."""
-    for _iteration in range(MAX_TOOL_ITERATIONS):
-        payload = _build_chat_completion_payload(model, chat_log, structure)
-        response = await client.chat_completion(**payload)
-        await _apply_chat_response_to_chat_log(chat_log, entity_id, response)
-
-        if not getattr(chat_log, "unresponded_tool_results", []):
-            return
-
-    raise HomeAssistantError("Maximum Lemonade tool call iterations reached")
+    await async_execute_chat_log_turn(
+        entity_id=entity_id,
+        client=client,
+        model=model,
+        chat_log=chat_log,
+        structure=structure,
+    )

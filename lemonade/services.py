@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import base64
-from datetime import datetime, timezone
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from pathlib import Path
-import re
-from typing import Any
+from typing import Any, Generic, TypeVar
 
 import voluptuous as vol
 
@@ -19,7 +19,7 @@ from homeassistant.helpers import config_validation as cv
 from .api import LemonadeClient
 from .data import LemonadeRuntimeData
 from .errors import LEMONADE_CLIENT_EXCEPTIONS, lemonade_home_assistant_error
-from .image_result import image_bytes_and_extension
+from .image_result import generated_image_artifact, image_bytes_and_extension
 from .model_resolution import resolve_entry_model
 from .service_requests import (
     ChatCompletionRequest,
@@ -28,7 +28,8 @@ from .service_requests import (
     TranscribeAudioRequest,
     thaw_chat_messages,
 )
-from .transcription import parse_transcription_result
+from .transcription import transcribe_file
+from .voice import VoiceGenerationRequest, generate_voice, require_voice_model
 from .const import (
     ATTR_FILENAME,
     ATTR_FILE_PATH,
@@ -59,6 +60,9 @@ from .const import (
     SERVICE_TEXT_TO_SPEECH,
     SERVICE_TRANSCRIBE_AUDIO,
 )
+
+_RequestT = TypeVar("_RequestT")
+_ResponseT = TypeVar("_ResponseT")
 
 COMMON_SCHEMA = {
     vol.Optional(CONF_ENTRY_ID): cv.string,
@@ -103,7 +107,37 @@ TEXT_TO_SPEECH_SCHEMA = vol.Schema(
     }
 )
 
-_SAFE_FILENAME = re.compile(r"[^A-Za-z0-9._-]+")
+
+@dataclass(frozen=True)
+class DirectServiceContext(Generic[_RequestT]):
+    """Resolved direct service request execution context."""
+
+    hass: HomeAssistant
+    request: _RequestT
+    entry: ConfigEntry
+    client: LemonadeClient
+    model: str
+
+
+@dataclass(frozen=True)
+class DirectServiceResult(Generic[_RequestT, _ResponseT]):
+    """Completed direct service execution with resolved context."""
+
+    context: DirectServiceContext[_RequestT]
+    value: _ResponseT
+
+
+@dataclass(frozen=True)
+class DirectServiceRecipe(Generic[_RequestT, _ResponseT]):
+    """Direct service execution recipe shared by service handlers."""
+
+    request_factory: Callable[[ServiceCall], _RequestT]
+    capability: str
+    default_option: str
+    model_label: str
+    error_action: str
+    invoke: Callable[[DirectServiceContext[_RequestT]], Awaitable[_ResponseT]]
+    resolve_model: Callable[[ConfigEntry, _RequestT], str] | None = None
 
 
 def _get_entry_and_client(
@@ -165,23 +199,6 @@ def extract_image_bytes(response: Any) -> tuple[bytes | None, str | None]:
     return image_bytes_and_extension(response)
 
 
-def _utcnow_slug() -> str:
-    """Return a UTC timestamp slug for generated media filenames."""
-    return datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-
-
-def _safe_media_filename(filename: Any, default_filename: str) -> str:
-    """Return a filename safe to place under the Lemonade media directory."""
-    if not isinstance(filename, str) or not filename.strip():
-        return default_filename
-
-    basename = Path(filename.replace("\\", "/")).name
-    basename = _SAFE_FILENAME.sub("_", basename).strip("._")
-    if not basename or basename in {".", ".."}:
-        return default_filename
-    return basename
-
-
 def _write_image_file(path: Path, image_bytes: bytes) -> None:
     """Create parent directories and write image bytes."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -193,30 +210,172 @@ def _client_error(err: Exception, action: str) -> HomeAssistantError:
     return lemonade_home_assistant_error(err, action)
 
 
+class _AudioFileReadError(Exception):
+    """Wrap OSError raised while reading a local audio file."""
+
+
+async def _execute_direct_service(
+    hass: HomeAssistant,
+    call: ServiceCall,
+    *,
+    recipe: DirectServiceRecipe[_RequestT, _ResponseT],
+) -> DirectServiceResult[_RequestT, _ResponseT]:
+    """Parse, resolve, call, and translate errors for a direct service."""
+    request = recipe.request_factory(call)
+    entry, client = _get_entry_and_client(hass, getattr(request, "entry_id", None))
+    if recipe.resolve_model is not None:
+        model = recipe.resolve_model(entry, request)
+    else:
+        model = _resolve_service_model(
+            entry,
+            getattr(request, "model", None),
+            recipe.capability,
+            recipe.default_option,
+            recipe.model_label,
+        )
+    context = DirectServiceContext(
+        hass=hass,
+        request=request,
+        entry=entry,
+        client=client,
+        model=model,
+    )
+    try:
+        value = await recipe.invoke(context)
+    except LEMONADE_CLIENT_EXCEPTIONS as err:
+        raise _client_error(err, recipe.error_action) from err
+    return DirectServiceResult(context=context, value=value)
+
+
+async def _invoke_chat_completion(
+    context: DirectServiceContext[ChatCompletionRequest],
+) -> dict[str, Any]:
+    """Call Lemonade chat completion for a resolved direct service request."""
+    request = context.request
+    return await context.client.chat_completion(
+        model=context.model,
+        messages=thaw_chat_messages(request.messages),
+        temperature=request.temperature,
+        max_tokens=request.max_tokens,
+    )
+
+
+async def _invoke_generate_image(
+    context: DirectServiceContext[GenerateImageRequest],
+) -> dict[str, Any]:
+    """Call Lemonade image generation for a resolved direct service request."""
+    request = context.request
+    return await context.client.generate_image(
+        prompt=request.prompt,
+        model=context.model,
+        size=request.size,
+    )
+
+
+async def _invoke_transcribe_audio(
+    context: DirectServiceContext[TranscribeAudioRequest],
+) -> Any:
+    """Transcribe an audio file for a resolved direct service request."""
+    request = context.request
+
+    async def read_file_bytes(file_path: Path) -> bytes:
+        try:
+            return await context.hass.async_add_executor_job(file_path.read_bytes)
+        except OSError as err:
+            raise _AudioFileReadError(str(err)) from err
+
+    try:
+        return await transcribe_file(
+            context.client,
+            request.file_path,
+            model=context.model,
+            language=request.language,
+            read_file_bytes=read_file_bytes,
+        )
+    except FileNotFoundError as err:
+        raise HomeAssistantError(f"Audio file not found: {request.file_path}") from err
+    except _AudioFileReadError as err:
+        raise HomeAssistantError(f"Could not read audio file: {err}") from err
+
+
+async def _invoke_text_to_speech(
+    context: DirectServiceContext[TextToSpeechRequest],
+) -> dict[str, Any]:
+    """Generate speech for a resolved direct service request."""
+    request = context.request
+    result = await generate_voice(
+        context.client,
+        VoiceGenerationRequest(
+            text=request.text,
+            model=context.model,
+            voice=request.voice,
+            response_format=request.response_format,
+        ),
+    )
+    return {
+        "audio_base64": base64.b64encode(result.audio).decode("ascii"),
+        "content_type": result.content_type,
+    }
+
+
+CHAT_COMPLETION_RECIPE = DirectServiceRecipe[
+    ChatCompletionRequest, dict[str, Any]
+](
+    request_factory=ChatCompletionRequest.from_service_call,
+    capability=CAPABILITY_CONVERSATION,
+    default_option=CONF_DEFAULT_CONVERSATION_MODEL,
+    model_label="conversation",
+    error_action="Error completing chat with Lemonade",
+    invoke=_invoke_chat_completion,
+)
+
+GENERATE_IMAGE_RECIPE = DirectServiceRecipe[
+    GenerateImageRequest, dict[str, Any]
+](
+    request_factory=GenerateImageRequest.from_service_call,
+    capability=CAPABILITY_IMAGE,
+    default_option=CONF_DEFAULT_IMAGE_MODEL,
+    model_label="image",
+    error_action="Error generating image with Lemonade",
+    invoke=_invoke_generate_image,
+)
+
+TRANSCRIBE_AUDIO_RECIPE = DirectServiceRecipe[
+    TranscribeAudioRequest, Any
+](
+    request_factory=TranscribeAudioRequest.from_service_call,
+    capability=CAPABILITY_STT,
+    default_option=CONF_DEFAULT_STT_MODEL,
+    model_label="STT",
+    error_action="Error transcribing audio with Lemonade",
+    invoke=_invoke_transcribe_audio,
+)
+
+TEXT_TO_SPEECH_RECIPE = DirectServiceRecipe[
+    TextToSpeechRequest, dict[str, Any]
+](
+    request_factory=TextToSpeechRequest.from_service_call,
+    capability=CAPABILITY_TTS,
+    default_option=CONF_DEFAULT_TTS_MODEL,
+    model_label="TTS",
+    error_action="Error generating speech with Lemonade",
+    invoke=_invoke_text_to_speech,
+    resolve_model=lambda entry, request: require_voice_model(entry, request.model),
+)
+
+
 async def _async_chat_completion(
     hass: HomeAssistant,
     call: ServiceCall,
 ) -> dict[str, Any]:
     """Handle lemonade.chat_completion."""
-    request = ChatCompletionRequest.from_service_call(call)
-    entry, client = _get_entry_and_client(hass, request.entry_id)
-    model = _resolve_service_model(
-        entry,
-        request.model,
-        CAPABILITY_CONVERSATION,
-        CONF_DEFAULT_CONVERSATION_MODEL,
-        "conversation",
-    )
 
-    try:
-        response = await client.chat_completion(
-            model=model,
-            messages=thaw_chat_messages(request.messages),
-            temperature=request.temperature,
-            max_tokens=request.max_tokens,
-        )
-    except LEMONADE_CLIENT_EXCEPTIONS as err:
-        raise _client_error(err, "Error completing chat with Lemonade") from err
+    result = await _execute_direct_service(
+        hass,
+        call,
+        recipe=CHAT_COMPLETION_RECIPE,
+    )
+    response = result.value
     return {"content": _extract_chat_content(response), "response": response}
 
 
@@ -225,40 +384,29 @@ async def _async_generate_image(
     call: ServiceCall,
 ) -> dict[str, Any]:
     """Handle lemonade.generate_image."""
-    request = GenerateImageRequest.from_service_call(call)
-    entry, client = _get_entry_and_client(hass, request.entry_id)
-    model = _resolve_service_model(
-        entry,
-        request.model,
-        CAPABILITY_IMAGE,
-        CONF_DEFAULT_IMAGE_MODEL,
-        "image",
+    result = await _execute_direct_service(
+        hass,
+        call,
+        recipe=GENERATE_IMAGE_RECIPE,
     )
-    try:
-        response = await client.generate_image(
-            prompt=request.prompt,
-            model=model,
-            size=request.size,
-        )
-    except LEMONADE_CLIENT_EXCEPTIONS as err:
-        raise _client_error(err, "Error generating image with Lemonade") from err
+
+    request = result.context.request
+    response = result.value
     if not request.save:
         return {"response": response}
 
-    image_bytes, extension = extract_image_bytes(response)
-    if image_bytes is None:
+    artifact = generated_image_artifact(response, request.filename)
+    if artifact is None:
         raise HomeAssistantError(
             "Lemonade image response did not contain image bytes to save"
         )
 
-    default_filename = f"lemonade_{_utcnow_slug()}.{extension or 'png'}"
-    filename = _safe_media_filename(request.filename, default_filename)
     media_dir = hass.config.path("media", "lemonade")
-    path = Path(media_dir) / filename
-    await hass.async_add_executor_job(_write_image_file, path, image_bytes)
+    path = Path(media_dir) / artifact.filename
+    await hass.async_add_executor_job(_write_image_file, path, artifact.image_bytes)
     return {
         "response": response,
-        ATTR_MEDIA_PATH: f"media-source://media_source/local/lemonade/{filename}",
+        ATTR_MEDIA_PATH: artifact.media_path,
     }
 
 
@@ -267,37 +415,13 @@ async def _async_transcribe_audio(
     call: ServiceCall,
 ) -> dict[str, Any]:
     """Handle lemonade.transcribe_audio."""
-    request = TranscribeAudioRequest.from_service_call(call)
-    entry, client = _get_entry_and_client(hass, request.entry_id)
-    model = _resolve_service_model(
-        entry,
-        request.model,
-        CAPABILITY_STT,
-        CONF_DEFAULT_STT_MODEL,
-        "STT",
+    result = await _execute_direct_service(
+        hass,
+        call,
+        recipe=TRANSCRIBE_AUDIO_RECIPE,
     )
-    if not request.file_path.is_file():
-        raise HomeAssistantError(f"Audio file not found: {request.file_path}")
-
-    try:
-        audio = await hass.async_add_executor_job(request.file_path.read_bytes)
-    except OSError as err:
-        raise HomeAssistantError(f"Could not read audio file: {err}") from err
-
-    try:
-        response = await client.transcribe_audio(
-            audio=audio,
-            filename=request.file_path.name,
-            model=model,
-            language=request.language,
-        )
-    except LEMONADE_CLIENT_EXCEPTIONS as err:
-        raise _client_error(err, "Error transcribing audio with Lemonade") from err
-    try:
-        text = parse_transcription_result(response).text
-    except (KeyError, TypeError):
-        text = None
-    return {"text": text, "response": response}
+    outcome = result.value
+    return {"text": outcome.text, "response": outcome.response}
 
 
 async def _async_text_to_speech(
@@ -305,28 +429,12 @@ async def _async_text_to_speech(
     call: ServiceCall,
 ) -> dict[str, Any]:
     """Handle lemonade.text_to_speech."""
-    request = TextToSpeechRequest.from_service_call(call)
-    entry, client = _get_entry_and_client(hass, request.entry_id)
-    model = _resolve_service_model(
-        entry,
-        request.model,
-        CAPABILITY_TTS,
-        CONF_DEFAULT_TTS_MODEL,
-        "TTS",
+    result = await _execute_direct_service(
+        hass,
+        call,
+        recipe=TEXT_TO_SPEECH_RECIPE,
     )
-    try:
-        audio, content_type = await client.text_to_speech(
-            text=request.text,
-            model=model,
-            voice=request.voice,
-            response_format=request.response_format,
-        )
-    except LEMONADE_CLIENT_EXCEPTIONS as err:
-        raise _client_error(err, "Error generating speech with Lemonade") from err
-    return {
-        "audio_base64": base64.b64encode(audio).decode("ascii"),
-        "content_type": content_type,
-    }
+    return result.value
 
 
 def async_register_services(hass: HomeAssistant) -> None:

@@ -6,29 +6,10 @@ from homeassistant.components.select import SelectEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import (
-    CAPABILITY_AI_TASK,
-    CAPABILITY_CONVERSATION,
-    CAPABILITY_IMAGE,
-    CAPABILITY_STT,
-    CAPABILITY_TTS,
-    CONF_DEFAULT_AI_TASK_MODEL,
-    CONF_DEFAULT_CONVERSATION_MODEL,
-    CONF_DEFAULT_IMAGE_MODEL,
-    CONF_DEFAULT_STT_MODEL,
-    CONF_DEFAULT_TTS_MODEL,
-)
+from .const import default_model_capability_presentations
 from .data import LemonadeConfigEntry
 from .entity import LemonadeEntity
-from .model_resolution import catalog_model_ids
-
-_DEFAULT_MODEL_SELECTS = (
-    (CAPABILITY_CONVERSATION, CONF_DEFAULT_CONVERSATION_MODEL),
-    (CAPABILITY_AI_TASK, CONF_DEFAULT_AI_TASK_MODEL),
-    (CAPABILITY_IMAGE, CONF_DEFAULT_IMAGE_MODEL),
-    (CAPABILITY_TTS, CONF_DEFAULT_TTS_MODEL),
-    (CAPABILITY_STT, CONF_DEFAULT_STT_MODEL),
-)
+from .model_resolution import runtime_model_view
 
 
 async def async_setup_entry(
@@ -39,8 +20,13 @@ async def async_setup_entry(
     """Set up Lemonade Server model selects."""
     async_add_entities(
         [
-            LemonadeDefaultModelSelect(entry, capability, option_key)
-            for capability, option_key in _DEFAULT_MODEL_SELECTS
+            LemonadeDefaultModelSelect(
+                entry,
+                presentation.capability,
+                presentation.default_option_key,
+            )
+            for presentation in default_model_capability_presentations()
+            if presentation.default_option_key is not None
         ]
     )
 
@@ -63,19 +49,16 @@ class LemonadeDefaultModelSelect(LemonadeEntity, SelectEntity):
     @property
     def options(self) -> list[str]:
         """Return available model IDs for the capability."""
-        return catalog_model_ids(self.coordinator.catalog, self._capability)
+        return runtime_model_view(self.coordinator).model_ids(self._capability)
 
     @property
     def current_option(self) -> str | None:
         """Return the configured model or the first available model."""
-        options = self.options
-        configured = self.entry.options.get(
+        return runtime_model_view(self.coordinator).current_entry_model_option(
+            self.entry,
+            self._capability,
             self._option_key,
-            self.entry.data.get(self._option_key),
         )
-        if isinstance(configured, str) and configured in options:
-            return configured
-        return options[0] if options else None
 
     @property
     def available(self) -> bool:
