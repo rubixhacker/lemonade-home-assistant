@@ -205,7 +205,26 @@ class LemonadeOptionsFlow(config_entries.OptionsFlow):
     ) -> FlowResult:
         """Manage Lemonade Server options."""
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            options = dict(user_input)
+            submitted_api_key = options.pop(CONF_API_KEY, None)
+
+            if isinstance(submitted_api_key, str):
+                submitted_api_key = submitted_api_key.strip()
+
+            if submitted_api_key:
+                if (
+                    CONF_API_KEY in self._config_entry.options
+                    or submitted_api_key != self._config_entry.data.get(CONF_API_KEY)
+                ):
+                    options[CONF_API_KEY] = submitted_api_key
+            elif CONF_API_KEY in self._config_entry.options:
+                existing_api_key = self._config_entry.options[CONF_API_KEY]
+                if isinstance(existing_api_key, str):
+                    existing_api_key = existing_api_key.strip()
+                if existing_api_key:
+                    options[CONF_API_KEY] = existing_api_key
+
+            return self.async_create_entry(title="", data=options)
 
         config_entry = self._config_entry
         api_key = _entry_current_value(config_entry, CONF_API_KEY, "") or ""
@@ -243,31 +262,9 @@ class LemonadeOptionsFlow(config_entries.OptionsFlow):
 class LemonadeProfileSubentryFlow(config_entries.ConfigSubentryFlow):
     """Handle Lemonade profile subentries."""
 
-    def __init__(
-        self,
-        config_entry: config_entries.ConfigEntry | None = None,
-        subentry_type: str | None = None,
-        subentry: Any | None = None,
-    ) -> None:
+    def __init__(self) -> None:
         """Initialize the subentry flow."""
-        try:
-            super().__init__(config_entry, subentry_type)
-        except TypeError:
-            try:
-                super().__init__(config_entry)
-            except TypeError:
-                super().__init__()
-        if config_entry is not None:
-            self._config_entry = config_entry
-        if subentry_type is not None:
-            self._subentry_type = subentry_type
-        if subentry is not None:
-            self._subentry = subentry
-
-    @property
-    def _entry(self) -> config_entries.ConfigEntry:
-        """Return the config entry for this subentry flow."""
-        return getattr(self, "_config_entry", getattr(self, "config_entry", None))
+        super().__init__()
 
     @property
     def _profile_type(self) -> str:
@@ -282,39 +279,13 @@ class LemonadeProfileSubentryFlow(config_entries.ConfigSubentryFlow):
             or context_type
         )
 
-    def _reconfigure_subentry(self) -> Any | None:
-        """Return the subentry being reconfigured, if any."""
-        if hasattr(self, "_subentry"):
-            return self._subentry
-        if hasattr(self, "_get_reconfigure_subentry"):
-            return self._get_reconfigure_subentry()
-        return getattr(self, "subentry", None)
-
-    def _async_update_subentry(
-        self, subentry: Any, title: str, data: dict[str, Any]
-    ) -> FlowResult:
-        """Update a profile subentry across supported Home Assistant versions."""
-        attempts = (
-            lambda: self.async_update_and_abort(subentry, title=title, data=data),
-            lambda: self.async_update_and_abort(
-                self._entry, subentry, title=title, data=data
-            ),
-            lambda: self.async_update_and_abort(
-                subentry, title=title, data_updates=data
-            ),
-            lambda: self.async_update_and_abort(
-                self._entry, subentry, title=title, data_updates=data
-            ),
+    def _async_update_subentry(self, data: dict[str, Any]) -> FlowResult:
+        """Update a profile subentry."""
+        return self.async_update_and_abort(
+            self._get_entry(),
+            self._get_reconfigure_subentry(),
+            data=data,
         )
-        last_error: TypeError | None = None
-        for attempt in attempts:
-            try:
-                return attempt()
-            except TypeError as err:
-                last_error = err
-        if last_error is not None:
-            raise last_error
-        raise RuntimeError("No subentry update attempt was made")
 
     def _profile_schema(
         self, model_ids: list[str], profile_data: dict[str, Any]
@@ -350,14 +321,18 @@ class LemonadeProfileSubentryFlow(config_entries.ConfigSubentryFlow):
         subentry: Any | None = None,
     ) -> FlowResult:
         """Handle profile creation or reconfiguration."""
-        config_entry = self._entry
+        config_entry = self._get_entry()
         if (
             getattr(config_entry, "state", None)
             != config_entries.ConfigEntryState.LOADED
         ):
             return self.async_abort(reason="entry_not_loaded")
 
-        capability = _PROFILE_CAPABILITY_BY_SUBENTRY_TYPE[self._profile_type]
+        profile_type = self._profile_type
+        capability = _PROFILE_CAPABILITY_BY_SUBENTRY_TYPE.get(profile_type)
+        if capability is None:
+            return self.async_abort(reason="unknown_profile_type")
+
         model_ids = config_entry.runtime_data.coordinator.catalog.model_ids(capability)
         if not model_ids:
             return self.async_abort(reason="no_models")
@@ -365,7 +340,7 @@ class LemonadeProfileSubentryFlow(config_entries.ConfigSubentryFlow):
         if user_input is not None:
             title = user_input[CONF_NAME]
             if subentry is not None:
-                return self._async_update_subentry(subentry, title, user_input)
+                return self._async_update_subentry(user_input)
             return self.async_create_entry(
                 title=title,
                 data=user_input,
@@ -386,7 +361,7 @@ class LemonadeProfileSubentryFlow(config_entries.ConfigSubentryFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Reconfigure a Lemonade profile subentry."""
-        subentry = self._reconfigure_subentry()
+        subentry = self._get_reconfigure_subentry()
         return await self._async_step_profile(
             "reconfigure",
             user_input,

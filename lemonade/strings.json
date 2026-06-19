@@ -22,7 +22,8 @@
     "abort": {
       "already_configured": "This Lemonade Server is already configured.",
       "entry_not_loaded": "The Lemonade Server entry is not loaded.",
-      "no_models": "No compatible Lemonade models are available for this profile type."
+      "no_models": "No compatible Lemonade models are available for this profile type.",
+      "unknown_profile_type": "Unsupported Lemonade profile type."
     }
   },
   "issues": {
@@ -75,7 +76,8 @@
       },
       "abort": {
         "entry_not_loaded": "The Lemonade Server entry is not loaded.",
-        "no_models": "No compatible Lemonade models are available for this profile type."
+        "no_models": "No compatible Lemonade models are available for this profile type.",
+        "unknown_profile_type": "Unsupported Lemonade profile type."
       }
     },
     "ai_task_data": {
@@ -102,7 +104,8 @@
       },
       "abort": {
         "entry_not_loaded": "The Lemonade Server entry is not loaded.",
-        "no_models": "No compatible Lemonade models are available for this profile type."
+        "no_models": "No compatible Lemonade models are available for this profile type.",
+        "unknown_profile_type": "Unsupported Lemonade profile type."
       }
     }
   }

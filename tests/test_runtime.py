@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 from pathlib import Path
 import sys
@@ -64,12 +65,21 @@ class _OptionsFlowBase(_FlowBase):
 
 
 class _ConfigSubentryFlowBase(_FlowBase):
-    def async_update_and_abort(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+    def _get_entry(self) -> Any:
+        return self._flow_entry
+
+    def _get_reconfigure_subentry(self) -> Any:
+        return self._reconfigure_subentry_obj
+
+    def async_update_and_abort(
+        self, config_entry: Any, subentry: Any, *, data: dict[str, Any]
+    ) -> dict[str, Any]:
         return {
             "type": "abort",
             "reason": "reconfigure_successful",
-            "args": args,
-            **kwargs,
+            "entry": config_entry,
+            "subentry": subentry,
+            "data": data,
         }
 
 
@@ -356,6 +366,16 @@ def _schema_fields(data_schema: Any) -> dict[str, tuple[Any, Any]]:
     return {getattr(key, "key", key): (key, value) for key, value in schema.items()}
 
 
+def _profile_flow(entry: Any, subentry_type: str, subentry: Any | None = None) -> Any:
+    from lemonade.config_flow import LemonadeProfileSubentryFlow
+
+    flow = LemonadeProfileSubentryFlow()
+    flow._flow_entry = entry
+    flow._reconfigure_subentry_obj = subentry
+    flow.context = {"subentry_type": subentry_type}
+    return flow
+
+
 class FakeCatalog:
     def __init__(self, model_ids: dict[str, list[str]]) -> None:
         self._model_ids = model_ids
@@ -382,6 +402,14 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             supported,
         )
 
+    def test_profile_subentry_flow_uses_home_assistant_no_arg_constructor(self) -> None:
+        from lemonade.config_flow import LemonadeProfileSubentryFlow
+
+        self.assertEqual(
+            [],
+            list(inspect.signature(LemonadeProfileSubentryFlow).parameters),
+        )
+
     async def test_ai_task_profile_subentry_flow_uses_ai_task_models(self) -> None:
         from lemonade.config_flow import LemonadeProfileSubentryFlow
 
@@ -398,7 +426,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 )
             ),
         )
-        flow = LemonadeProfileSubentryFlow(entry, SUBENTRY_TYPE_AI_TASK)
+        flow = _profile_flow(entry, SUBENTRY_TYPE_AI_TASK)
         flow.hass = SimpleNamespace(
             llm_apis=[{"value": "assist", "label": "Assist"}]
         )
@@ -423,7 +451,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 )
             ),
         )
-        flow = LemonadeProfileSubentryFlow(entry, SUBENTRY_TYPE_CONVERSATION)
+        flow = _profile_flow(entry, SUBENTRY_TYPE_CONVERSATION)
         flow.hass = SimpleNamespace(
             llm_apis=[{"value": "assist", "label": "Assist"}]
         )
@@ -462,9 +490,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 )
             ),
         )
-        flow = LemonadeProfileSubentryFlow(
-            entry, SUBENTRY_TYPE_CONVERSATION, subentry
-        )
+        flow = _profile_flow(entry, SUBENTRY_TYPE_CONVERSATION, subentry)
         flow.hass = SimpleNamespace(llm_apis=[{"value": "assist", "label": "Assist"}])
 
         form = await flow.async_step_reconfigure()
@@ -480,9 +506,10 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual("abort", result["type"])
         self.assertEqual("reconfigure_successful", result["reason"])
-        self.assertEqual((subentry,), result["args"])
-        self.assertEqual("New profile", result["title"])
+        self.assertIs(entry, result["entry"])
+        self.assertIs(subentry, result["subentry"])
         self.assertEqual(submitted, result["data"])
+        self.assertNotIn("title", result)
 
     async def test_options_flow_builds_schema_from_loaded_runtime_catalog(self) -> None:
         from lemonade.config_flow import LemonadeConfigFlow, LemonadeOptionsFlow
@@ -549,6 +576,42 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertNotIn(CONF_API_KEY, result["data"])
 
+    async def test_options_flow_omits_blank_api_key_submission(self) -> None:
+        from lemonade.config_flow import LemonadeOptionsFlow
+
+        entry = SimpleNamespace(
+            data={CONF_API_KEY: "secret", CONF_TIMEOUT: 12.0},
+            options={},
+            runtime_data=SimpleNamespace(
+                coordinator=SimpleNamespace(catalog=FakeCatalog({}))
+            ),
+        )
+        submitted = {CONF_API_KEY: "   ", CONF_TIMEOUT: 9.5}
+
+        result = await LemonadeOptionsFlow(entry).async_step_init(submitted)
+
+        self.assertEqual(9.5, result["data"][CONF_TIMEOUT])
+        self.assertNotIn(CONF_API_KEY, result["data"])
+
+    async def test_options_flow_preserves_existing_option_api_key_when_blank(
+        self,
+    ) -> None:
+        from lemonade.config_flow import LemonadeOptionsFlow
+
+        entry = SimpleNamespace(
+            data={CONF_API_KEY: "secret", CONF_TIMEOUT: 12.0},
+            options={CONF_API_KEY: "override"},
+            runtime_data=SimpleNamespace(
+                coordinator=SimpleNamespace(catalog=FakeCatalog({}))
+            ),
+        )
+        submitted = {CONF_API_KEY: "", CONF_TIMEOUT: 9.5}
+
+        result = await LemonadeOptionsFlow(entry).async_step_init(submitted)
+
+        self.assertEqual("override", result["data"][CONF_API_KEY])
+        self.assertEqual(9.5, result["data"][CONF_TIMEOUT])
+
     def setUp(self) -> None:
         ir.CREATED.clear()
         ir.DELETED.clear()
@@ -601,7 +664,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 )
             ),
         )
-        flow = LemonadeProfileSubentryFlow(entry, SUBENTRY_TYPE_CONVERSATION)
+        flow = _profile_flow(entry, SUBENTRY_TYPE_CONVERSATION)
 
         result = await flow.async_step_user()
 
@@ -618,11 +681,29 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 )
             ),
         )
-        flow = LemonadeProfileSubentryFlow(entry, SUBENTRY_TYPE_CONVERSATION)
+        flow = _profile_flow(entry, SUBENTRY_TYPE_CONVERSATION)
 
         result = await flow.async_step_user()
 
         self.assertEqual({"type": "abort", "reason": "no_models"}, result)
+
+    async def test_profile_subentry_flow_aborts_unknown_profile_type(self) -> None:
+        entry = SimpleNamespace(
+            state="loaded",
+            runtime_data=SimpleNamespace(
+                coordinator=SimpleNamespace(
+                    catalog=FakeCatalog({CAPABILITY_CONVERSATION: ["chat-a"]})
+                )
+            ),
+        )
+        flow = _profile_flow(entry, "unsupported")
+
+        result = await flow.async_step_user()
+
+        self.assertEqual(
+            {"type": "abort", "reason": "unknown_profile_type"},
+            result,
+        )
 
     def test_strings_define_options_and_profile_subentry_translations(self) -> None:
         strings = json.loads(Path("lemonade/strings.json").read_text())
@@ -647,6 +728,10 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             "No compatible Lemonade models are available for this profile type.",
             strings["config"]["abort"]["no_models"],
+        )
+        self.assertEqual(
+            "Unsupported Lemonade profile type.",
+            strings["config"]["abort"]["unknown_profile_type"],
         )
 
     def test_strings_define_missing_capability_repair_translation(self) -> None:
