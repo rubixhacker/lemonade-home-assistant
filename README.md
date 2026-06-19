@@ -20,13 +20,13 @@ Or add it manually:
 6. Restart Home Assistant.
 7. Go to **Settings -> Devices & services -> Add integration -> Lemonade Server**.
 
-HACS installs from GitHub releases. Each release must include a `lemonade.zip` asset containing the integration at:
+HACS installs from GitHub releases. Each release tag contains the integration at:
 
 ```text
 custom_components/lemonade/
 ```
 
-Build the release asset with:
+You can still build the release asset locally for manual inspection with:
 
 ```bash
 scripts/build-hacs-release.sh
@@ -50,7 +50,7 @@ git tag v0.2.1-beta.1
 git push origin v0.2.1-beta.1
 ```
 
-The release workflow builds `dist/lemonade.zip` and publishes it as the HACS release asset. Tags containing `-alpha`, `-beta`, or `-rc` are published as pre-releases; plain version tags are published as stable releases.
+The release workflow verifies the HACS package shape and publishes release notes. Tags containing `-alpha`, `-beta`, or `-rc` are published as pre-releases; plain version tags are published as stable releases.
 
 ## Manual install
 
