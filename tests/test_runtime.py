@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 import sys
 from types import ModuleType, SimpleNamespace
 from typing import Any
@@ -258,6 +260,15 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             coordinator.update_interval.total_seconds(),
         )
 
+    def test_strings_define_missing_capability_repair_translation(self) -> None:
+        strings = json.loads(Path("lemonade/strings.json").read_text())
+
+        issue = strings.get("issues", {}).get("missing_capability")
+
+        self.assertIsNotNone(issue)
+        self.assertIn("{capability}", issue["title"])
+        self.assertIn("{capability}", issue["description"])
+
     def test_repairs_create_and_delete_missing_capability_issues(self) -> None:
         from lemonade.repairs import (
             async_create_missing_capability_issue,
@@ -304,6 +315,24 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertIs(entry, selected_entry)
         self.assertIs(client, selected_client)
+
+    async def test_unload_entry_deletes_missing_capability_repairs(self) -> None:
+        hass = FakeHass()
+        entry = FakeEntry()
+        hass.data[DOMAIN] = {entry.entry_id: entry}
+
+        self.assertTrue(await integration.async_unload_entry(hass, entry))
+
+        self.assertEqual([(entry, PLATFORMS)], hass.config_entries.unloaded)
+        self.assertNotIn(entry.entry_id, hass.data[DOMAIN])
+        self.assertEqual(
+            [
+                (hass, DOMAIN, "missing_image_entry-1"),
+                (hass, DOMAIN, "missing_tts_entry-1"),
+                (hass, DOMAIN, "missing_stt_entry-1"),
+            ],
+            [call[0] for call in ir.DELETED],
+        )
 
     async def test_setup_entry_stores_runtime_data_and_updates_capability_repairs(self) -> None:
         class Client:

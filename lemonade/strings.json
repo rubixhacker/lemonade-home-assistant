@@ -22,5 +22,11 @@
     "abort": {
       "already_configured": "This Lemonade Server is already configured."
     }
+  },
+  "issues": {
+    "missing_capability": {
+      "title": "Lemonade Server missing {capability} model capability",
+      "description": "No downloaded Lemonade Server model advertises the {capability} capability in /v1/models. Install or expose a model with the required capability label, then reload the integration."
+    }
   }
 }

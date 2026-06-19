@@ -60,6 +60,16 @@ def _async_update_missing_capability_issues(
             async_create_missing_capability_issue(hass, entry_id, capability)
 
 
+def _async_delete_missing_capability_issues(
+    hass: HomeAssistant, entry_id: str
+) -> None:
+    """Delete repair issues for optional capabilities tied to an entry."""
+    from .repairs import async_delete_missing_capability_issue
+
+    for capability in _REPAIR_CAPABILITIES:
+        async_delete_missing_capability_issue(hass, entry_id, capability)
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Lemonade Server from a config entry."""
     client = LemonadeClient(
@@ -109,6 +119,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if PLATFORMS and not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         return False
 
+    _async_delete_missing_capability_issues(hass, entry.entry_id)
     hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
     return True
 
