@@ -28,6 +28,17 @@ scripts/build-hacs-release.sh
 
 The generated asset is written to `dist/lemonade.zip`.
 
+## Release
+
+Create a version tag and push it:
+
+```bash
+git tag v0.2.1
+git push origin v0.2.1
+```
+
+The release workflow builds `dist/lemonade.zip` and publishes it as the HACS release asset.
+
 ## Manual install
 
 Copy the `lemonade` directory from this repository to:
