@@ -1,0 +1,7 @@
+{
+  "name": "Lemonade Server",
+  "content_in_root": false,
+  "zip_release": true,
+  "filename": "lemonade.zip",
+  "hide_default_branch": true
+}

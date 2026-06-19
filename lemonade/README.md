@@ -4,6 +4,12 @@ This is an early custom integration for [Lemonade Server](https://lemonade-serve
 
 ## Install
 
+### HACS
+
+Add this repository to HACS as a custom repository with the **Integration** category, install **Lemonade Server**, then restart Home Assistant.
+
+### Manual
+
 Copy this folder to:
 
 ```text

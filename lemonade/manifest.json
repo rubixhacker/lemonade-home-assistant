@@ -7,6 +7,7 @@
   "config_flow": true,
   "dependencies": ["ai_task", "conversation", "stt", "tts"],
   "documentation": "https://lemonade-server.ai/docs/",
+  "issue_tracker": "https://github.com/rubixhacker/lemonade-home-assistant/issues",
   "integration_type": "service",
   "iot_class": "local_polling",
   "requirements": ["voluptuous-openapi"]

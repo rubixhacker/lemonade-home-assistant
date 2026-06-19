@@ -2,4 +2,5 @@
 __pycache__/
 *.py[cod]
 .worktrees/
+dist/
 lemonade_custom_component.tar.gz
