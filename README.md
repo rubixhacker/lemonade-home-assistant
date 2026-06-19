@@ -6,6 +6,12 @@ This repository packages the Lemonade Server Home Assistant custom integration f
 
 Until this integration is ready for Home Assistant core review, install it through HACS as a custom repository:
 
+Use this direct HACS link:
+
+[![Open your Home Assistant instance and open this repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=rubixhacker&repository=lemonade-home-assistant&category=integration)
+
+Or add it manually:
+
 1. In Home Assistant, open HACS.
 2. Open **Custom repositories**.
 3. Add this GitHub repository URL.
