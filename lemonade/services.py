@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 from typing import Any
 
+import aiohttp
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
@@ -18,7 +19,7 @@ from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 
-from .api import LemonadeClient
+from .api import LemonadeClient, LemonadeError
 from .data import LemonadeRuntimeData
 from .const import (
     ATTR_FILENAME,
@@ -111,8 +112,6 @@ def _get_entry_and_client(
         runtime_data = getattr(entry, "runtime_data", None)
         if isinstance(runtime_data, LemonadeRuntimeData):
             return entry, runtime_data.client
-        if isinstance(runtime_data, LemonadeClient):
-            return entry, runtime_data
 
     if requested_entry_id:
         raise HomeAssistantError(f"Lemonade Server entry is not loaded: {requested_entry_id}")
@@ -291,6 +290,13 @@ def _write_image_file(path: Path, image_bytes: bytes) -> None:
     path.write_bytes(image_bytes)
 
 
+def _client_error(err: Exception, action: str) -> HomeAssistantError:
+    """Return a Home Assistant service error for a Lemonade client failure."""
+    if isinstance(err, TimeoutError):
+        return HomeAssistantError("Timeout communicating with Lemonade Server")
+    return HomeAssistantError(f"{action}: {err}")
+
+
 async def _async_chat_completion(
     hass: HomeAssistant,
     call: ServiceCall,
@@ -305,12 +311,15 @@ async def _async_chat_completion(
         "conversation",
     )
 
-    response = await client.chat_completion(
-        model=model,
-        messages=_messages_from_call(call),
-        temperature=call.data.get(ATTR_TEMPERATURE),
-        max_tokens=call.data.get(ATTR_MAX_TOKENS),
-    )
+    try:
+        response = await client.chat_completion(
+            model=model,
+            messages=_messages_from_call(call),
+            temperature=call.data.get(ATTR_TEMPERATURE),
+            max_tokens=call.data.get(ATTR_MAX_TOKENS),
+        )
+    except (LemonadeError, aiohttp.ClientError, TimeoutError) as err:
+        raise _client_error(err, "Error completing chat with Lemonade") from err
     return {"content": _extract_chat_content(response), "response": response}
 
 
@@ -327,21 +336,24 @@ async def _async_generate_image(
         CONF_DEFAULT_IMAGE_MODEL,
         "image",
     )
-    response = await client.generate_image(
-        prompt=call.data[ATTR_PROMPT],
-        model=model,
-        size=call.data.get(ATTR_SIZE),
-    )
+    try:
+        response = await client.generate_image(
+            prompt=call.data[ATTR_PROMPT],
+            model=model,
+            size=call.data.get(ATTR_SIZE),
+        )
+    except (LemonadeError, aiohttp.ClientError, TimeoutError) as err:
+        raise _client_error(err, "Error generating image with Lemonade") from err
     if not call.data.get(ATTR_SAVE):
         return {"response": response}
 
-    image_bytes, _extension = extract_image_bytes(response)
+    image_bytes, extension = extract_image_bytes(response)
     if image_bytes is None:
         raise HomeAssistantError(
             "Lemonade image response did not contain image bytes to save"
         )
 
-    default_filename = f"lemonade_{_utcnow_slug()}.png"
+    default_filename = f"lemonade_{_utcnow_slug()}.{extension or 'png'}"
     filename = _safe_media_filename(call.data.get(ATTR_FILENAME), default_filename)
     media_dir = hass.config.path("media", "lemonade")
     path = Path(media_dir) / filename
@@ -365,15 +377,24 @@ async def _async_transcribe_audio(
         CONF_DEFAULT_STT_MODEL,
         "STT",
     )
-    file_path = Path(call.data[ATTR_FILE_PATH])
-    audio = await hass.async_add_executor_job(file_path.read_bytes)
+    file_path = Path(call.data[ATTR_FILE_PATH]).resolve()
+    if not file_path.is_file():
+        raise HomeAssistantError(f"Audio file not found: {file_path}")
 
-    response = await client.transcribe_audio(
-        audio=audio,
-        filename=file_path.name,
-        model=model,
-        language=call.data.get(ATTR_LANGUAGE),
-    )
+    try:
+        audio = await hass.async_add_executor_job(file_path.read_bytes)
+    except OSError as err:
+        raise HomeAssistantError(f"Could not read audio file: {err}") from err
+
+    try:
+        response = await client.transcribe_audio(
+            audio=audio,
+            filename=file_path.name,
+            model=model,
+            language=call.data.get(ATTR_LANGUAGE),
+        )
+    except (LemonadeError, aiohttp.ClientError, TimeoutError) as err:
+        raise _client_error(err, "Error transcribing audio with Lemonade") from err
     text = response.get("text") if isinstance(response.get("text"), str) else None
     return {"text": text, "response": response}
 
@@ -391,12 +412,15 @@ async def _async_text_to_speech(
         CONF_DEFAULT_TTS_MODEL,
         "TTS",
     )
-    audio, content_type = await client.text_to_speech(
-        text=call.data[ATTR_TEXT],
-        model=model,
-        voice=call.data.get(ATTR_VOICE),
-        response_format=call.data.get(ATTR_RESPONSE_FORMAT),
-    )
+    try:
+        audio, content_type = await client.text_to_speech(
+            text=call.data[ATTR_TEXT],
+            model=model,
+            voice=call.data.get(ATTR_VOICE),
+            response_format=call.data.get(ATTR_RESPONSE_FORMAT),
+        )
+    except (LemonadeError, aiohttp.ClientError, TimeoutError) as err:
+        raise _client_error(err, "Error generating speech with Lemonade") from err
     return {
         "audio_base64": base64.b64encode(audio).decode("ascii"),
         "content_type": content_type,

@@ -2344,6 +2344,177 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 (root / "media" / "lemonade" / "lemon.png").read_bytes(),
             )
 
+    async def test_generate_image_service_default_filename_uses_decoded_extension(self) -> None:
+        import tempfile
+
+        from lemonade.const import (
+            ATTR_MEDIA_PATH,
+            ATTR_PROMPT,
+            ATTR_SAVE,
+            CAPABILITY_IMAGE,
+        )
+        from lemonade.services import _async_generate_image
+
+        response = {"data": [{"url": "data:image/jpeg;base64,aW1hZ2U="}]}
+
+        class Client:
+            async def generate_image(self, **kwargs: Any) -> dict[str, Any]:
+                return response
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            entry = _service_entry(Client(), {CAPABILITY_IMAGE: ["catalog-image"]})
+            hass = FakeServiceHass(entry, root)
+
+            result = await _async_generate_image(
+                hass,
+                SimpleNamespace(data={ATTR_PROMPT: "Draw a lemon", ATTR_SAVE: True}),
+            )
+
+            self.assertRegex(
+                result[ATTR_MEDIA_PATH],
+                r"^media-source://media_source/local/lemonade/lemonade_\d{8}_\d{6}\.jpg$",
+            )
+            image_files = list((root / "media" / "lemonade").iterdir())
+            self.assertEqual(1, len(image_files))
+            self.assertEqual(".jpg", image_files[0].suffix)
+            self.assertEqual(b"image", image_files[0].read_bytes())
+
+    async def test_transcribe_audio_service_missing_file_raises_home_assistant_error(self) -> None:
+        import tempfile
+
+        from homeassistant.exceptions import HomeAssistantError
+        from lemonade.const import ATTR_FILE_PATH, CAPABILITY_STT
+        from lemonade.services import _async_transcribe_audio
+
+        class Client:
+            async def transcribe_audio(self, **kwargs: Any) -> dict[str, str]:
+                raise AssertionError("Client should not be called for a missing file")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            missing_file = Path(tmpdir) / "missing.wav"
+            entry = _service_entry(Client(), {CAPABILITY_STT: ["catalog-stt"]})
+            hass = FakeServiceHass(entry)
+
+            with self.assertRaises(HomeAssistantError) as raised:
+                await _async_transcribe_audio(
+                    hass, SimpleNamespace(data={ATTR_FILE_PATH: str(missing_file)})
+                )
+
+            self.assertEqual(
+                f"Audio file not found: {missing_file.resolve()}",
+                str(raised.exception),
+            )
+
+    async def test_direct_services_translate_client_errors_to_home_assistant_error(self) -> None:
+        import aiohttp
+        import tempfile
+
+        from homeassistant.exceptions import HomeAssistantError
+        from lemonade.api import LemonadeError
+        from lemonade.const import (
+            ATTR_FILE_PATH,
+            ATTR_PROMPT,
+            ATTR_TEXT,
+            CAPABILITY_CONVERSATION,
+            CAPABILITY_IMAGE,
+            CAPABILITY_STT,
+            CAPABILITY_TTS,
+        )
+        from lemonade.services import (
+            _async_chat_completion,
+            _async_generate_image,
+            _async_text_to_speech,
+            _async_transcribe_audio,
+        )
+
+        class Client:
+            def __init__(self, method_name: str, error: Exception) -> None:
+                self.method_name = method_name
+                self.error = error
+
+            async def _raise_for(self, method_name: str) -> Any:
+                if method_name != self.method_name:
+                    raise AssertionError(f"Unexpected client method: {method_name}")
+                raise self.error
+
+            async def chat_completion(self, **kwargs: Any) -> dict[str, Any]:
+                return await self._raise_for("chat_completion")
+
+            async def generate_image(self, **kwargs: Any) -> dict[str, Any]:
+                return await self._raise_for("generate_image")
+
+            async def text_to_speech(self, **kwargs: Any) -> tuple[bytes, str]:
+                return await self._raise_for("text_to_speech")
+
+            async def transcribe_audio(self, **kwargs: Any) -> dict[str, str]:
+                return await self._raise_for("transcribe_audio")
+
+        error_cases = (
+            (lambda: LemonadeError("boom"), "boom"),
+            (lambda: aiohttp.ClientError("network down"), "network down"),
+            (lambda: TimeoutError("slow"), None),
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_file = Path(tmpdir) / "speech.wav"
+            audio_file.write_bytes(b"speech")
+            service_cases = (
+                (
+                    "chat",
+                    _async_chat_completion,
+                    "chat_completion",
+                    {ATTR_PROMPT: "Hi"},
+                    {CAPABILITY_CONVERSATION: ["catalog-chat"]},
+                    "Error completing chat with Lemonade",
+                ),
+                (
+                    "image",
+                    _async_generate_image,
+                    "generate_image",
+                    {ATTR_PROMPT: "Draw"},
+                    {CAPABILITY_IMAGE: ["catalog-image"]},
+                    "Error generating image with Lemonade",
+                ),
+                (
+                    "tts",
+                    _async_text_to_speech,
+                    "text_to_speech",
+                    {ATTR_TEXT: "Hello"},
+                    {CAPABILITY_TTS: ["catalog-tts"]},
+                    "Error generating speech with Lemonade",
+                ),
+                (
+                    "stt",
+                    _async_transcribe_audio,
+                    "transcribe_audio",
+                    {ATTR_FILE_PATH: str(audio_file)},
+                    {CAPABILITY_STT: ["catalog-stt"]},
+                    "Error transcribing audio with Lemonade",
+                ),
+            )
+
+            for service_name, handler, method_name, data, catalog_models, prefix in service_cases:
+                for error_factory, error_detail in error_cases:
+                    with self.subTest(
+                        service=service_name, error=error_factory().__class__.__name__
+                    ):
+                        error = error_factory()
+                        entry = _service_entry(
+                            Client(method_name, error), catalog_models
+                        )
+                        hass = FakeServiceHass(entry)
+
+                        with self.assertRaises(HomeAssistantError) as raised:
+                            await handler(hass, SimpleNamespace(data=data))
+
+                        expected_message = (
+                            "Timeout communicating with Lemonade Server"
+                            if error_detail is None
+                            else f"{prefix}: {error_detail}"
+                        )
+                        self.assertEqual(expected_message, str(raised.exception))
+
     async def test_generate_image_service_errors_when_save_response_has_no_image_bytes(self) -> None:
         import tempfile
 
