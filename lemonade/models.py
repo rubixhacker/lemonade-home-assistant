@@ -20,6 +20,7 @@ from .const import (
 )
 
 EXCLUDED_LLM_LABELS = {"image", "tts", "embeddings"}
+TOOL_CALLING_LABELS = {"tool-calling", "tool_calling"}
 STT_LABELS = {"stt", "transcription", "speech-to-text"}
 
 
@@ -109,7 +110,7 @@ def _capabilities(model: LemonadeModel) -> tuple[str, ...]:
             )
         )
 
-    if "tool-calling" in model.labels:
+    if model.labels & TOOL_CALLING_LABELS:
         capabilities.append(CAPABILITY_TOOL_CALLING)
 
     if CAPABILITY_VISION in model.labels:

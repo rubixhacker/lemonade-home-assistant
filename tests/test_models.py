@@ -153,7 +153,7 @@ class ParseModelsResponseTest(unittest.TestCase):
         )
         self.assertNotIn("not-downloaded", catalog.all_model_ids)
 
-    def test_tool_calling_requires_exact_tool_calling_label(self) -> None:
+    def test_tool_calling_accepts_label_aliases(self) -> None:
         catalog = parse_models_response(
             {
                 "data": [
@@ -173,7 +173,7 @@ class ParseModelsResponseTest(unittest.TestCase):
         )
 
         self.assertEqual(
-            ["tool-llm"],
+            ["underscore-llm", "tool-llm"],
             catalog.model_ids(CAPABILITY_TOOL_CALLING),
         )
 
