@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Iterable, Mapping
+from collections.abc import AsyncIterable, AsyncIterator, Iterable, Mapping
 import base64
 import inspect
 import json
@@ -310,7 +310,11 @@ async def _async_add_delta_content_stream(
             raise original_err
 
     if inspect.isawaitable(result):
-        await result
+        result = await result
+
+    if isinstance(result, AsyncIterable):
+        async for _content in result:
+            pass
 
 
 def _iter_llm_tools(llm_api: Any) -> Iterable[Any]:
@@ -334,6 +338,46 @@ def _chat_log_messages(chat_log: Any) -> list[dict[str, Any]]:
     return [content_to_message(content) for content in getattr(chat_log, "content", [])]
 
 
+def _response_format_from_structure(structure: Any) -> Mapping[str, Any]:
+    """Return an OpenAI response format for a requested HA structure."""
+    if isinstance(structure, Mapping):
+        return structure
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "response",
+            "schema": convert(structure, custom_serializer=None),
+        },
+    }
+
+
+def _build_chat_completion_payload(
+    model: str,
+    chat_log: Any,
+    structure: Any | None = None,
+) -> dict[str, Any]:
+    """Return the OpenAI chat completion payload for a chat log turn."""
+    payload: dict[str, Any] = {
+        "model": model,
+        "messages": _chat_log_messages(chat_log),
+    }
+    tools = _format_llm_api_tools(getattr(chat_log, "llm_api", None))
+    if tools is not None:
+        payload["tools"] = tools
+    if structure is not None:
+        payload["response_format"] = _response_format_from_structure(structure)
+    return payload
+
+
+async def _apply_chat_response_to_chat_log(
+    chat_log: Any,
+    entity_id: str,
+    response: Mapping[str, Any],
+) -> None:
+    """Convert a Lemonade response and append its delta to a chat log."""
+    await _async_add_delta_content_stream(chat_log, entity_id, response_to_delta(response))
+
+
 async def async_handle_chat_log(
     entity_id: str,
     client: Any,
@@ -343,20 +387,9 @@ async def async_handle_chat_log(
 ) -> None:
     """Run Lemonade chat completion turns until tool results are answered."""
     for _iteration in range(MAX_TOOL_ITERATIONS):
-        payload: dict[str, Any] = {
-            "model": model,
-            "messages": _chat_log_messages(chat_log),
-        }
-        tools = _format_llm_api_tools(getattr(chat_log, "llm_api", None))
-        if tools is not None:
-            payload["tools"] = tools
-        if structure is not None:
-            payload["response_format"] = structure
-
+        payload = _build_chat_completion_payload(model, chat_log, structure)
         response = await client.chat_completion(**payload)
-        await _async_add_delta_content_stream(
-            chat_log, entity_id, response_to_delta(response)
-        )
+        await _apply_chat_response_to_chat_log(chat_log, entity_id, response)
 
         if not getattr(chat_log, "unresponded_tool_results", []):
             return

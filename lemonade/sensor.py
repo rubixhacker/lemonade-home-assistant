@@ -14,6 +14,7 @@ from .const import (
 )
 from .data import LemonadeConfigEntry
 from .entity import LemonadeEntity
+from .model_resolution import catalog_model_ids
 
 _CAPABILITY_COUNT_SENSORS = (
     (CAPABILITY_CONVERSATION, "conversation_model_count"),
@@ -100,4 +101,4 @@ class LemonadeCapabilityCountSensor(LemonadeSensor):
     @property
     def native_value(self) -> int:
         """Return the model count for the capability."""
-        return len(self.coordinator.catalog.models_for(self._capability))
+        return len(catalog_model_ids(self.coordinator.catalog, self._capability))

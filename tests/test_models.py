@@ -2,7 +2,76 @@
 
 import sys
 from types import ModuleType, SimpleNamespace
+from typing import Any
 import unittest
+
+
+class _VolMarker:
+    def __init__(
+        self,
+        key: str,
+        *args: Any,
+        default: Any = None,
+        description: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        self.key = key
+        self.default = default
+        self.description = description
+
+    def __hash__(self) -> int:
+        return id(self)
+
+
+class _VolSchema:
+    def __init__(self, schema: dict[Any, Any], *args: Any, **kwargs: Any) -> None:
+        self.schema = schema
+
+
+class _FlowBase:
+    def async_show_form(self, **kwargs: Any) -> dict[str, Any]:
+        return {"type": "form", **kwargs}
+
+    def async_create_entry(self, **kwargs: Any) -> dict[str, Any]:
+        return {"type": "create_entry", **kwargs}
+
+    def async_abort(self, **kwargs: Any) -> dict[str, Any]:
+        return {"type": "abort", **kwargs}
+
+    def add_suggested_values_to_schema(
+        self, schema: Any, suggested_values: dict[str, Any]
+    ) -> Any:
+        return schema
+
+
+class _ConfigFlowBase(_FlowBase):
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__()
+
+    async def async_set_unique_id(self, unique_id: str) -> None:
+        self.unique_id = unique_id
+
+    def _abort_if_unique_id_configured(self) -> None:
+        return None
+
+
+class _ConfigSubentryFlowBase(_FlowBase):
+    def _get_entry(self) -> Any:
+        return self._flow_entry
+
+    def _get_reconfigure_subentry(self) -> Any:
+        return self._reconfigure_subentry_obj
+
+    def async_update_and_abort(
+        self, config_entry: Any, subentry: Any, *, data: dict[str, Any]
+    ) -> dict[str, Any]:
+        return {
+            "type": "abort",
+            "reason": "reconfigure_successful",
+            "entry": config_entry,
+            "subentry": subentry,
+            "data": data,
+        }
 
 
 def _install_homeassistant_stubs() -> None:
@@ -14,9 +83,13 @@ def _install_homeassistant_stubs() -> None:
     sys.modules.setdefault("aiohttp", aiohttp)
 
     voluptuous = ModuleType("voluptuous")
-    voluptuous.Optional = lambda key, *args, **kwargs: key
-    voluptuous.Required = lambda key, *args, **kwargs: key
-    voluptuous.Schema = lambda schema, *args, **kwargs: schema
+    voluptuous.Optional = lambda key, *args, **kwargs: _VolMarker(
+        key, *args, **kwargs
+    )
+    voluptuous.Required = lambda key, *args, **kwargs: _VolMarker(
+        key, *args, **kwargs
+    )
+    voluptuous.Schema = _VolSchema
     voluptuous.Coerce = lambda value_type: value_type
     sys.modules.setdefault("voluptuous", voluptuous)
 
@@ -25,12 +98,22 @@ def _install_homeassistant_stubs() -> None:
     sys.modules.setdefault("homeassistant", homeassistant)
 
     config_entries = ModuleType("homeassistant.config_entries")
-    config_entries.ConfigEntry = type("ConfigEntry", (), {})
+    config_entries.ConfigEntry = type(
+        "ConfigEntry",
+        (),
+        {"__class_getitem__": classmethod(lambda cls, item: cls)},
+    )
+    config_entries.ConfigEntryState = SimpleNamespace(LOADED="loaded")
+    config_entries.ConfigFlow = _ConfigFlowBase
+    config_entries.OptionsFlow = _FlowBase
+    config_entries.ConfigSubentryFlow = _ConfigSubentryFlowBase
     sys.modules.setdefault("homeassistant.config_entries", config_entries)
 
     const = ModuleType("homeassistant.const")
     const.CONF_API_KEY = "api_key"
     const.CONF_MODEL = "model"
+    const.CONF_NAME = "name"
+    const.CONF_PROMPT = "prompt"
     const.CONF_URL = "url"
     const.Platform = SimpleNamespace(
         SENSOR="sensor",
@@ -45,8 +128,13 @@ def _install_homeassistant_stubs() -> None:
     core = ModuleType("homeassistant.core")
     core.HomeAssistant = type("HomeAssistant", (), {})
     core.ServiceCall = type("ServiceCall", (), {})
+    core.callback = lambda func: func
     core.SupportsResponse = SimpleNamespace(OPTIONAL="optional")
     sys.modules.setdefault("homeassistant.core", core)
+
+    data_entry_flow = ModuleType("homeassistant.data_entry_flow")
+    data_entry_flow.FlowResult = dict
+    sys.modules.setdefault("homeassistant.data_entry_flow", data_entry_flow)
 
     exceptions = ModuleType("homeassistant.exceptions")
     exceptions.ConfigEntryAuthFailed = type("ConfigEntryAuthFailed", (Exception,), {})

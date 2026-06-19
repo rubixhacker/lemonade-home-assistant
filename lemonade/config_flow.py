@@ -41,6 +41,8 @@ from .const import (
     SUBENTRY_TYPE_AI_TASK,
     SUBENTRY_TYPE_CONVERSATION,
 )
+from .model_resolution import catalog_model_ids
+from .profiles import profile_capability
 
 _DEFAULT_MODEL_FIELDS = (
     (CAPABILITY_CONVERSATION, CONF_DEFAULT_CONVERSATION_MODEL),
@@ -49,12 +51,6 @@ _DEFAULT_MODEL_FIELDS = (
     (CAPABILITY_TTS, CONF_DEFAULT_TTS_MODEL),
     (CAPABILITY_STT, CONF_DEFAULT_STT_MODEL),
 )
-
-_PROFILE_CAPABILITY_BY_SUBENTRY_TYPE = {
-    SUBENTRY_TYPE_CONVERSATION: CAPABILITY_CONVERSATION,
-    SUBENTRY_TYPE_AI_TASK: CAPABILITY_AI_TASK,
-}
-
 
 def _entry_current_value(
     config_entry: config_entries.ConfigEntry, key: str, default: Any = None
@@ -243,7 +239,7 @@ class LemonadeOptionsFlow(config_entries.OptionsFlow):
 
         catalog = config_entry.runtime_data.coordinator.catalog
         for capability, option_key in _DEFAULT_MODEL_FIELDS:
-            model_ids = catalog.model_ids(capability)
+            model_ids = catalog_model_ids(catalog, capability)
             if not model_ids:
                 continue
             schema[
@@ -328,11 +324,14 @@ class LemonadeProfileSubentryFlow(config_entries.ConfigSubentryFlow):
             return self.async_abort(reason="entry_not_loaded")
 
         profile_type = self._profile_type
-        capability = _PROFILE_CAPABILITY_BY_SUBENTRY_TYPE.get(profile_type)
+        capability = profile_capability(profile_type)
         if capability is None:
             return self.async_abort(reason="unknown_profile_type")
 
-        model_ids = config_entry.runtime_data.coordinator.catalog.model_ids(capability)
+        model_ids = catalog_model_ids(
+            config_entry.runtime_data.coordinator.catalog,
+            capability,
+        )
         if not model_ids:
             return self.async_abort(reason="no_models")
 

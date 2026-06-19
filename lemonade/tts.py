@@ -4,16 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
-import aiohttp
-
 from homeassistant.components.tts import TextToSpeechEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .api import LemonadeError
 from .const import CAPABILITY_TTS, CONF_DEFAULT_TTS_MODEL
 from .data import LemonadeConfigEntry
+from .errors import LEMONADE_CLIENT_EXCEPTIONS, lemonade_home_assistant_error
+from .model_resolution import resolve_entry_model
 
 _CONTENT_TYPE_EXTENSIONS = {
     "audio/aac": "aac",
@@ -35,11 +34,6 @@ async def async_setup_entry(
 ) -> None:
     """Set up Lemonade Server text-to-speech."""
     async_add_entities([LemonadeTTSEntity(entry)])
-
-
-def _first_catalog_model_id(entry: LemonadeConfigEntry, capability: str) -> str | None:
-    """Return the first catalog model ID for a capability."""
-    return entry.runtime_data.coordinator.catalog.first_model_id(capability)
 
 
 def _audio_extension(content_type: str | None, response_format: Any) -> str:
@@ -77,15 +71,12 @@ class LemonadeTTSEntity(TextToSpeechEntity):
 
     def _resolve_model(self, options: dict[str, Any] | None = None) -> str | None:
         """Return the requested, configured, or first catalog TTS model."""
-        option_model = (options or {}).get("model")
-        if isinstance(option_model, str) and option_model:
-            return option_model
-
-        model = getattr(self.entry, "options", {}).get(CONF_DEFAULT_TTS_MODEL)
-        if isinstance(model, str) and model:
-            return model
-
-        return _first_catalog_model_id(self.entry, CAPABILITY_TTS)
+        return resolve_entry_model(
+            self.entry,
+            CAPABILITY_TTS,
+            explicit_model=(options or {}).get("model"),
+            default_option=CONF_DEFAULT_TTS_MODEL,
+        )
 
     @property
     def available(self) -> bool:
@@ -111,13 +102,10 @@ class LemonadeTTSEntity(TextToSpeechEntity):
                 voice=options.get("voice"),
                 response_format=options.get("response_format"),
             )
-        except TimeoutError as err:
-            raise HomeAssistantError(
-                "Timeout communicating with Lemonade Server"
-            ) from err
-        except (LemonadeError, aiohttp.ClientError) as err:
-            raise HomeAssistantError(
-                f"Error generating speech with Lemonade: {err}"
+        except LEMONADE_CLIENT_EXCEPTIONS as err:
+            raise lemonade_home_assistant_error(
+                err,
+                "Error generating speech with Lemonade",
             ) from err
 
         return _audio_extension(content_type, options.get("response_format")), audio

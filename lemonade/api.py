@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import aiohttp
@@ -55,21 +56,12 @@ class LemonadeClient:
         **kwargs: Any,
     ) -> Any:
         """Request raw JSON from Lemonade Server."""
-        async with asyncio.timeout(self.timeout):
-            async with self.session.request(
-                method,
-                f"{self.url}{path}",
-                headers=self.headers,
-                **kwargs,
-            ) as response:
-                if response.status in (401, 403):
-                    raise LemonadeAuthError("Invalid Lemonade Server credentials")
-                if response.status >= 400:
-                    body = await response.text()
-                    raise LemonadeError(
-                        f"Lemonade Server returned HTTP {response.status}: {body}"
-                    )
-                return await response.json(content_type=None)
+        return await self._request(
+            method,
+            path,
+            self._read_json_response,
+            **kwargs,
+        )
 
     async def _request_json(
         self,
@@ -90,6 +82,21 @@ class LemonadeClient:
         **kwargs: Any,
     ) -> tuple[bytes, str | None]:
         """Request bytes from Lemonade Server."""
+        return await self._request(
+            method,
+            path,
+            self._read_bytes_response,
+            **kwargs,
+        )
+
+    async def _request(
+        self,
+        method: str,
+        path: str,
+        read_response: Callable[[aiohttp.ClientResponse], Awaitable[Any]],
+        **kwargs: Any,
+    ) -> Any:
+        """Request data from Lemonade Server and classify response status."""
         async with asyncio.timeout(self.timeout):
             async with self.session.request(
                 method,
@@ -97,14 +104,32 @@ class LemonadeClient:
                 headers=self.headers,
                 **kwargs,
             ) as response:
-                if response.status in (401, 403):
-                    raise LemonadeAuthError("Invalid Lemonade Server credentials")
-                if response.status >= 400:
-                    body = await response.text()
-                    raise LemonadeError(
-                        f"Lemonade Server returned HTTP {response.status}: {body}"
-                    )
-                return await response.read(), response.headers.get("Content-Type")
+                await self._raise_for_response_status(response)
+                return await read_response(response)
+
+    async def _raise_for_response_status(
+        self,
+        response: aiohttp.ClientResponse,
+    ) -> None:
+        """Raise a Lemonade error for unsuccessful response status."""
+        if response.status in (401, 403):
+            raise LemonadeAuthError("Invalid Lemonade Server credentials")
+        if response.status >= 400:
+            body = await response.text()
+            raise LemonadeError(
+                f"Lemonade Server returned HTTP {response.status}: {body}"
+            )
+
+    async def _read_json_response(self, response: aiohttp.ClientResponse) -> Any:
+        """Read a JSON response without content type enforcement."""
+        return await response.json(content_type=None)
+
+    async def _read_bytes_response(
+        self,
+        response: aiohttp.ClientResponse,
+    ) -> tuple[bytes, str | None]:
+        """Read a binary response and content type."""
+        return await response.read(), response.headers.get("Content-Type")
 
     async def health(self) -> dict[str, Any]:
         """Return Lemonade Server health."""

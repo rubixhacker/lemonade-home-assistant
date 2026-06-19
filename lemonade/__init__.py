@@ -26,6 +26,7 @@ from .const import (
     DOMAIN,
     PLATFORMS,
 )
+from .model_resolution import catalog_model_ids
 from .services import async_register_services
 
 _LOGGER = logging.getLogger(__name__)
@@ -54,7 +55,7 @@ def _async_update_missing_capability_issues(
     )
 
     for capability in _REPAIR_CAPABILITIES:
-        if coordinator.catalog.model_ids(capability):
+        if catalog_model_ids(coordinator.catalog, capability):
             async_delete_missing_capability_issue(hass, entry_id, capability)
         else:
             async_create_missing_capability_issue(hass, entry_id, capability)
@@ -131,4 +132,3 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload Lemonade Server when options are updated."""
     await hass.config_entries.async_reload(entry.entry_id)
-

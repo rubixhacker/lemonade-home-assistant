@@ -20,6 +20,7 @@ from .const import (
 )
 from .data import LemonadeConfigEntry
 from .entity import LemonadeEntity
+from .model_resolution import catalog_model_ids
 
 _DEFAULT_MODEL_SELECTS = (
     (CAPABILITY_CONVERSATION, CONF_DEFAULT_CONVERSATION_MODEL),
@@ -62,7 +63,7 @@ class LemonadeDefaultModelSelect(LemonadeEntity, SelectEntity):
     @property
     def options(self) -> list[str]:
         """Return available model IDs for the capability."""
-        return self.coordinator.catalog.model_ids(self._capability)
+        return catalog_model_ids(self.coordinator.catalog, self._capability)
 
     @property
     def current_option(self) -> str | None:

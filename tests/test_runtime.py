@@ -7,7 +7,7 @@ import inspect
 import json
 from pathlib import Path
 import sys
-from types import ModuleType, SimpleNamespace
+from types import MappingProxyType, ModuleType, SimpleNamespace
 from typing import Any
 import unittest
 
@@ -593,6 +593,50 @@ class FakeSession:
         return FakeResponse(self.payload)
 
 
+class FakeHttpResponse:
+    def __init__(
+        self,
+        *,
+        status: int,
+        payload: Any = None,
+        body: str = "",
+        content: bytes = b"",
+        content_type: str | None = None,
+    ) -> None:
+        self.status = status
+        self.payload = payload
+        self.body = body
+        self.content = content
+        self.headers = {}
+        if content_type is not None:
+            self.headers["Content-Type"] = content_type
+
+    async def __aenter__(self) -> "FakeHttpResponse":
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        return None
+
+    async def json(self, *args: Any, **kwargs: Any) -> Any:
+        return self.payload
+
+    async def text(self) -> str:
+        return self.body
+
+    async def read(self) -> bytes:
+        return self.content
+
+
+class FakeHttpSession:
+    def __init__(self, response: FakeHttpResponse) -> None:
+        self.response = response
+        self.requests: list[tuple[str, str, dict[str, Any]]] = []
+
+    def request(self, method: str, url: str, **kwargs: Any) -> FakeHttpResponse:
+        self.requests.append((method, url, kwargs))
+        return self.response
+
+
 def _schema_fields(data_schema: Any) -> dict[str, tuple[Any, Any]]:
     schema = getattr(data_schema, "schema", data_schema)
     return {getattr(key, "key", key): (key, value) for key, value in schema.items()}
@@ -627,6 +671,190 @@ class FakeCatalog:
     def first_model_id(self, capability: str) -> str | None:
         model_ids = self.model_ids(capability)
         return model_ids[0] if model_ids else None
+
+
+class ModelIdsOnlyCatalog:
+    def __init__(self, model_ids: dict[str, list[str]]) -> None:
+        self._model_ids = model_ids
+        all_model_ids = dict.fromkeys(
+            model_id for ids in model_ids.values() for model_id in ids
+        )
+        self.models = tuple(SimpleNamespace(id=model_id) for model_id in all_model_ids)
+
+    def model_ids(self, capability: str) -> list[str]:
+        return list(self._model_ids.get(capability, []))
+
+
+class ModelsForOnlyCatalog:
+    def __init__(self, model_ids: dict[str, list[str]]) -> None:
+        self._model_ids = model_ids
+        all_model_ids = dict.fromkeys(
+            model_id for ids in model_ids.values() for model_id in ids
+        )
+        self.models = tuple(SimpleNamespace(id=model_id) for model_id in all_model_ids)
+
+    def models_for(self, capability: str) -> tuple[Any, ...]:
+        return tuple(
+            SimpleNamespace(id=model_id) for model_id in self._model_ids.get(capability, [])
+        )
+
+
+class ModelResolutionTest(unittest.TestCase):
+
+    def test_resolve_model_prefers_explicit_profile_default_then_catalog(self) -> None:
+        from lemonade.model_resolution import catalog_model_ids, resolve_model
+
+        catalog = ModelsForOnlyCatalog({CAPABILITY_CONVERSATION: ["catalog-chat"]})
+
+        self.assertEqual(
+            ["catalog-chat"],
+            catalog_model_ids(catalog, CAPABILITY_CONVERSATION),
+        )
+        self.assertEqual(
+            "request-chat",
+            resolve_model(
+                catalog,
+                CAPABILITY_CONVERSATION,
+                explicit_model="request-chat",
+                profile_model="profile-chat",
+                default_model="default-chat",
+            ),
+        )
+        self.assertEqual(
+            "profile-chat",
+            resolve_model(
+                catalog,
+                CAPABILITY_CONVERSATION,
+                explicit_model="",
+                profile_model="profile-chat",
+                default_model="default-chat",
+            ),
+        )
+        self.assertEqual(
+            "default-chat",
+            resolve_model(
+                catalog,
+                CAPABILITY_CONVERSATION,
+                profile_model=None,
+                default_model="default-chat",
+            ),
+        )
+        self.assertEqual(
+            "catalog-chat",
+            resolve_model(
+                catalog,
+                CAPABILITY_CONVERSATION,
+                default_model="",
+            ),
+        )
+        self.assertIsNone(resolve_model(FakeCatalog({}), CAPABILITY_CONVERSATION))
+
+
+class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
+
+    def test_profile_runtime_filters_profiles_and_maps_capabilities(self) -> None:
+        from lemonade.profiles import (
+            profile_capability,
+            profile_data,
+            profile_subentries,
+        )
+
+        raw_data = {CONF_MODEL: "chat-a"}
+        conversation_subentry = SimpleNamespace(
+            subentry_id="conv-1",
+            subentry_type=SUBENTRY_TYPE_CONVERSATION,
+            data=MappingProxyType(raw_data),
+        )
+        ai_task_subentry = SimpleNamespace(
+            subentry_id="task-1",
+            subentry_type=SUBENTRY_TYPE_AI_TASK,
+            data={CONF_MODEL: "task-a"},
+        )
+        entry = SimpleNamespace(
+            subentries={
+                "conv-1": conversation_subentry,
+                "task-1": ai_task_subentry,
+                "ignored": SimpleNamespace(subentry_type="other", data={}),
+            }
+        )
+
+        self.assertEqual(
+            [conversation_subentry],
+            profile_subentries(entry, SUBENTRY_TYPE_CONVERSATION),
+        )
+        coerced_data = profile_data(conversation_subentry)
+        self.assertEqual(raw_data, coerced_data)
+        self.assertIsNot(raw_data, coerced_data)
+        self.assertEqual(
+            CAPABILITY_CONVERSATION,
+            profile_capability(SUBENTRY_TYPE_CONVERSATION),
+        )
+        self.assertEqual(CAPABILITY_AI_TASK, profile_capability(SUBENTRY_TYPE_AI_TASK))
+        self.assertIsNone(profile_capability("unsupported"))
+
+    async def test_async_add_profile_entity_preserves_subentry_compatibility(self) -> None:
+        from lemonade.profiles import async_add_profile_entity
+
+        entity = object()
+        modern_calls: list[tuple[list[Any], dict[str, Any]]] = []
+        legacy_calls: list[tuple[list[Any], dict[str, Any]]] = []
+
+        async def modern_add_entities(
+            entities: list[Any], **kwargs: Any
+        ) -> None:
+            modern_calls.append((entities, kwargs))
+
+        def legacy_add_entities(entities: list[Any], **kwargs: Any) -> None:
+            if kwargs:
+                raise TypeError("unexpected keyword argument")
+            legacy_calls.append((entities, kwargs))
+
+        await async_add_profile_entity(modern_add_entities, entity, "conv-1")
+        await async_add_profile_entity(legacy_add_entities, entity, "conv-1")
+        await async_add_profile_entity(legacy_add_entities, entity, None)
+
+        self.assertEqual(
+            [([entity], {"config_subentry_id": "conv-1"})],
+            modern_calls,
+        )
+        self.assertEqual(
+            [([entity], {}), ([entity], {})],
+            legacy_calls,
+        )
+
+
+class LemonadeImageResultTest(unittest.TestCase):
+    def test_decode_image_result_traverses_object_response_shape(self) -> None:
+        image_result_module = _require_module("lemonade.image_result")
+
+        result = image_result_module.decode_image_result(
+            SimpleNamespace(
+                data=[
+                    SimpleNamespace(
+                        url="data:image/webp;base64,b2JqZWN0LWltYWdl"
+                    )
+                ]
+            )
+        )
+
+        self.assertIsNotNone(result)
+        assert result is not None
+        self.assertEqual(b"object-image", result.image_bytes)
+        self.assertEqual("image/webp", result.mime_type)
+        self.assertEqual("webp", result.extension)
+
+    def test_decode_image_result_infers_data_url_mime_type_and_extension(self) -> None:
+        image_result_module = _require_module("lemonade.image_result")
+
+        result = image_result_module.decode_image_result(
+            {"data": [{"url": "data:image/jpeg;base64,anBlZy1pbWFnZQ=="}]}
+        )
+
+        self.assertIsNotNone(result)
+        assert result is not None
+        self.assertEqual(b"jpeg-image", result.image_bytes)
+        self.assertEqual("image/jpeg", result.mime_type)
+        self.assertEqual("jpg", result.extension)
 
 
 class FakeServiceHass:
@@ -900,6 +1128,107 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual([{"id": "raw-model"}], models)
 
+    async def test_api_json_and_bytes_requests_share_status_classification(self) -> None:
+        calls: list[int] = []
+
+        class TrackingClient(LemonadeClient):
+            async def _raise_for_response_status(self, response: Any) -> None:
+                calls.append(response.status)
+                await super()._raise_for_response_status(response)
+
+        json_client = TrackingClient(
+            FakeHttpSession(FakeHttpResponse(status=200, payload={"ok": True})),
+            "http://server",
+        )
+        bytes_client = TrackingClient(
+            FakeHttpSession(
+                FakeHttpResponse(
+                    status=200,
+                    content=b"audio",
+                    content_type="audio/wav",
+                )
+            ),
+            "http://server",
+        )
+
+        self.assertEqual(
+            {"ok": True},
+            await json_client._request_json_payload("GET", "/json"),
+        )
+        self.assertEqual(
+            (b"audio", "audio/wav"),
+            await bytes_client._request_bytes("GET", "/bytes"),
+        )
+        self.assertEqual([200, 200], calls)
+
+    async def test_api_status_classification_is_shared_for_json_and_bytes(self) -> None:
+        from lemonade.api import LemonadeAuthError, LemonadeError
+
+        cases = (
+            (
+                401,
+                "auth",
+                "Invalid Lemonade Server credentials",
+            ),
+            (
+                500,
+                "server",
+                "Lemonade Server returned HTTP 500: broken",
+            ),
+        )
+
+        for status, error_kind, expected_message in cases:
+            for method_name in ("_request_json_payload", "_request_bytes"):
+                with self.subTest(status=status, method=method_name):
+                    response = FakeHttpResponse(
+                        status=status,
+                        payload={"ignored": True},
+                        body="broken",
+                        content=b"ignored",
+                    )
+                    client = LemonadeClient(FakeHttpSession(response), "http://server")
+
+                    with self.assertRaises(
+                        LemonadeAuthError
+                        if error_kind == "auth"
+                        else LemonadeError
+                    ) as raised:
+                        await getattr(client, method_name)("GET", "/status")
+
+                    self.assertEqual(expected_message, str(raised.exception))
+
+    def test_ha_error_formatter_preserves_current_messages(self) -> None:
+        import aiohttp
+
+        from homeassistant.exceptions import HomeAssistantError
+        from lemonade.api import LemonadeError
+        from lemonade.errors import lemonade_home_assistant_error
+
+        cases = (
+            (
+                TimeoutError("slow"),
+                "Error generating data with Lemonade",
+                "Timeout communicating with Lemonade Server",
+            ),
+            (
+                LemonadeError("boom"),
+                "Error generating data with Lemonade",
+                "Error generating data with Lemonade: boom",
+            ),
+            (
+                aiohttp.ClientError("network down"),
+                "Error generating data with Lemonade",
+                "Error generating data with Lemonade: network down",
+            ),
+        )
+
+        for error, action, expected_message in cases:
+            with self.subTest(error=type(error).__name__):
+                ha_error = lemonade_home_assistant_error(error, action)
+
+                self.assertIsInstance(ha_error, HomeAssistantError)
+                self.assertEqual(expected_message, str(ha_error))
+
     async def test_chat_completion_accepts_tools_and_response_format(self) -> None:
         session = FakeSession({"choices": []})
         client = LemonadeClient(session, "http://server")
@@ -1120,6 +1449,136 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 ],
             },
             delta,
+        )
+
+    def test_llm_builds_chat_completion_payload_without_running_tool_loop(self) -> None:
+        from homeassistant.components.conversation import SystemContent, UserContent
+
+        llm_module = _require_module("lemonade.llm")
+        chat_log = SimpleNamespace(
+            content=[SystemContent("You are helpful"), UserContent("Hi")],
+            llm_api=SimpleNamespace(
+                tools=[
+                    SimpleNamespace(
+                        name="HassTurnOn",
+                        description=None,
+                        parameters={"type": "object"},
+                    )
+                ],
+                custom_serializer="serializer",
+            ),
+        )
+
+        payload = llm_module._build_chat_completion_payload(
+            "chat-model",
+            chat_log,
+            {"type": "json_object"},
+        )
+
+        self.assertEqual(
+            {
+                "model": "chat-model",
+                "messages": [
+                    {"role": "system", "content": "You are helpful"},
+                    {"role": "user", "content": "Hi"},
+                ],
+                "tools": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "HassTurnOn",
+                            "parameters": {
+                                "schema": {"type": "object"},
+                                "custom_serializer": "serializer",
+                            },
+                        },
+                    }
+                ],
+                "response_format": {"type": "json_object"},
+            },
+            payload,
+        )
+
+    def test_llm_converts_schema_structure_to_response_format(self) -> None:
+        import voluptuous as vol
+
+        llm_module = _require_module("lemonade.llm")
+        chat_log = SimpleNamespace(content=[], llm_api=None)
+        structure = vol.Schema({"answer": str})
+
+        payload = llm_module._build_chat_completion_payload(
+            "chat-model",
+            chat_log,
+            structure,
+        )
+
+        self.assertIsNot(structure, payload["response_format"])
+        self.assertEqual(
+            {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "response",
+                    "schema": {
+                        "schema": structure,
+                        "custom_serializer": None,
+                    },
+                },
+            },
+            payload["response_format"],
+        )
+
+    async def test_llm_applies_response_delta_with_legacy_stream_signature(self) -> None:
+        llm_module = _require_module("lemonade.llm")
+
+        class LegacyChatLog:
+            def __init__(self) -> None:
+                self.deltas: list[dict[str, Any]] = []
+
+            async def async_add_delta_content_stream(self, stream: Any) -> None:
+                async for delta in stream:
+                    self.deltas.append(delta)
+
+        chat_log = LegacyChatLog()
+
+        await llm_module._apply_chat_response_to_chat_log(
+            chat_log,
+            "conversation.lemonade",
+            {"choices": [{"message": {"content": "Done"}}]},
+        )
+
+        self.assertEqual([{"content": "Done"}], chat_log.deltas)
+
+    async def test_llm_consumes_returned_delta_content_stream(self) -> None:
+        llm_module = _require_module("lemonade.llm")
+
+        class GeneratorChatLog:
+            def __init__(self) -> None:
+                self.received_deltas: list[dict[str, Any]] = []
+                self.yielded_content: list[Any] = []
+
+            def async_add_delta_content_stream(self, agent_id: str, stream: Any) -> Any:
+                async def consume_stream() -> Any:
+                    async for delta in stream:
+                        self.received_deltas.append(delta)
+                    self.yielded_content.append(
+                        {"agent_id": agent_id, "content": "stored"}
+                    )
+                    yield self.yielded_content[-1]
+
+                return consume_stream()
+
+        chat_log = GeneratorChatLog()
+
+        await llm_module._apply_chat_response_to_chat_log(
+            chat_log,
+            "conversation.lemonade",
+            {"choices": [{"message": {"content": "Done"}}]},
+        )
+
+        self.assertEqual([{"content": "Done"}], chat_log.received_deltas)
+        self.assertEqual(
+            [{"agent_id": "conversation.lemonade", "content": "stored"}],
+            chat_log.yielded_content,
         )
 
     async def test_llm_handle_chat_log_adds_response_delta_and_passes_tools(self) -> None:
@@ -2178,6 +2637,25 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual((hass, DOMAIN, "missing_image_entry-1"), ir.DELETED[0][0])
 
+    def test_missing_capability_repairs_use_shared_catalog_adapter(self) -> None:
+        ir.CREATED.clear()
+        ir.DELETED.clear()
+        coordinator = SimpleNamespace(
+            catalog=ModelsForOnlyCatalog({CAPABILITY_IMAGE: ["image-model"]})
+        )
+
+        integration._async_update_missing_capability_issues(
+            FakeHass(),
+            "entry-1",
+            coordinator,
+        )
+
+        self.assertEqual(["missing_image_entry-1"], [call[0][2] for call in ir.DELETED])
+        self.assertEqual(
+            ["missing_tts_entry-1", "missing_stt_entry-1"],
+            [call[0][2] for call in ir.CREATED],
+        )
+
     def test_services_use_client_from_runtime_data_for_requested_entry(self) -> None:
         from homeassistant.exceptions import HomeAssistantError
 
@@ -2892,6 +3370,32 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             SensorStateClass.MEASUREMENT,
             getattr(entities["stt_model_count"], "_attr_state_class", None),
         )
+
+    async def test_capability_count_sensors_use_shared_catalog_adapter(self) -> None:
+        sensor_module = _require_module("lemonade.sensor")
+        coordinator = SimpleNamespace(
+            hass=FakeHass(),
+            last_update_success=True,
+            catalog=ModelIdsOnlyCatalog(
+                {
+                    CAPABILITY_CONVERSATION: ["chat-a", "chat-b"],
+                    CAPABILITY_IMAGE: ["image-a"],
+                    CAPABILITY_TTS: [],
+                    CAPABILITY_STT: ["stt-a"],
+                }
+            ),
+        )
+        entry = FakeEntry()
+        entry.runtime_data = SimpleNamespace(coordinator=coordinator)
+        added: list[Any] = []
+
+        await sensor_module.async_setup_entry(FakeHass(), entry, added.extend)
+
+        entities = {entity._attr_translation_key: entity for entity in added}
+        self.assertEqual(2, entities["conversation_model_count"].native_value)
+        self.assertEqual(1, entities["image_model_count"].native_value)
+        self.assertEqual(0, entities["tts_model_count"].native_value)
+        self.assertEqual(1, entities["stt_model_count"].native_value)
 
     async def test_tts_platform_adds_entity_and_generates_audio_with_request_options(self) -> None:
         tts_module = _require_module("lemonade.tts")

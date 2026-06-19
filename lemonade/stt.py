@@ -6,17 +6,17 @@ from collections.abc import AsyncIterable
 import logging
 from typing import Any
 
-import aiohttp
-
 from homeassistant.components import stt
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .api import LemonadeError
 from .const import CAPABILITY_STT, CONF_DEFAULT_STT_MODEL
 from .data import LemonadeConfigEntry
+from .errors import LEMONADE_CLIENT_EXCEPTIONS
+from .model_resolution import resolve_entry_model
 
 _LOGGER = logging.getLogger(__name__)
+_STT_TRANSCRIPTION_EXCEPTIONS = (*LEMONADE_CLIENT_EXCEPTIONS, KeyError, TypeError)
 
 
 async def async_setup_entry(
@@ -26,11 +26,6 @@ async def async_setup_entry(
 ) -> None:
     """Set up Lemonade Server speech-to-text."""
     async_add_entities([LemonadeSTTEntity(entry)])
-
-
-def _first_catalog_model_id(entry: LemonadeConfigEntry, capability: str) -> str | None:
-    """Return the first catalog model ID for a capability."""
-    return entry.runtime_data.coordinator.catalog.first_model_id(capability)
 
 
 def _error_result() -> stt.SpeechResult:
@@ -81,11 +76,11 @@ class LemonadeSTTEntity(stt.SpeechToTextEntity):
 
     def _resolve_model(self) -> str | None:
         """Return the configured or first catalog STT model."""
-        model = getattr(self.entry, "options", {}).get(CONF_DEFAULT_STT_MODEL)
-        if isinstance(model, str) and model:
-            return model
-
-        return _first_catalog_model_id(self.entry, CAPABILITY_STT)
+        return resolve_entry_model(
+            self.entry,
+            CAPABILITY_STT,
+            default_option=CONF_DEFAULT_STT_MODEL,
+        )
 
     @property
     def available(self) -> bool:
@@ -116,13 +111,7 @@ class LemonadeSTTEntity(stt.SpeechToTextEntity):
             text = response["text"]
             if not isinstance(text, str):
                 raise TypeError("Lemonade transcription response missing valid text")
-        except (
-            LemonadeError,
-            aiohttp.ClientError,
-            TimeoutError,
-            KeyError,
-            TypeError,
-        ) as err:
+        except _STT_TRANSCRIPTION_EXCEPTIONS as err:
             _LOGGER.error("Error transcribing audio with Lemonade: %s", err)
             return _error_result()
 

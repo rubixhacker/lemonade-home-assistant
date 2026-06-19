@@ -3,14 +3,11 @@
 from __future__ import annotations
 
 import base64
-import binascii
-from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 import re
 from typing import Any
 
-import aiohttp
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
@@ -19,8 +16,11 @@ from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 
-from .api import LemonadeClient, LemonadeError
+from .api import LemonadeClient
 from .data import LemonadeRuntimeData
+from .errors import LEMONADE_CLIENT_EXCEPTIONS, lemonade_home_assistant_error
+from .image_result import image_bytes_and_extension
+from .model_resolution import resolve_entry_model
 from .const import (
     ATTR_FILENAME,
     ATTR_FILE_PATH,
@@ -118,26 +118,6 @@ def _get_entry_and_client(
     raise HomeAssistantError("No loaded Lemonade Server config entry found")
 
 
-def _first_catalog_model_id(entry: ConfigEntry, capability: str) -> str | None:
-    """Return the first model ID in the runtime catalog for a capability."""
-    catalog = entry.runtime_data.coordinator.catalog
-    if hasattr(catalog, "first_model_id"):
-        model = catalog.first_model_id(capability)
-        if isinstance(model, str) and model:
-            return model
-    if hasattr(catalog, "model_ids"):
-        model_ids = catalog.model_ids(capability)
-        if model_ids:
-            return model_ids[0]
-    if hasattr(catalog, "models_for"):
-        models = catalog.models_for(capability)
-        if models:
-            model_id = getattr(models[0], "id", None)
-            if isinstance(model_id, str) and model_id:
-                return model_id
-    return None
-
-
 def _resolve_service_model(
     entry: ConfigEntry,
     requested_model: Any,
@@ -146,14 +126,12 @@ def _resolve_service_model(
     model_label: str,
 ) -> str:
     """Resolve a direct service model from request, defaults, or catalog."""
-    if isinstance(requested_model, str) and requested_model:
-        return requested_model
-
-    model = getattr(entry, "options", {}).get(default_option)
-    if isinstance(model, str) and model:
-        return model
-
-    model = _first_catalog_model_id(entry, capability)
+    model = resolve_entry_model(
+        entry,
+        capability,
+        explicit_model=requested_model,
+        default_option=default_option,
+    )
     if isinstance(model, str) and model:
         return model
 
@@ -175,77 +153,9 @@ def _extract_chat_content(response: dict[str, Any]) -> str | None:
     return content if isinstance(content, str) else None
 
 
-def _extension_from_media_type(media_type: str) -> str:
-    """Return a safe file extension for an image media type."""
-    subtype = media_type.partition("/")[2].split(";", 1)[0].strip().lower()
-    if subtype == "jpeg":
-        return "jpg"
-    subtype = subtype.split("+", 1)[0]
-    return _SAFE_FILENAME.sub("_", subtype).strip("._") or "png"
-
-
-def _decode_base64_image(value: Any, extension: str = "png") -> tuple[bytes | None, str | None]:
-    """Decode a base64 image value."""
-    if isinstance(value, bytes):
-        return value, extension
-    if not isinstance(value, str) or not value:
-        return None, None
-
-    try:
-        return base64.b64decode(value, validate=True), extension
-    except (binascii.Error, ValueError):
-        return None, None
-
-
-def _decode_data_image_url(value: Any) -> tuple[bytes | None, str | None]:
-    """Decode a data:image/...;base64 URL."""
-    if not isinstance(value, str) or not value[:5].lower() == "data:":
-        return None, None
-
-    metadata, separator, encoded = value.partition(",")
-    if not separator:
-        return None, None
-
-    metadata_lower = metadata.lower()
-    if not metadata_lower.startswith("data:image/") or ";base64" not in metadata_lower:
-        return None, None
-
-    extension = _extension_from_media_type(metadata_lower.removeprefix("data:"))
-    return _decode_base64_image(encoded, extension)
-
-
-def _decode_image_value(value: Any, extension: str = "png") -> tuple[bytes | None, str | None]:
-    """Decode an image value that may be base64 or a data URL."""
-    image_bytes, image_extension = _decode_data_image_url(value)
-    if image_bytes is not None:
-        return image_bytes, image_extension
-    return _decode_base64_image(value, extension)
-
-
 def extract_image_bytes(response: Any) -> tuple[bytes | None, str | None]:
     """Extract image bytes and an extension from an image generation response."""
-    if not isinstance(response, Mapping):
-        return None, None
-
-    first_data: Any = None
-    data = response.get("data")
-    if isinstance(data, list) and data:
-        first_data = data[0]
-
-    if isinstance(first_data, Mapping):
-        image_bytes, extension = _decode_base64_image(first_data.get("b64_json"))
-        if image_bytes is not None:
-            return image_bytes, extension
-
-        image_bytes, extension = _decode_data_image_url(first_data.get("url"))
-        if image_bytes is not None:
-            return image_bytes, extension
-
-    image_bytes, extension = _decode_base64_image(response.get("b64_json"))
-    if image_bytes is not None:
-        return image_bytes, extension
-
-    return _decode_image_value(response.get("image"))
+    return image_bytes_and_extension(response)
 
 
 def _messages_from_call(call: ServiceCall) -> list[dict[str, Any]]:
@@ -292,9 +202,7 @@ def _write_image_file(path: Path, image_bytes: bytes) -> None:
 
 def _client_error(err: Exception, action: str) -> HomeAssistantError:
     """Return a Home Assistant service error for a Lemonade client failure."""
-    if isinstance(err, TimeoutError):
-        return HomeAssistantError("Timeout communicating with Lemonade Server")
-    return HomeAssistantError(f"{action}: {err}")
+    return lemonade_home_assistant_error(err, action)
 
 
 async def _async_chat_completion(
@@ -318,7 +226,7 @@ async def _async_chat_completion(
             temperature=call.data.get(ATTR_TEMPERATURE),
             max_tokens=call.data.get(ATTR_MAX_TOKENS),
         )
-    except (LemonadeError, aiohttp.ClientError, TimeoutError) as err:
+    except LEMONADE_CLIENT_EXCEPTIONS as err:
         raise _client_error(err, "Error completing chat with Lemonade") from err
     return {"content": _extract_chat_content(response), "response": response}
 
@@ -342,7 +250,7 @@ async def _async_generate_image(
             model=model,
             size=call.data.get(ATTR_SIZE),
         )
-    except (LemonadeError, aiohttp.ClientError, TimeoutError) as err:
+    except LEMONADE_CLIENT_EXCEPTIONS as err:
         raise _client_error(err, "Error generating image with Lemonade") from err
     if not call.data.get(ATTR_SAVE):
         return {"response": response}
@@ -393,7 +301,7 @@ async def _async_transcribe_audio(
             model=model,
             language=call.data.get(ATTR_LANGUAGE),
         )
-    except (LemonadeError, aiohttp.ClientError, TimeoutError) as err:
+    except LEMONADE_CLIENT_EXCEPTIONS as err:
         raise _client_error(err, "Error transcribing audio with Lemonade") from err
     text = response.get("text") if isinstance(response.get("text"), str) else None
     return {"text": text, "response": response}
@@ -419,7 +327,7 @@ async def _async_text_to_speech(
             voice=call.data.get(ATTR_VOICE),
             response_format=call.data.get(ATTR_RESPONSE_FORMAT),
         )
-    except (LemonadeError, aiohttp.ClientError, TimeoutError) as err:
+    except LEMONADE_CLIENT_EXCEPTIONS as err:
         raise _client_error(err, "Error generating speech with Lemonade") from err
     return {
         "audio_base64": base64.b64encode(audio).decode("ascii"),
