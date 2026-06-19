@@ -20,13 +20,90 @@
       "unknown": "Unexpected error. Check the Home Assistant logs."
     },
     "abort": {
-      "already_configured": "This Lemonade Server is already configured."
+      "already_configured": "This Lemonade Server is already configured.",
+      "entry_not_loaded": "The Lemonade Server entry is not loaded.",
+      "no_models": "No compatible Lemonade models are available for this profile type."
     }
   },
   "issues": {
     "missing_capability": {
       "title": "Lemonade Server missing {capability} model capability",
       "description": "No downloaded Lemonade Server model advertises the {capability} capability in /v1/models. Install or expose a model with the required capability label, then reload the integration."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Lemonade Server options",
+        "description": "Configure Lemonade Server request settings and default models.",
+        "data": {
+          "api_key": "API key",
+          "timeout": "Request timeout (seconds)",
+          "default_conversation_model": "Default conversation model",
+          "default_ai_task_model": "Default AI task model",
+          "default_image_model": "Default image model",
+          "default_tts_model": "Default text-to-speech model",
+          "default_stt_model": "Default speech-to-text model"
+        }
+      }
+    }
+  },
+  "config_subentries": {
+    "conversation": {
+      "title": "Conversation profile",
+      "step": {
+        "user": {
+          "title": "Add conversation profile",
+          "description": "Create a Lemonade conversation profile.",
+          "data": {
+            "name": "Profile name",
+            "model": "Model",
+            "prompt": "Prompt",
+            "llm_hass_api": "Home Assistant LLM APIs"
+          }
+        },
+        "reconfigure": {
+          "title": "Reconfigure conversation profile",
+          "description": "Update this Lemonade conversation profile.",
+          "data": {
+            "name": "Profile name",
+            "model": "Model",
+            "prompt": "Prompt",
+            "llm_hass_api": "Home Assistant LLM APIs"
+          }
+        }
+      },
+      "abort": {
+        "entry_not_loaded": "The Lemonade Server entry is not loaded.",
+        "no_models": "No compatible Lemonade models are available for this profile type."
+      }
+    },
+    "ai_task_data": {
+      "title": "AI task profile",
+      "step": {
+        "user": {
+          "title": "Add AI task profile",
+          "description": "Create a Lemonade AI task profile.",
+          "data": {
+            "name": "Profile name",
+            "model": "Model",
+            "prompt": "Prompt"
+          }
+        },
+        "reconfigure": {
+          "title": "Reconfigure AI task profile",
+          "description": "Update this Lemonade AI task profile.",
+          "data": {
+            "name": "Profile name",
+            "model": "Model",
+            "prompt": "Prompt"
+          }
+        }
+      },
+      "abort": {
+        "entry_not_loaded": "The Lemonade Server entry is not loaded.",
+        "no_models": "No compatible Lemonade models are available for this profile type."
+      }
     }
   }
 }
