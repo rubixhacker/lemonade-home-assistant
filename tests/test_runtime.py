@@ -344,6 +344,7 @@ def _install_homeassistant_stubs() -> None:
     config_validation = ModuleType("homeassistant.helpers.config_validation")
     config_validation.config_entry_only_config_schema = lambda domain: None
     config_validation.string = str
+    config_validation.boolean = bool
     sys.modules.setdefault(
         "homeassistant.helpers.config_validation",
         config_validation,
@@ -626,6 +627,38 @@ class FakeCatalog:
     def first_model_id(self, capability: str) -> str | None:
         model_ids = self.model_ids(capability)
         return model_ids[0] if model_ids else None
+
+
+class FakeServiceHass:
+    def __init__(self, entry: Any, root: Path | None = None) -> None:
+        self.config_entries = SimpleNamespace(
+            async_entries=lambda domain: [entry],
+        )
+        self._root = root
+        if root is not None:
+            self.config = SimpleNamespace(
+                path=lambda *parts: str(root.joinpath(*parts)),
+            )
+
+    async def async_add_executor_job(self, func: Any, *args: Any) -> Any:
+        return func(*args)
+
+
+def _service_entry(
+    client: Any,
+    catalog_models: dict[str, list[str]],
+    options: dict[str, Any] | None = None,
+) -> Any:
+    entry = SimpleNamespace(
+        entry_id="entry-1",
+        data={},
+        options=options or {},
+    )
+    entry.runtime_data = LemonadeRuntimeData(
+        client=client,
+        coordinator=SimpleNamespace(catalog=FakeCatalog(catalog_models)),
+    )
+    return entry
 
 
 class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
@@ -2044,6 +2077,299 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertIs(entry, selected_entry)
         self.assertIs(client, selected_client)
+
+    def test_generate_image_schema_includes_save_and_filename(self) -> None:
+        from lemonade.const import ATTR_FILENAME, ATTR_SAVE
+
+        services_module = _require_module("lemonade.services")
+
+        fields = _schema_fields(services_module.GENERATE_IMAGE_SCHEMA)
+
+        self.assertIn(ATTR_SAVE, fields)
+        self.assertIs(False, fields[ATTR_SAVE][0].default)
+        self.assertIn(ATTR_FILENAME, fields)
+
+    def test_extract_image_bytes_decodes_supported_response_shapes(self) -> None:
+        services_module = _require_module("lemonade.services")
+
+        self.assertTrue(hasattr(services_module, "extract_image_bytes"))
+        extract_image_bytes = services_module.extract_image_bytes
+
+        self.assertEqual(
+            (b"first-image", "png"),
+            extract_image_bytes(
+                {
+                    "data": [
+                        {
+                            "b64_json": "Zmlyc3QtaW1hZ2U=",
+                            "url": "data:image/png;base64,c2Vjb25kLWltYWdl",
+                        }
+                    ],
+                    "b64_json": "dGhpcmQtaW1hZ2U=",
+                    "image": "Zm91cnRoLWltYWdl",
+                }
+            ),
+        )
+        self.assertEqual(
+            (b"url-image", "png"),
+            extract_image_bytes(
+                {"data": [{"url": "DATA:image/png;base64,dXJsLWltYWdl"}]}
+            ),
+        )
+        self.assertEqual(
+            (b"root-image", "png"),
+            extract_image_bytes({"image": "cm9vdC1pbWFnZQ=="}),
+        )
+        self.assertEqual((None, None), extract_image_bytes({"data": [{"url": "https://example/image.png"}]}))
+
+    async def test_direct_services_resolve_model_from_request_default_then_catalog(self) -> None:
+        import tempfile
+
+        from homeassistant.const import CONF_MODEL
+        from lemonade.const import (
+            ATTR_FILE_PATH,
+            ATTR_PROMPT,
+            ATTR_TEXT,
+            CAPABILITY_CONVERSATION,
+            CAPABILITY_IMAGE,
+            CAPABILITY_STT,
+            CAPABILITY_TTS,
+        )
+        from lemonade.services import (
+            _async_chat_completion,
+            _async_generate_image,
+            _async_text_to_speech,
+            _async_transcribe_audio,
+        )
+
+        class Client:
+            def __init__(self) -> None:
+                self.calls: list[tuple[str, str | None]] = []
+
+            async def chat_completion(self, **kwargs: Any) -> dict[str, Any]:
+                self.calls.append(("chat", kwargs.get("model")))
+                return {"choices": [{"message": {"content": "hello"}}]}
+
+            async def generate_image(self, **kwargs: Any) -> dict[str, Any]:
+                self.calls.append(("image", kwargs.get("model")))
+                return {"data": [{"b64_json": "aW1hZ2U="}]}
+
+            async def text_to_speech(self, **kwargs: Any) -> tuple[bytes, str]:
+                self.calls.append(("tts", kwargs.get("model")))
+                return b"voice", "audio/mpeg"
+
+            async def transcribe_audio(self, **kwargs: Any) -> dict[str, str]:
+                self.calls.append(("stt", kwargs.get("model")))
+                return {"text": "speech"}
+
+        client = Client()
+        entry = _service_entry(
+            client,
+            {
+                CAPABILITY_CONVERSATION: ["catalog-chat"],
+                CAPABILITY_IMAGE: ["catalog-image"],
+                CAPABILITY_TTS: ["catalog-tts"],
+                CAPABILITY_STT: ["catalog-stt"],
+            },
+        )
+        hass = FakeServiceHass(entry)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_file = Path(tmpdir) / "speech.wav"
+            audio_file.write_bytes(b"speech")
+
+            service_cases = (
+                (
+                    "chat",
+                    _async_chat_completion,
+                    {ATTR_PROMPT: "Hi"},
+                    "default_conversation_model",
+                    "request-chat",
+                    "entry-chat",
+                    "catalog-chat",
+                ),
+                (
+                    "image",
+                    _async_generate_image,
+                    {ATTR_PROMPT: "Draw"},
+                    "default_image_model",
+                    "request-image",
+                    "entry-image",
+                    "catalog-image",
+                ),
+                (
+                    "tts",
+                    _async_text_to_speech,
+                    {ATTR_TEXT: "Hello"},
+                    "default_tts_model",
+                    "request-tts",
+                    "entry-tts",
+                    "catalog-tts",
+                ),
+                (
+                    "stt",
+                    _async_transcribe_audio,
+                    {ATTR_FILE_PATH: str(audio_file)},
+                    "default_stt_model",
+                    "request-stt",
+                    "entry-stt",
+                    "catalog-stt",
+                ),
+            )
+
+            for service_name, handler, base_data, default_option, request_model, entry_model, catalog_model in service_cases:
+                with self.subTest(service=service_name):
+                    entry.options = {default_option: entry_model}
+                    await handler(
+                        hass,
+                        SimpleNamespace(data={**base_data, CONF_MODEL: request_model}),
+                    )
+                    await handler(hass, SimpleNamespace(data=base_data))
+                    entry.options = {}
+                    await handler(hass, SimpleNamespace(data=base_data))
+
+                    self.assertEqual(
+                        [request_model, entry_model, catalog_model],
+                        [
+                            model
+                            for call_service, model in client.calls[-3:]
+                            if call_service == service_name
+                        ],
+                    )
+
+    async def test_direct_services_error_when_no_compatible_model_exists(self) -> None:
+        import tempfile
+
+        from homeassistant.exceptions import HomeAssistantError
+        from lemonade.const import ATTR_FILE_PATH, ATTR_PROMPT, ATTR_TEXT
+        from lemonade.services import (
+            _async_chat_completion,
+            _async_generate_image,
+            _async_text_to_speech,
+            _async_transcribe_audio,
+        )
+
+        class Client:
+            async def chat_completion(self, **kwargs: Any) -> dict[str, Any]:
+                return {"choices": []}
+
+            async def generate_image(self, **kwargs: Any) -> dict[str, Any]:
+                return {}
+
+            async def text_to_speech(self, **kwargs: Any) -> tuple[bytes, str]:
+                return b"", "audio/mpeg"
+
+            async def transcribe_audio(self, **kwargs: Any) -> dict[str, str]:
+                return {"text": ""}
+
+        entry = _service_entry(Client(), {}, {})
+        hass = FakeServiceHass(entry)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_file = Path(tmpdir) / "speech.wav"
+            audio_file.write_bytes(b"speech")
+
+            service_cases = (
+                (
+                    "conversation",
+                    _async_chat_completion,
+                    {ATTR_PROMPT: "Hi"},
+                    "No Lemonade conversation model is available",
+                ),
+                (
+                    "image",
+                    _async_generate_image,
+                    {ATTR_PROMPT: "Draw"},
+                    "No Lemonade image model is available",
+                ),
+                (
+                    "TTS",
+                    _async_text_to_speech,
+                    {ATTR_TEXT: "Hello"},
+                    "No Lemonade TTS model is available",
+                ),
+                (
+                    "STT",
+                    _async_transcribe_audio,
+                    {ATTR_FILE_PATH: str(audio_file)},
+                    "No Lemonade STT model is available",
+                ),
+            )
+
+            for service_name, handler, data, message in service_cases:
+                with self.subTest(service=service_name):
+                    with self.assertRaisesRegex(HomeAssistantError, message):
+                        await handler(hass, SimpleNamespace(data=data))
+
+    async def test_generate_image_service_saves_decoded_image_with_safe_filename(self) -> None:
+        import tempfile
+
+        from lemonade.const import ATTR_FILENAME, ATTR_PROMPT, ATTR_SAVE, CAPABILITY_IMAGE
+        from lemonade.services import _async_generate_image
+
+        response = {"data": [{"url": "DATA:image/png;base64,aW1hZ2UtYnl0ZXM="}]}
+
+        class Client:
+            async def generate_image(self, **kwargs: Any) -> dict[str, Any]:
+                return response
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            entry = _service_entry(
+                Client(),
+                {CAPABILITY_IMAGE: ["catalog-image"]},
+            )
+            hass = FakeServiceHass(entry, root)
+
+            result = await _async_generate_image(
+                hass,
+                SimpleNamespace(
+                    data={
+                        ATTR_PROMPT: "Draw a lemon",
+                        ATTR_SAVE: True,
+                        ATTR_FILENAME: "../unsafe/lemon.png",
+                    }
+                ),
+            )
+
+            self.assertEqual(
+                {
+                    "response": response,
+                    "media_path": "media-source://media_source/local/lemonade/lemon.png",
+                },
+                result,
+            )
+            self.assertEqual(
+                b"image-bytes",
+                (root / "media" / "lemonade" / "lemon.png").read_bytes(),
+            )
+
+    async def test_generate_image_service_errors_when_save_response_has_no_image_bytes(self) -> None:
+        import tempfile
+
+        from homeassistant.exceptions import HomeAssistantError
+        from lemonade.const import ATTR_PROMPT, ATTR_SAVE, CAPABILITY_IMAGE
+        from lemonade.services import _async_generate_image
+
+        class Client:
+            async def generate_image(self, **kwargs: Any) -> dict[str, Any]:
+                return {"data": [{"url": "https://example.invalid/image.png"}]}
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            entry = _service_entry(Client(), {CAPABILITY_IMAGE: ["catalog-image"]})
+            hass = FakeServiceHass(entry, Path(tmpdir))
+
+            with self.assertRaisesRegex(
+                HomeAssistantError,
+                "Lemonade image response did not contain image bytes to save",
+            ):
+                await _async_generate_image(
+                    hass,
+                    SimpleNamespace(
+                        data={ATTR_PROMPT: "Draw a lemon", ATTR_SAVE: True}
+                    ),
+                )
+
 
     async def test_unload_entry_deletes_missing_capability_repairs(self) -> None:
         hass = FakeHass()

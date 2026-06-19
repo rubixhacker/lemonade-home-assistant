@@ -62,6 +62,7 @@ def _install_homeassistant_stubs() -> None:
     config_validation = ModuleType("homeassistant.helpers.config_validation")
     config_validation.config_entry_only_config_schema = lambda domain: None
     config_validation.string = str
+    config_validation.boolean = bool
     sys.modules.setdefault(
         "homeassistant.helpers.config_validation",
         config_validation,

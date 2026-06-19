@@ -9,7 +9,7 @@ chat_completion:
         text:
     model:
       name: Model
-      description: Model ID. If omitted, the integration's default model is used.
+      description: Optional conversation model ID. If omitted, the service uses the entry's default conversation model, then the first conversation-capable model advertised by Lemonade.
       selector:
         text:
     prompt:
@@ -48,14 +48,16 @@ chat_completion:
 
 generate_image:
   name: Generate image
-  description: Generate an image using Lemonade Server.
+  description: Generate an image using Lemonade Server. When save is enabled, decoded image bytes are written to /media/lemonade and the response includes a media_source path.
   fields:
     entry_id:
       name: Config entry ID
+      description: Optional Lemonade Server config entry ID. If omitted, the first loaded entry is used.
       selector:
         text:
     model:
       name: Model
+      description: Optional image model ID. If omitted, the service uses the entry's default image model, then the first image-capable model advertised by Lemonade.
       selector:
         text:
     prompt:
@@ -69,6 +71,17 @@ generate_image:
       description: Optional size such as 1024x1024, if supported by the selected model/backend.
       selector:
         text:
+    save:
+      name: Save
+      description: Save decoded image bytes under /media/lemonade and return a media_source path. The service raises an error if the Lemonade response does not include image bytes.
+      default: false
+      selector:
+        boolean:
+    filename:
+      name: Filename
+      description: Optional filename to use under /media/lemonade when save is enabled. Path components are stripped to prevent path traversal. If omitted, a timestamped PNG filename is used.
+      selector:
+        text:
 
 transcribe_audio:
   name: Transcribe audio
@@ -76,10 +89,12 @@ transcribe_audio:
   fields:
     entry_id:
       name: Config entry ID
+      description: Optional Lemonade Server config entry ID. If omitted, the first loaded entry is used.
       selector:
         text:
     model:
       name: Model
+      description: Optional STT model ID. If omitted, the service uses the entry's default STT model, then the first STT-capable model advertised by Lemonade.
       selector:
         text:
     file_path:
@@ -100,10 +115,12 @@ text_to_speech:
   fields:
     entry_id:
       name: Config entry ID
+      description: Optional Lemonade Server config entry ID. If omitted, the first loaded entry is used.
       selector:
         text:
     model:
       name: Model
+      description: Optional TTS model ID. If omitted, the service uses the entry's default TTS model, then the first TTS-capable model advertised by Lemonade.
       selector:
         text:
     text:
