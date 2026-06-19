@@ -48,13 +48,13 @@ class LemonadeClient:
             return {}
         return {"Authorization": f"Bearer {self.api_key}"}
 
-    async def _request_json(
+    async def _request_json_payload(
         self,
         method: str,
         path: str,
         **kwargs: Any,
-    ) -> dict[str, Any]:
-        """Request JSON from Lemonade Server."""
+    ) -> Any:
+        """Request raw JSON from Lemonade Server."""
         async with asyncio.timeout(self.timeout):
             async with self.session.request(
                 method,
@@ -69,10 +69,19 @@ class LemonadeClient:
                     raise LemonadeError(
                         f"Lemonade Server returned HTTP {response.status}: {body}"
                     )
-                data = await response.json(content_type=None)
-                if isinstance(data, dict):
-                    return data
-                return {"data": data}
+                return await response.json(content_type=None)
+
+    async def _request_json(
+        self,
+        method: str,
+        path: str,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Request JSON from Lemonade Server."""
+        data = await self._request_json_payload(method, path, **kwargs)
+        if isinstance(data, dict):
+            return data
+        return {"data": data}
 
     async def _request_bytes(
         self,
@@ -101,9 +110,9 @@ class LemonadeClient:
         """Return Lemonade Server health."""
         return await self._request_json("GET", ENDPOINT_HEALTH)
 
-    async def models(self) -> dict[str, Any]:
+    async def models(self) -> dict[str, Any] | list[Any]:
         """Return available Lemonade models."""
-        return await self._request_json("GET", ENDPOINT_MODELS)
+        return await self._request_json_payload("GET", ENDPOINT_MODELS)
 
     async def chat_completion(
         self,

@@ -43,5 +43,90 @@
     "mtime": 1781841649.034301,
     "ast_hash": "d3e850f21d232e92a601dd190d99a46e",
     "semantic_hash": ""
+  },
+  "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/tests/test_runtime.py": {
+    "mtime": 1781845296.8072257,
+    "ast_hash": "090d2a493e91a47586c8b616cf96e8ab",
+    "semantic_hash": ""
+  },
+  "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/tests/test_models.py": {
+    "mtime": 1781844871.8534994,
+    "ast_hash": "d26222015e1044d362c6c52ae62c0090",
+    "semantic_hash": ""
+  },
+  "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/lemonade/coordinator.py": {
+    "mtime": 1781845385.9259171,
+    "ast_hash": "4c60212e0a8ef0552481120b99a5e9fd",
+    "semantic_hash": ""
+  },
+  "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/lemonade/services.py": {
+    "mtime": 1781843502.8930676,
+    "ast_hash": "91cbeb8897f4b8c414dbc1230d52ff84",
+    "semantic_hash": ""
+  },
+  "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/lemonade/models.py": {
+    "mtime": 1781844880.289529,
+    "ast_hash": "0e03906948a6a365ae3d8e1222422efd",
+    "semantic_hash": ""
+  },
+  "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/lemonade/__init__.py": {
+    "mtime": 1781845429.0498195,
+    "ast_hash": "ffc484dc7cb0eaad2bd5ea68f6d9f679",
+    "semantic_hash": ""
+  },
+  "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/lemonade/api.py": {
+    "mtime": 1781845489.232956,
+    "ast_hash": "1b281dce6e00857f14a549957b76e610",
+    "semantic_hash": ""
+  },
+  "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/lemonade/repairs.py": {
+    "mtime": 1781845394.2565243,
+    "ast_hash": "e486c524f953a73fda8bc910d29c3607",
+    "semantic_hash": ""
+  },
+  "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/lemonade/manifest.json": {
+    "mtime": 1781843664.6314223,
+    "ast_hash": "95b9d22effc7016ed54cde2d52ff08b0",
+    "semantic_hash": ""
+  },
+  "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/lemonade/strings.json": {
+    "mtime": 1781843502.8932133,
+    "ast_hash": "792b0baecf93e3d88a9d2ab612083854",
+    "semantic_hash": ""
+  },
+  "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/lemonade/const.py": {
+    "mtime": 1781843664.6314223,
+    "ast_hash": "2d7e543753b60707f085391dc3b98417",
+    "semantic_hash": ""
+  },
+  "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/lemonade/data.py": {
+    "mtime": 1781843664.6317961,
+    "ast_hash": "df02093b9891e54ac2828ec354eadcf4",
+    "semantic_hash": ""
+  },
+  "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/lemonade/config_flow.py": {
+    "mtime": 1781843502.8928423,
+    "ast_hash": "500d13ec4a3fc803c24867865f68a096",
+    "semantic_hash": ""
+  },
+  "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/docs/superpowers/plans/2026-06-18-lemonade-ha-core-quality.md": {
+    "mtime": 1781843502.89025,
+    "ast_hash": "93de64a90dffcc862833439dfddca34e",
+    "semantic_hash": ""
+  },
+  "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/docs/superpowers/specs/2026-06-18-lemonade-ha-core-quality-design.md": {
+    "mtime": 1781843502.890502,
+    "ast_hash": "67a6ce03c6e6bdd327709b724c3fd0d3",
+    "semantic_hash": ""
+  },
+  "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/lemonade/services.yaml": {
+    "mtime": 1781843502.8931408,
+    "ast_hash": "a8aed93a8fb13a5e0dba9cd6ba2406a3",
+    "semantic_hash": ""
+  },
+  "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/lemonade/README.md": {
+    "mtime": 1781843502.8926082,
+    "ast_hash": "d3e850f21d232e92a601dd190d99a46e",
+    "semantic_hash": ""
   }
 }

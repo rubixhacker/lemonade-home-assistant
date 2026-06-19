@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from typing import Any
 
 import aiohttp
 
@@ -16,12 +17,22 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
 from .api import LemonadeAuthError, LemonadeClient, LemonadeError
-from .const import CONF_TIMEOUT, DEFAULT_TIMEOUT, DOMAIN, PLATFORMS
+from .const import (
+    CAPABILITY_IMAGE,
+    CAPABILITY_STT,
+    CAPABILITY_TTS,
+    CONF_TIMEOUT,
+    DEFAULT_TIMEOUT,
+    DOMAIN,
+    PLATFORMS,
+)
 from .services import async_register_services
 
 _LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+_REPAIR_CAPABILITIES = (CAPABILITY_IMAGE, CAPABILITY_TTS, CAPABILITY_STT)
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -29,6 +40,24 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     hass.data.setdefault(DOMAIN, {})
     async_register_services(hass)
     return True
+
+
+def _async_update_missing_capability_issues(
+    hass: HomeAssistant,
+    entry_id: str,
+    coordinator: Any,
+) -> None:
+    """Create or delete repair issues for missing optional capabilities."""
+    from .repairs import (
+        async_create_missing_capability_issue,
+        async_delete_missing_capability_issue,
+    )
+
+    for capability in _REPAIR_CAPABILITIES:
+        if coordinator.catalog.model_ids(capability):
+            async_delete_missing_capability_issue(hass, entry_id, capability)
+        else:
+            async_create_missing_capability_issue(hass, entry_id, capability)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -50,8 +79,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except LemonadeError as err:
         raise ConfigEntryError(err) from err
 
-    entry.runtime_data = client
+    from .coordinator import LemonadeCoordinator
+    from .data import LemonadeRuntimeData
+
+    coordinator = LemonadeCoordinator(hass, entry, client)
+    await coordinator.async_config_entry_first_refresh()
+
+    entry.runtime_data = LemonadeRuntimeData(client=client, coordinator=coordinator)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = entry
+
+    _async_update_missing_capability_issues(hass, entry.entry_id, coordinator)
+    entry.async_on_unload(
+        coordinator.async_add_listener(
+            lambda: _async_update_missing_capability_issues(
+                hass, entry.entry_id, coordinator
+            )
+        )
+    )
 
     if PLATFORMS:
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
