@@ -7,8 +7,8 @@ BUILD_DIR="${DIST_DIR}/hacs"
 ASSET="${DIST_DIR}/lemonade.zip"
 
 rm -rf "${BUILD_DIR}"
-mkdir -p "${BUILD_DIR}/custom_components"
-cp -R "${ROOT_DIR}/lemonade" "${BUILD_DIR}/custom_components/lemonade"
+mkdir -p "${BUILD_DIR}"
+cp -R "${ROOT_DIR}/custom_components" "${BUILD_DIR}/custom_components"
 find "${BUILD_DIR}" \( -type d -name "__pycache__" -o -type f -name "*.pyc" \) -prune -exec rm -rf {} +
 
 rm -f "${ASSET}"

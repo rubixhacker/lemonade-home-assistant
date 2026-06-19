@@ -11,6 +11,8 @@ from types import MappingProxyType, ModuleType, SimpleNamespace
 from typing import Any
 import unittest
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "custom_components"))
+
 
 class _VolMarker:
     def __init__(
@@ -3186,12 +3188,12 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
 
     def test_manifest_declares_voluptuous_openapi_requirement(self) -> None:
-        manifest = json.loads(Path("lemonade/manifest.json").read_text())
+        manifest = json.loads(Path("custom_components/lemonade/manifest.json").read_text())
 
         self.assertIn("voluptuous-openapi", manifest["requirements"])
 
     def test_strings_define_options_and_profile_subentry_translations(self) -> None:
-        strings = json.loads(Path("lemonade/strings.json").read_text())
+        strings = json.loads(Path("custom_components/lemonade/strings.json").read_text())
 
         self.assertIn("options", strings)
         option_data = strings["options"]["step"]["init"]["data"]
@@ -3220,7 +3222,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
 
     def test_strings_define_missing_capability_repair_translation(self) -> None:
-        strings = json.loads(Path("lemonade/strings.json").read_text())
+        strings = json.loads(Path("custom_components/lemonade/strings.json").read_text())
 
         issue = strings.get("issues", {}).get("missing_capability")
 
@@ -4939,7 +4941,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("entry-1", hass.config_entries.reloaded)
 
     def test_strings_define_status_sensor_and_default_model_select_translations(self) -> None:
-        strings = json.loads(Path("lemonade/strings.json").read_text())
+        strings = json.loads(Path("custom_components/lemonade/strings.json").read_text())
 
         sensor_strings = strings.get("entity", {}).get("sensor", {})
         self.assertEqual(

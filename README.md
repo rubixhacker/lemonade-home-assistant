@@ -54,7 +54,7 @@ The release workflow builds `dist/lemonade.zip` and publishes it as the HACS rel
 
 ## Manual install
 
-Copy the `lemonade` directory from this repository to:
+Copy the `custom_components/lemonade` directory from this repository to:
 
 ```text
 /config/custom_components/lemonade/
@@ -72,4 +72,4 @@ Then restart Home Assistant and add the integration from the UI.
 - STT provider support.
 - Direct services for chat completion, image generation, transcription, and text-to-speech.
 
-See [lemonade/README.md](lemonade/README.md) for integration usage details.
+See [custom_components/lemonade/README.md](custom_components/lemonade/README.md) for integration usage details.
