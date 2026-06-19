@@ -155,6 +155,31 @@ def _install_homeassistant_stubs() -> None:
     sys.modules.setdefault("homeassistant.components.select", select_component)
     components.select = select_component
 
+    tts_component = ModuleType("homeassistant.components.tts")
+    tts_component.TextToSpeechEntity = type("TextToSpeechEntity", (), {})
+    sys.modules.setdefault("homeassistant.components.tts", tts_component)
+    components.tts = tts_component
+
+    stt_component = ModuleType("homeassistant.components.stt")
+    stt_component.SpeechToTextEntity = type("SpeechToTextEntity", (), {})
+    stt_component.AudioFormats = SimpleNamespace(WAV="wav")
+    stt_component.AudioCodecs = SimpleNamespace(PCM="pcm")
+    stt_component.AudioBitRates = SimpleNamespace(BITRATE_16=16)
+    stt_component.AudioSampleRates = SimpleNamespace(SAMPLERATE_16000=16000)
+    stt_component.AudioChannels = SimpleNamespace(CHANNEL_MONO=1)
+    stt_component.SpeechResultState = SimpleNamespace(
+        SUCCESS="success", ERROR="error"
+    )
+
+    class SpeechResult:
+        def __init__(self, text: str | None, result: str) -> None:
+            self.text = text
+            self.result = result
+
+    stt_component.SpeechResult = SpeechResult
+    sys.modules.setdefault("homeassistant.components.stt", stt_component)
+    components.stt = stt_component
+
     conversation_component = ModuleType("homeassistant.components.conversation")
 
     class SystemContent:
@@ -2185,6 +2210,155 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             SensorStateClass.MEASUREMENT,
             getattr(entities["stt_model_count"], "_attr_state_class", None),
         )
+
+    async def test_tts_platform_adds_entity_and_generates_audio_with_request_options(self) -> None:
+        tts_module = _require_module("lemonade.tts")
+
+        class Client:
+            def __init__(self) -> None:
+                self.calls: list[dict[str, Any]] = []
+
+            async def text_to_speech(self, **kwargs: Any) -> tuple[bytes, str]:
+                self.calls.append(kwargs)
+                return b"voice-bytes", "audio/mpeg; charset=binary"
+
+        client = Client()
+        coordinator = SimpleNamespace(
+            catalog=FakeCatalog({CAPABILITY_TTS: ["catalog-tts"]}),
+            last_update_success=True,
+        )
+        entry = FakeEntry()
+        entry.options = {CONF_DEFAULT_TTS_MODEL: "entry-tts"}
+        entry.runtime_data = SimpleNamespace(client=client, coordinator=coordinator)
+        added: list[Any] = []
+
+        await tts_module.async_setup_entry(FakeHass(), entry, added.extend)
+
+        self.assertEqual(1, len(added))
+        entity = added[0]
+        self.assertIsInstance(entity, tts_module.LemonadeTTSEntity)
+        self.assertIsNone(entity._attr_name)
+        self.assertTrue(entity._attr_has_entity_name)
+        self.assertEqual("entry-1_tts", entity._attr_unique_id)
+        self.assertEqual("en", entity._attr_default_language)
+        self.assertEqual(["en"], entity._attr_supported_languages)
+        self.assertEqual(
+            ["voice", "model", "response_format"],
+            entity._attr_supported_options,
+        )
+        self.assertTrue(entity.available)
+
+        extension, audio = await entity.async_get_tts_audio(
+            "Hello",
+            "en",
+            {"model": "request-tts", "voice": "alloy", "response_format": "wav"},
+        )
+
+        self.assertEqual(("mp3", b"voice-bytes"), (extension, audio))
+        self.assertEqual(
+            [
+                {
+                    "text": "Hello",
+                    "model": "request-tts",
+                    "voice": "alloy",
+                    "response_format": "wav",
+                }
+            ],
+            client.calls,
+        )
+
+    async def test_stt_platform_adds_entity_and_transcribes_stream_with_default_model(self) -> None:
+        from homeassistant.components import stt
+
+        stt_module = _require_module("lemonade.stt")
+
+        class Client:
+            def __init__(self) -> None:
+                self.calls: list[dict[str, Any]] = []
+
+            async def transcribe_audio(self, **kwargs: Any) -> dict[str, str]:
+                self.calls.append(kwargs)
+                return {"text": "turn on lights"}
+
+        async def audio_stream() -> Any:
+            yield b"turn "
+            yield b"on"
+
+        client = Client()
+        coordinator = SimpleNamespace(
+            catalog=FakeCatalog({CAPABILITY_STT: ["catalog-stt"]}),
+            last_update_success=True,
+        )
+        entry = FakeEntry()
+        entry.options = {CONF_DEFAULT_STT_MODEL: "entry-stt"}
+        entry.runtime_data = SimpleNamespace(client=client, coordinator=coordinator)
+        added: list[Any] = []
+
+        await stt_module.async_setup_entry(FakeHass(), entry, added.extend)
+
+        self.assertEqual(1, len(added))
+        entity = added[0]
+        self.assertIsInstance(entity, stt_module.LemonadeSTTEntity)
+        self.assertIsNone(entity._attr_name)
+        self.assertTrue(entity._attr_has_entity_name)
+        self.assertEqual("entry-1_stt", entity._attr_unique_id)
+        self.assertEqual(["en"], entity.supported_languages)
+        self.assertEqual([stt.AudioFormats.WAV], entity.supported_formats)
+        self.assertEqual([stt.AudioCodecs.PCM], entity.supported_codecs)
+        self.assertEqual([stt.AudioBitRates.BITRATE_16], entity.supported_bit_rates)
+        self.assertEqual(
+            [stt.AudioSampleRates.SAMPLERATE_16000],
+            entity.supported_sample_rates,
+        )
+        self.assertEqual([stt.AudioChannels.CHANNEL_MONO], entity.supported_channels)
+        self.assertTrue(entity.available)
+
+        result = await entity.async_process_audio_stream(
+            SimpleNamespace(language="en"), audio_stream()
+        )
+
+        self.assertEqual("turn on lights", result.text)
+        self.assertEqual(stt.SpeechResultState.SUCCESS, result.result)
+        self.assertEqual(
+            [
+                {
+                    "audio": b"turn on",
+                    "filename": "speech.wav",
+                    "model": "entry-stt",
+                    "language": "en",
+                }
+            ],
+            client.calls,
+        )
+
+    async def test_stt_entity_is_unavailable_and_returns_error_without_model(self) -> None:
+        from homeassistant.components import stt
+
+        stt_module = _require_module("lemonade.stt")
+        entry = FakeEntry()
+        entry.options = {}
+        entry.runtime_data = SimpleNamespace(
+            client=object(),
+            coordinator=SimpleNamespace(
+                catalog=FakeCatalog({CAPABILITY_STT: []}),
+                last_update_success=True,
+            ),
+        )
+        entity = stt_module.LemonadeSTTEntity(entry)
+
+        async def audio_stream() -> Any:
+            yield b"audio"
+
+        self.assertFalse(entity.available)
+
+        with self.assertLogs(stt_module._LOGGER.name, level="WARNING") as logs:
+            result = await entity.async_process_audio_stream(
+                SimpleNamespace(language="en"), audio_stream()
+            )
+
+        self.assertIn("No Lemonade STT model is available", logs.output[0])
+        self.assertIsNone(result.text)
+        self.assertEqual(stt.SpeechResultState.ERROR, result.result)
 
     async def test_select_platform_adds_default_model_selects_and_updates_options(self) -> None:
         select_module = _require_module("lemonade.select")

@@ -27,7 +27,7 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L16",
       "id": "tests_test_runtime_volmarker_init",
-      "community": 4,
+      "community": 58,
       "norm_label": ".__init__()"
     },
     {
@@ -36,7 +36,7 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L16",
       "id": "tests_test_runtime_py_str",
-      "community": 4,
+      "community": 58,
       "norm_label": "str"
     },
     {
@@ -45,7 +45,7 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L16",
       "id": "tests_test_runtime_py_any",
-      "community": 4,
+      "community": 58,
       "norm_label": "any"
     },
     {
@@ -81,7 +81,7 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L33",
       "id": "tests_test_runtime_volschema_init",
-      "community": 4,
+      "community": 58,
       "norm_label": ".__init__()"
     },
     {
@@ -90,7 +90,7 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L37",
       "id": "tests_test_runtime_flowbase",
-      "community": 4,
+      "community": 58,
       "norm_label": "_flowbase"
     },
     {
@@ -99,7 +99,7 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L38",
       "id": "tests_test_runtime_flowbase_async_show_form",
-      "community": 4,
+      "community": 58,
       "norm_label": ".async_show_form()"
     },
     {
@@ -108,7 +108,7 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L41",
       "id": "tests_test_runtime_flowbase_async_create_entry",
-      "community": 4,
+      "community": 58,
       "norm_label": ".async_create_entry()"
     },
     {
@@ -117,7 +117,7 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L44",
       "id": "tests_test_runtime_flowbase_async_abort",
-      "community": 4,
+      "community": 58,
       "norm_label": ".async_abort()"
     },
     {
@@ -126,7 +126,7 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L47",
       "id": "tests_test_runtime_flowbase_add_suggested_values_to_schema",
-      "community": 4,
+      "community": 58,
       "norm_label": ".add_suggested_values_to_schema()"
     },
     {
@@ -135,7 +135,7 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L53",
       "id": "tests_test_runtime_configflowbase",
-      "community": 4,
+      "community": 58,
       "norm_label": "_configflowbase"
     },
     {
@@ -144,7 +144,7 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L54",
       "id": "tests_test_runtime_configflowbase_init_subclass",
-      "community": 4,
+      "community": 58,
       "norm_label": ".__init_subclass__()"
     },
     {
@@ -153,7 +153,7 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L57",
       "id": "tests_test_runtime_configflowbase_async_set_unique_id",
-      "community": 4,
+      "community": 58,
       "norm_label": ".async_set_unique_id()"
     },
     {
@@ -162,7 +162,7 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L60",
       "id": "tests_test_runtime_configflowbase_abort_if_unique_id_configured",
-      "community": 4,
+      "community": 58,
       "norm_label": "._abort_if_unique_id_configured()"
     },
     {
@@ -180,7 +180,7 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L68",
       "id": "tests_test_runtime_configsubentryflowbase",
-      "community": 4,
+      "community": 58,
       "norm_label": "_configsubentryflowbase"
     },
     {
@@ -189,7 +189,7 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L69",
       "id": "tests_test_runtime_configsubentryflowbase_get_entry",
-      "community": 4,
+      "community": 58,
       "norm_label": "._get_entry()"
     },
     {
@@ -198,7 +198,7 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L72",
       "id": "tests_test_runtime_configsubentryflowbase_get_reconfigure_subentry",
-      "community": 4,
+      "community": 58,
       "norm_label": "._get_reconfigure_subentry()"
     },
     {
@@ -207,7 +207,7 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L75",
       "id": "tests_test_runtime_configsubentryflowbase_async_update_and_abort",
-      "community": 4,
+      "community": 58,
       "norm_label": ".async_update_and_abort()"
     },
     {
@@ -270,14 +270,14 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L109",
       "id": "tests_test_runtime_install_homeassistant_stubs",
-      "community": 4,
+      "community": 67,
       "norm_label": "_install_homeassistant_stubs()"
     },
     {
       "label": "_require_module()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L446",
+      "source_location": "L471",
       "id": "tests_test_runtime_require_module",
       "community": 46,
       "norm_label": "_require_module()"
@@ -286,7 +286,7 @@
       "label": "ModuleType",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L446",
+      "source_location": "L471",
       "id": "moduletype",
       "community": 4,
       "norm_label": "moduletype"
@@ -295,34 +295,34 @@
       "label": "FakeConfigEntries",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L486",
+      "source_location": "L511",
       "id": "tests_test_runtime_fakeconfigentries",
-      "community": 4,
+      "community": 66,
       "norm_label": "fakeconfigentries"
     },
     {
       "label": ".__init__()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L487",
+      "source_location": "L512",
       "id": "tests_test_runtime_fakeconfigentries_init",
-      "community": 4,
+      "community": 66,
       "norm_label": ".__init__()"
     },
     {
       "label": ".async_forward_entry_setups()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L492",
+      "source_location": "L517",
       "id": "tests_test_runtime_fakeconfigentries_async_forward_entry_setups",
-      "community": 4,
+      "community": 66,
       "norm_label": ".async_forward_entry_setups()"
     },
     {
       "label": ".async_unload_platforms()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L495",
+      "source_location": "L520",
       "id": "tests_test_runtime_fakeconfigentries_async_unload_platforms",
       "community": 4,
       "norm_label": ".async_unload_platforms()"
@@ -331,25 +331,25 @@
       "label": ".async_update_entry()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L499",
+      "source_location": "L524",
       "id": "tests_test_runtime_fakeconfigentries_async_update_entry",
-      "community": 4,
+      "community": 66,
       "norm_label": ".async_update_entry()"
     },
     {
       "label": ".async_reload()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L504",
+      "source_location": "L529",
       "id": "tests_test_runtime_fakeconfigentries_async_reload",
-      "community": 4,
+      "community": 66,
       "norm_label": ".async_reload()"
     },
     {
       "label": "FakeHass",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L508",
+      "source_location": "L533",
       "id": "tests_test_runtime_fakehass",
       "community": 46,
       "norm_label": "fakehass"
@@ -358,16 +358,16 @@
       "label": ".__init__()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L509",
+      "source_location": "L534",
       "id": "tests_test_runtime_fakehass_init",
-      "community": 46,
+      "community": 66,
       "norm_label": ".__init__()"
     },
     {
       "label": "FakeEntry",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L516",
+      "source_location": "L541",
       "id": "tests_test_runtime_fakeentry",
       "community": 46,
       "norm_label": "fakeentry"
@@ -376,7 +376,7 @@
       "label": ".__init__()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L527",
+      "source_location": "L552",
       "id": "tests_test_runtime_fakeentry_init",
       "community": 46,
       "norm_label": ".__init__()"
@@ -385,79 +385,79 @@
       "label": ".add_update_listener()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L532",
+      "source_location": "L557",
       "id": "tests_test_runtime_fakeentry_add_update_listener",
-      "community": 46,
+      "community": 58,
       "norm_label": ".add_update_listener()"
     },
     {
       "label": ".async_on_unload()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L536",
+      "source_location": "L561",
       "id": "tests_test_runtime_fakeentry_async_on_unload",
-      "community": 46,
+      "community": 58,
       "norm_label": ".async_on_unload()"
     },
     {
       "label": "FakeResponse",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L540",
+      "source_location": "L565",
       "id": "tests_test_runtime_fakeresponse",
-      "community": 4,
+      "community": 58,
       "norm_label": "fakeresponse"
     },
     {
       "label": ".__init__()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L544",
+      "source_location": "L569",
       "id": "tests_test_runtime_fakeresponse_init",
-      "community": 4,
+      "community": 58,
       "norm_label": ".__init__()"
     },
     {
       "label": ".__aenter__()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L547",
+      "source_location": "L572",
       "id": "tests_test_runtime_fakeresponse_aenter",
-      "community": 4,
+      "community": 58,
       "norm_label": ".__aenter__()"
     },
     {
       "label": ".__aexit__()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L550",
+      "source_location": "L575",
       "id": "tests_test_runtime_fakeresponse_aexit",
-      "community": 4,
+      "community": 58,
       "norm_label": ".__aexit__()"
     },
     {
       "label": ".json()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L553",
+      "source_location": "L578",
       "id": "tests_test_runtime_fakeresponse_json",
-      "community": 4,
+      "community": 58,
       "norm_label": ".json()"
     },
     {
       "label": ".text()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L556",
+      "source_location": "L581",
       "id": "tests_test_runtime_fakeresponse_text",
-      "community": 4,
+      "community": 58,
       "norm_label": ".text()"
     },
     {
       "label": "FakeSession",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L560",
+      "source_location": "L585",
       "id": "tests_test_runtime_fakesession",
       "community": 4,
       "norm_label": "fakesession"
@@ -466,25 +466,25 @@
       "label": ".__init__()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L561",
+      "source_location": "L586",
       "id": "tests_test_runtime_fakesession_init",
-      "community": 4,
+      "community": 58,
       "norm_label": ".__init__()"
     },
     {
       "label": ".request()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L565",
+      "source_location": "L590",
       "id": "tests_test_runtime_fakesession_request",
-      "community": 4,
+      "community": 58,
       "norm_label": ".request()"
     },
     {
       "label": "_schema_fields()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L570",
+      "source_location": "L595",
       "id": "tests_test_runtime_schema_fields",
       "community": 46,
       "norm_label": "_schema_fields()"
@@ -493,7 +493,7 @@
       "label": "_profile_flow()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L575",
+      "source_location": "L600",
       "id": "tests_test_runtime_profile_flow",
       "community": 46,
       "norm_label": "_profile_flow()"
@@ -502,7 +502,7 @@
       "label": "FakeCatalog",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L585",
+      "source_location": "L610",
       "id": "tests_test_runtime_fakecatalog",
       "community": 46,
       "norm_label": "fakecatalog"
@@ -511,16 +511,16 @@
       "label": ".__init__()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L586",
+      "source_location": "L611",
       "id": "tests_test_runtime_fakecatalog_init",
-      "community": 46,
+      "community": 58,
       "norm_label": ".__init__()"
     },
     {
       "label": ".model_ids()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L593",
+      "source_location": "L618",
       "id": "tests_test_runtime_fakecatalog_model_ids",
       "community": 46,
       "norm_label": ".model_ids()"
@@ -529,16 +529,16 @@
       "label": ".models_for()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L596",
+      "source_location": "L621",
       "id": "tests_test_runtime_fakecatalog_models_for",
-      "community": 4,
+      "community": 58,
       "norm_label": ".models_for()"
     },
     {
       "label": "RuntimeSetupTest",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L602",
+      "source_location": "L627",
       "id": "tests_test_runtime_runtimesetuptest",
       "community": 46,
       "norm_label": "runtimesetuptest"
@@ -547,7 +547,7 @@
       "label": ".test_config_flow_registers_profile_subentry_types()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L604",
+      "source_location": "L629",
       "id": "tests_test_runtime_runtimesetuptest_test_config_flow_registers_profile_subentry_types",
       "community": 46,
       "norm_label": ".test_config_flow_registers_profile_subentry_types()"
@@ -556,7 +556,7 @@
       "label": ".test_profile_subentry_flow_uses_home_assistant_no_arg_constructor()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L620",
+      "source_location": "L645",
       "id": "tests_test_runtime_runtimesetuptest_test_profile_subentry_flow_uses_home_assistant_no_arg_constructor",
       "community": 46,
       "norm_label": ".test_profile_subentry_flow_uses_home_assistant_no_arg_constructor()"
@@ -565,7 +565,7 @@
       "label": ".test_ai_task_profile_subentry_flow_uses_ai_task_models()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L628",
+      "source_location": "L653",
       "id": "tests_test_runtime_runtimesetuptest_test_ai_task_profile_subentry_flow_uses_ai_task_models",
       "community": 46,
       "norm_label": ".test_ai_task_profile_subentry_flow_uses_ai_task_models()"
@@ -574,7 +574,7 @@
       "label": ".test_conversation_profile_subentry_flow_builds_schema()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L656",
+      "source_location": "L681",
       "id": "tests_test_runtime_runtimesetuptest_test_conversation_profile_subentry_flow_builds_schema",
       "community": 46,
       "norm_label": ".test_conversation_profile_subentry_flow_builds_schema()"
@@ -583,7 +583,7 @@
       "label": ".test_profile_subentry_flow_reconfigures_existing_profile()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L687",
+      "source_location": "L712",
       "id": "tests_test_runtime_runtimesetuptest_test_profile_subentry_flow_reconfigures_existing_profile",
       "community": 46,
       "norm_label": ".test_profile_subentry_flow_reconfigures_existing_profile()"
@@ -592,7 +592,7 @@
       "label": ".test_options_flow_builds_schema_from_loaded_runtime_catalog()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L729",
+      "source_location": "L754",
       "id": "tests_test_runtime_runtimesetuptest_test_options_flow_builds_schema_from_loaded_runtime_catalog",
       "community": 46,
       "norm_label": ".test_options_flow_builds_schema_from_loaded_runtime_catalog()"
@@ -601,7 +601,7 @@
       "label": ".test_options_flow_creates_entry_with_submitted_options()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L771",
+      "source_location": "L796",
       "id": "tests_test_runtime_runtimesetuptest_test_options_flow_creates_entry_with_submitted_options",
       "community": 46,
       "norm_label": ".test_options_flow_creates_entry_with_submitted_options()"
@@ -610,7 +610,7 @@
       "label": ".test_options_flow_omits_blank_api_key_submission()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L794",
+      "source_location": "L819",
       "id": "tests_test_runtime_runtimesetuptest_test_options_flow_omits_blank_api_key_submission",
       "community": 46,
       "norm_label": ".test_options_flow_omits_blank_api_key_submission()"
@@ -619,7 +619,7 @@
       "label": ".test_options_flow_preserves_existing_option_api_key_when_blank()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L811",
+      "source_location": "L836",
       "id": "tests_test_runtime_runtimesetuptest_test_options_flow_preserves_existing_option_api_key_when_blank",
       "community": 46,
       "norm_label": ".test_options_flow_preserves_existing_option_api_key_when_blank()"
@@ -628,7 +628,7 @@
       "label": ".setUp()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L830",
+      "source_location": "L855",
       "id": "tests_test_runtime_runtimesetuptest_setup",
       "community": 46,
       "norm_label": ".setup()"
@@ -637,7 +637,7 @@
       "label": ".test_api_models_returns_raw_list_response()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L834",
+      "source_location": "L859",
       "id": "tests_test_runtime_runtimesetuptest_test_api_models_returns_raw_list_response",
       "community": 46,
       "norm_label": ".test_api_models_returns_raw_list_response()"
@@ -646,7 +646,7 @@
       "label": ".test_chat_completion_accepts_tools_and_response_format()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L841",
+      "source_location": "L866",
       "id": "tests_test_runtime_runtimesetuptest_test_chat_completion_accepts_tools_and_response_format",
       "community": 46,
       "norm_label": ".test_chat_completion_accepts_tools_and_response_format()"
@@ -655,7 +655,7 @@
       "label": ".test_llm_converts_content_and_tools_to_openai_shapes()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L869",
+      "source_location": "L894",
       "id": "tests_test_runtime_runtimesetuptest_test_llm_converts_content_and_tools_to_openai_shapes",
       "community": 46,
       "norm_label": ".test_llm_converts_content_and_tools_to_openai_shapes()"
@@ -664,7 +664,7 @@
       "label": ".test_llm_converts_tool_result_object_payloads()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L969",
+      "source_location": "L994",
       "id": "tests_test_runtime_runtimesetuptest_test_llm_converts_tool_result_object_payloads",
       "community": 46,
       "norm_label": ".test_llm_converts_tool_result_object_payloads()"
@@ -673,7 +673,7 @@
       "label": ".test_llm_assistant_content_without_text_or_tool_calls_uses_empty_string()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L995",
+      "source_location": "L1020",
       "id": "tests_test_runtime_runtimesetuptest_test_llm_assistant_content_without_text_or_tool_calls_uses_empty_string",
       "community": 46,
       "norm_label": ".test_llm_assistant_content_without_text_or_tool_calls_uses_empty_string()"
@@ -682,7 +682,7 @@
       "label": ".test_llm_preserves_tool_result_mapping_payload_without_using_payload_metadata()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1004",
+      "source_location": "L1029",
       "id": "tests_test_runtime_runtimesetuptest_test_llm_preserves_tool_result_mapping_payload_without_using_payload_metadata",
       "community": 46,
       "norm_label": ".test_llm_preserves_tool_result_mapping_payload_without_using_payload_metadata()"
@@ -691,7 +691,7 @@
       "label": ".test_llm_response_to_delta_returns_single_chat_log_delta()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1022",
+      "source_location": "L1047",
       "id": "tests_test_runtime_runtimesetuptest_test_llm_response_to_delta_returns_single_chat_log_delta",
       "community": 46,
       "norm_label": ".test_llm_response_to_delta_returns_single_chat_log_delta()"
@@ -700,7 +700,7 @@
       "label": ".test_llm_handle_chat_log_adds_response_delta_and_passes_tools()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1063",
+      "source_location": "L1088",
       "id": "tests_test_runtime_runtimesetuptest_test_llm_handle_chat_log_adds_response_delta_and_passes_tools",
       "community": 46,
       "norm_label": ".test_llm_handle_chat_log_adds_response_delta_and_passes_tools()"
@@ -709,7 +709,7 @@
       "label": ".test_conversation_platform_adds_only_conversation_subentries()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1171",
+      "source_location": "L1196",
       "id": "tests_test_runtime_runtimesetuptest_test_conversation_platform_adds_only_conversation_subentries",
       "community": 46,
       "norm_label": ".test_conversation_platform_adds_only_conversation_subentries()"
@@ -718,7 +718,7 @@
       "label": ".test_ai_task_platform_adds_only_ai_task_subentries_and_features()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1203",
+      "source_location": "L1228",
       "id": "tests_test_runtime_runtimesetuptest_test_ai_task_platform_adds_only_ai_task_subentries_and_features",
       "community": 46,
       "norm_label": ".test_ai_task_platform_adds_only_ai_task_subentries_and_features()"
@@ -727,7 +727,7 @@
       "label": ".test_ai_task_generate_data_prefers_profile_model_and_parses_structured_json()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1249",
+      "source_location": "L1274",
       "id": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_data_prefers_profile_model_and_parses_structured_json",
       "community": 46,
       "norm_label": ".test_ai_task_generate_data_prefers_profile_model_and_parses_structured_json()"
@@ -736,7 +736,7 @@
       "label": ".test_ai_task_generate_image_decodes_response_and_uses_default_image_model()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1308",
+      "source_location": "L1333",
       "id": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_decodes_response_and_uses_default_image_model",
       "community": 46,
       "norm_label": ".test_ai_task_generate_image_decodes_response_and_uses_default_image_model()"
@@ -745,7 +745,7 @@
       "label": ".test_ai_task_generate_image_decodes_object_data_url_and_uses_catalog_model()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1350",
+      "source_location": "L1375",
       "id": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_decodes_object_data_url_and_uses_catalog_model",
       "community": 46,
       "norm_label": ".test_ai_task_generate_image_decodes_object_data_url_and_uses_catalog_model()"
@@ -754,7 +754,7 @@
       "label": ".test_ai_task_final_assistant_content_requires_assistant_role()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1387",
+      "source_location": "L1412",
       "id": "tests_test_runtime_runtimesetuptest_test_ai_task_final_assistant_content_requires_assistant_role",
       "community": 46,
       "norm_label": ".test_ai_task_final_assistant_content_requires_assistant_role()"
@@ -763,7 +763,7 @@
       "label": ".test_ai_task_resolve_data_model_falls_back_to_default_then_catalog()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1402",
+      "source_location": "L1427",
       "id": "tests_test_runtime_runtimesetuptest_test_ai_task_resolve_data_model_falls_back_to_default_then_catalog",
       "community": 46,
       "norm_label": ".test_ai_task_resolve_data_model_falls_back_to_default_then_catalog()"
@@ -772,7 +772,7 @@
       "label": ".test_ai_task_resolve_image_model_falls_back_to_catalog_model()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1421",
+      "source_location": "L1446",
       "id": "tests_test_runtime_runtimesetuptest_test_ai_task_resolve_image_model_falls_back_to_catalog_model",
       "community": 46,
       "norm_label": ".test_ai_task_resolve_image_model_falls_back_to_catalog_model()"
@@ -781,7 +781,7 @@
       "label": ".test_ai_task_generate_data_errors_when_no_ai_task_model_exists()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1437",
+      "source_location": "L1462",
       "id": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_data_errors_when_no_ai_task_model_exists",
       "community": 46,
       "norm_label": ".test_ai_task_generate_data_errors_when_no_ai_task_model_exists()"
@@ -790,7 +790,7 @@
       "label": ".test_ai_task_generate_image_errors_when_no_image_model_exists()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1461",
+      "source_location": "L1486",
       "id": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_errors_when_no_image_model_exists",
       "community": 46,
       "norm_label": ".test_ai_task_generate_image_errors_when_no_image_model_exists()"
@@ -799,7 +799,7 @@
       "label": ".test_ai_task_generate_image_errors_when_response_has_no_image()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1481",
+      "source_location": "L1506",
       "id": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_errors_when_response_has_no_image",
       "community": 46,
       "norm_label": ".test_ai_task_generate_image_errors_when_response_has_no_image()"
@@ -808,7 +808,7 @@
       "label": ".test_ai_task_generate_image_decodes_case_insensitive_data_url()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1507",
+      "source_location": "L1532",
       "id": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_decodes_case_insensitive_data_url",
       "community": 46,
       "norm_label": ".test_ai_task_generate_image_decodes_case_insensitive_data_url()"
@@ -817,7 +817,7 @@
       "label": ".test_ai_task_generate_data_structured_response_errors_for_non_json()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1535",
+      "source_location": "L1560",
       "id": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_data_structured_response_errors_for_non_json",
       "community": 46,
       "norm_label": ".test_ai_task_generate_data_structured_response_errors_for_non_json()"
@@ -826,7 +826,7 @@
       "label": ".test_ai_task_generate_data_returns_raw_assistant_text_without_structure()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1582",
+      "source_location": "L1607",
       "id": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_data_returns_raw_assistant_text_without_structure",
       "community": 46,
       "norm_label": ".test_ai_task_generate_data_returns_raw_assistant_text_without_structure()"
@@ -835,7 +835,7 @@
       "label": ".test_ai_task_generate_data_translates_aiohttp_client_error()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1629",
+      "source_location": "L1654",
       "id": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_data_translates_aiohttp_client_error",
       "community": 46,
       "norm_label": ".test_ai_task_generate_data_translates_aiohttp_client_error()"
@@ -844,7 +844,7 @@
       "label": ".test_ai_task_generate_data_translates_lemonade_client_error()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1660",
+      "source_location": "L1685",
       "id": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_data_translates_lemonade_client_error",
       "community": 46,
       "norm_label": ".test_ai_task_generate_data_translates_lemonade_client_error()"
@@ -853,7 +853,7 @@
       "label": ".test_ai_task_generate_image_translates_aiohttp_client_error()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1691",
+      "source_location": "L1716",
       "id": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_translates_aiohttp_client_error",
       "community": 46,
       "norm_label": ".test_ai_task_generate_image_translates_aiohttp_client_error()"
@@ -862,7 +862,7 @@
       "label": ".test_ai_task_generate_image_translates_lemonade_client_error()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1720",
+      "source_location": "L1745",
       "id": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_translates_lemonade_client_error",
       "community": 46,
       "norm_label": ".test_ai_task_generate_image_translates_lemonade_client_error()"
@@ -871,7 +871,7 @@
       "label": ".test_conversation_entity_handles_message_with_resolved_model()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1749",
+      "source_location": "L1774",
       "id": "tests_test_runtime_runtimesetuptest_test_conversation_entity_handles_message_with_resolved_model",
       "community": 46,
       "norm_label": ".test_conversation_entity_handles_message_with_resolved_model()"
@@ -880,7 +880,7 @@
       "label": ".test_conversation_entity_errors_when_no_model_is_available()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1832",
+      "source_location": "L1857",
       "id": "tests_test_runtime_runtimesetuptest_test_conversation_entity_errors_when_no_model_is_available",
       "community": 46,
       "norm_label": ".test_conversation_entity_errors_when_no_model_is_available()"
@@ -889,7 +889,7 @@
       "label": ".test_coordinator_refreshes_health_models_and_catalog()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1852",
+      "source_location": "L1877",
       "id": "tests_test_runtime_runtimesetuptest_test_coordinator_refreshes_health_models_and_catalog",
       "community": 46,
       "norm_label": ".test_coordinator_refreshes_health_models_and_catalog()"
@@ -898,7 +898,7 @@
       "label": ".test_profile_subentry_flow_aborts_when_entry_not_loaded()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1882",
+      "source_location": "L1907",
       "id": "tests_test_runtime_runtimesetuptest_test_profile_subentry_flow_aborts_when_entry_not_loaded",
       "community": 46,
       "norm_label": ".test_profile_subentry_flow_aborts_when_entry_not_loaded()"
@@ -907,7 +907,7 @@
       "label": ".test_profile_subentry_flow_aborts_when_no_models_exist()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1899",
+      "source_location": "L1924",
       "id": "tests_test_runtime_runtimesetuptest_test_profile_subentry_flow_aborts_when_no_models_exist",
       "community": 46,
       "norm_label": ".test_profile_subentry_flow_aborts_when_no_models_exist()"
@@ -916,7 +916,7 @@
       "label": ".test_profile_subentry_flow_aborts_unknown_profile_type()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1916",
+      "source_location": "L1941",
       "id": "tests_test_runtime_runtimesetuptest_test_profile_subentry_flow_aborts_unknown_profile_type",
       "community": 46,
       "norm_label": ".test_profile_subentry_flow_aborts_unknown_profile_type()"
@@ -925,7 +925,7 @@
       "label": ".test_strings_define_options_and_profile_subentry_translations()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1934",
+      "source_location": "L1959",
       "id": "tests_test_runtime_runtimesetuptest_test_strings_define_options_and_profile_subentry_translations",
       "community": 46,
       "norm_label": ".test_strings_define_options_and_profile_subentry_translations()"
@@ -934,7 +934,7 @@
       "label": ".test_strings_define_missing_capability_repair_translation()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1963",
+      "source_location": "L1988",
       "id": "tests_test_runtime_runtimesetuptest_test_strings_define_missing_capability_repair_translation",
       "community": 46,
       "norm_label": ".test_strings_define_missing_capability_repair_translation()"
@@ -943,7 +943,7 @@
       "label": ".test_repairs_create_and_delete_missing_capability_issues()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1972",
+      "source_location": "L1997",
       "id": "tests_test_runtime_runtimesetuptest_test_repairs_create_and_delete_missing_capability_issues",
       "community": 46,
       "norm_label": ".test_repairs_create_and_delete_missing_capability_issues()"
@@ -952,7 +952,7 @@
       "label": ".test_services_use_client_from_runtime_data_for_requested_entry()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L1995",
+      "source_location": "L2020",
       "id": "tests_test_runtime_runtimesetuptest_test_services_use_client_from_runtime_data_for_requested_entry",
       "community": 46,
       "norm_label": ".test_services_use_client_from_runtime_data_for_requested_entry()"
@@ -961,7 +961,7 @@
       "label": ".test_unload_entry_deletes_missing_capability_repairs()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L2019",
+      "source_location": "L2044",
       "id": "tests_test_runtime_runtimesetuptest_test_unload_entry_deletes_missing_capability_repairs",
       "community": 46,
       "norm_label": ".test_unload_entry_deletes_missing_capability_repairs()"
@@ -970,7 +970,7 @@
       "label": ".test_setup_entry_stores_runtime_data_and_updates_capability_repairs()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L2037",
+      "source_location": "L2062",
       "id": "tests_test_runtime_runtimesetuptest_test_setup_entry_stores_runtime_data_and_updates_capability_repairs",
       "community": 46,
       "norm_label": ".test_setup_entry_stores_runtime_data_and_updates_capability_repairs()"
@@ -979,7 +979,7 @@
       "label": ".test_entity_base_sets_unique_id_and_service_device_info()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L2095",
+      "source_location": "L2120",
       "id": "tests_test_runtime_runtimesetuptest_test_entity_base_sets_unique_id_and_service_device_info",
       "community": 46,
       "norm_label": ".test_entity_base_sets_unique_id_and_service_device_info()"
@@ -988,16 +988,43 @@
       "label": ".test_sensor_platform_adds_status_and_model_count_entities()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L2123",
+      "source_location": "L2148",
       "id": "tests_test_runtime_runtimesetuptest_test_sensor_platform_adds_status_and_model_count_entities",
       "community": 46,
       "norm_label": ".test_sensor_platform_adds_status_and_model_count_entities()"
     },
     {
+      "label": ".test_tts_platform_adds_entity_and_generates_audio_with_request_options()",
+      "file_type": "code",
+      "source_file": "tests/test_runtime.py",
+      "source_location": "L2214",
+      "id": "tests_test_runtime_runtimesetuptest_test_tts_platform_adds_entity_and_generates_audio_with_request_options",
+      "community": 46,
+      "norm_label": ".test_tts_platform_adds_entity_and_generates_audio_with_request_options()"
+    },
+    {
+      "label": ".test_stt_platform_adds_entity_and_transcribes_stream_with_default_model()",
+      "file_type": "code",
+      "source_file": "tests/test_runtime.py",
+      "source_location": "L2270",
+      "id": "tests_test_runtime_runtimesetuptest_test_stt_platform_adds_entity_and_transcribes_stream_with_default_model",
+      "community": 46,
+      "norm_label": ".test_stt_platform_adds_entity_and_transcribes_stream_with_default_model()"
+    },
+    {
+      "label": ".test_stt_entity_is_unavailable_and_returns_error_without_model()",
+      "file_type": "code",
+      "source_file": "tests/test_runtime.py",
+      "source_location": "L2334",
+      "id": "tests_test_runtime_runtimesetuptest_test_stt_entity_is_unavailable_and_returns_error_without_model",
+      "community": 46,
+      "norm_label": ".test_stt_entity_is_unavailable_and_returns_error_without_model()"
+    },
+    {
       "label": ".test_select_platform_adds_default_model_selects_and_updates_options()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L2189",
+      "source_location": "L2363",
       "id": "tests_test_runtime_runtimesetuptest_test_select_platform_adds_default_model_selects_and_updates_options",
       "community": 46,
       "norm_label": ".test_select_platform_adds_default_model_selects_and_updates_options()"
@@ -1006,7 +1033,7 @@
       "label": ".test_strings_define_status_sensor_and_default_model_select_translations()",
       "file_type": "code",
       "source_file": "tests/test_runtime.py",
-      "source_location": "L2253",
+      "source_location": "L2427",
       "id": "tests_test_runtime_runtimesetuptest_test_strings_define_status_sensor_and_default_model_select_translations",
       "community": 46,
       "norm_label": ".test_strings_define_status_sensor_and_default_model_select_translations()"
@@ -1026,7 +1053,7 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L110",
       "id": "tests_test_runtime_rationale_110",
-      "community": 4,
+      "community": 67,
       "norm_label": "install minimal home assistant dependency stubs for unit tests."
     },
     {
@@ -1296,7 +1323,7 @@
       "source_file": "lemonade/services.py",
       "source_location": "L1",
       "id": "lemonade_services_py",
-      "community": 0,
+      "community": 25,
       "norm_label": "services.py"
     },
     {
@@ -1341,7 +1368,7 @@
       "source_file": "lemonade/services.py",
       "source_location": "L81",
       "id": "lemonade_services_py_lemonadeclient",
-      "community": 4,
+      "community": 62,
       "norm_label": "lemonadeclient"
     },
     {
@@ -1611,7 +1638,7 @@
       "source_file": "lemonade/sensor.py",
       "source_location": "L58",
       "id": "lemonade_sensor_native_value",
-      "community": 2,
+      "community": 59,
       "norm_label": "native_value()"
     },
     {
@@ -1620,7 +1647,7 @@
       "source_file": "lemonade/sensor.py",
       "source_location": "L58",
       "id": "lemonade_sensor_py_str",
-      "community": 2,
+      "community": 59,
       "norm_label": "str"
     },
     {
@@ -1629,7 +1656,7 @@
       "source_file": "lemonade/sensor.py",
       "source_location": "L63",
       "id": "lemonade_sensor_available",
-      "community": 2,
+      "community": 59,
       "norm_label": "available()"
     },
     {
@@ -1638,7 +1665,7 @@
       "source_file": "lemonade/sensor.py",
       "source_location": "L63",
       "id": "lemonade_sensor_py_bool",
-      "community": 2,
+      "community": 59,
       "norm_label": "bool"
     },
     {
@@ -1665,7 +1692,7 @@
       "source_file": "lemonade/sensor.py",
       "source_location": "L79",
       "id": "lemonade_sensor_py_int",
-      "community": 2,
+      "community": 59,
       "norm_label": "int"
     },
     {
@@ -1809,7 +1836,7 @@
       "source_file": "lemonade/models.py",
       "source_location": "L1",
       "id": "lemonade_models_py",
-      "community": 6,
+      "community": 25,
       "norm_label": "models.py"
     },
     {
@@ -1827,7 +1854,7 @@
       "source_file": "lemonade/models.py",
       "source_location": "L38",
       "id": "lemonade_models_is_llm",
-      "community": 6,
+      "community": 25,
       "norm_label": "is_llm()"
     },
     {
@@ -1836,7 +1863,7 @@
       "source_file": "lemonade/models.py",
       "source_location": "L38",
       "id": "lemonade_models_py_bool",
-      "community": 6,
+      "community": 25,
       "norm_label": "bool"
     },
     {
@@ -1953,7 +1980,7 @@
       "source_file": "lemonade/models.py",
       "source_location": "L1",
       "id": "lemonade_models_rationale_1",
-      "community": 6,
+      "community": 25,
       "norm_label": "model catalog parsing for lemonade server."
     },
     {
@@ -2326,12 +2353,246 @@
       "norm_label": "process a conversation message using lemonade."
     },
     {
+      "label": "tts.py",
+      "file_type": "code",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L1",
+      "id": "lemonade_tts_py",
+      "community": 25,
+      "norm_label": "tts.py"
+    },
+    {
+      "label": "async_setup_entry()",
+      "file_type": "code",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L31",
+      "id": "lemonade_tts_async_setup_entry",
+      "community": 63,
+      "norm_label": "async_setup_entry()"
+    },
+    {
+      "label": "HomeAssistant",
+      "file_type": "code",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L31",
+      "id": "lemonade_tts_py_homeassistant",
+      "community": 63,
+      "norm_label": "homeassistant"
+    },
+    {
+      "label": "LemonadeConfigEntry",
+      "file_type": "code",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L31",
+      "id": "lemonade_tts_py_lemonadeconfigentry",
+      "community": 63,
+      "norm_label": "lemonadeconfigentry"
+    },
+    {
+      "label": "AddEntitiesCallback",
+      "file_type": "code",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L31",
+      "id": "lemonade_tts_py_addentitiescallback",
+      "community": 63,
+      "norm_label": "addentitiescallback"
+    },
+    {
+      "label": "_first_catalog_model_id()",
+      "file_type": "code",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L40",
+      "id": "lemonade_tts_first_catalog_model_id",
+      "community": 63,
+      "norm_label": "_first_catalog_model_id()"
+    },
+    {
+      "label": "str",
+      "file_type": "code",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L40",
+      "id": "lemonade_tts_py_str",
+      "community": 63,
+      "norm_label": "str"
+    },
+    {
+      "label": "_audio_extension()",
+      "file_type": "code",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L56",
+      "id": "lemonade_tts_audio_extension",
+      "community": 63,
+      "norm_label": "_audio_extension()"
+    },
+    {
+      "label": "Any",
+      "file_type": "code",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L56",
+      "id": "lemonade_tts_py_any",
+      "community": 63,
+      "norm_label": "any"
+    },
+    {
+      "label": "LemonadeTTSEntity",
+      "file_type": "code",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L75",
+      "id": "lemonade_tts_lemonadettsentity",
+      "community": 63,
+      "norm_label": "lemonadettsentity"
+    },
+    {
+      "label": "TextToSpeechEntity",
+      "file_type": "code",
+      "source_file": "",
+      "source_location": "",
+      "id": "texttospeechentity",
+      "community": 63,
+      "norm_label": "texttospeechentity"
+    },
+    {
+      "label": ".__init__()",
+      "file_type": "code",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L84",
+      "id": "lemonade_tts_lemonadettsentity_init",
+      "community": 63,
+      "norm_label": ".__init__()"
+    },
+    {
+      "label": "._resolve_model()",
+      "file_type": "code",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L89",
+      "id": "lemonade_tts_lemonadettsentity_resolve_model",
+      "community": 63,
+      "norm_label": "._resolve_model()"
+    },
+    {
+      "label": "available()",
+      "file_type": "code",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L102",
+      "id": "lemonade_tts_available",
+      "community": 63,
+      "norm_label": "available()"
+    },
+    {
+      "label": "bool",
+      "file_type": "code",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L102",
+      "id": "lemonade_tts_py_bool",
+      "community": 63,
+      "norm_label": "bool"
+    },
+    {
+      "label": ".async_get_tts_audio()",
+      "file_type": "code",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L106",
+      "id": "lemonade_tts_lemonadettsentity_async_get_tts_audio",
+      "community": 63,
+      "norm_label": ".async_get_tts_audio()"
+    },
+    {
+      "label": "bytes",
+      "file_type": "code",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L106",
+      "id": "lemonade_tts_py_bytes",
+      "community": 63,
+      "norm_label": "bytes"
+    },
+    {
+      "label": "Text-to-speech platform for Lemonade Server.",
+      "file_type": "rationale",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L1",
+      "id": "lemonade_tts_rationale_1",
+      "community": 25,
+      "norm_label": "text-to-speech platform for lemonade server."
+    },
+    {
+      "label": "Set up Lemonade Server text-to-speech.",
+      "file_type": "rationale",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L36",
+      "id": "lemonade_tts_rationale_36",
+      "community": 63,
+      "norm_label": "set up lemonade server text-to-speech."
+    },
+    {
+      "label": "Return the first catalog model ID for a capability.",
+      "file_type": "rationale",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L41",
+      "id": "lemonade_tts_rationale_41",
+      "community": 63,
+      "norm_label": "return the first catalog model id for a capability."
+    },
+    {
+      "label": "Return a Home Assistant TTS audio extension.",
+      "file_type": "rationale",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L57",
+      "id": "lemonade_tts_rationale_57",
+      "community": 63,
+      "norm_label": "return a home assistant tts audio extension."
+    },
+    {
+      "label": "Text-to-speech entity backed by Lemonade Server.",
+      "file_type": "rationale",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L76",
+      "id": "lemonade_tts_rationale_76",
+      "community": 63,
+      "norm_label": "text-to-speech entity backed by lemonade server."
+    },
+    {
+      "label": "Initialize the Lemonade text-to-speech entity.",
+      "file_type": "rationale",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L85",
+      "id": "lemonade_tts_rationale_85",
+      "community": 63,
+      "norm_label": "initialize the lemonade text-to-speech entity."
+    },
+    {
+      "label": "Return the requested, configured, or first catalog TTS model.",
+      "file_type": "rationale",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L90",
+      "id": "lemonade_tts_rationale_90",
+      "community": 63,
+      "norm_label": "return the requested, configured, or first catalog tts model."
+    },
+    {
+      "label": "Return true when a TTS model is available.",
+      "file_type": "rationale",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L103",
+      "id": "lemonade_tts_rationale_103",
+      "community": 76,
+      "norm_label": "return true when a tts model is available."
+    },
+    {
+      "label": "Generate speech audio with Lemonade Server.",
+      "file_type": "rationale",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L112",
+      "id": "lemonade_tts_rationale_112",
+      "community": 63,
+      "norm_label": "generate speech audio with lemonade server."
+    },
+    {
       "label": "__init__.py",
       "file_type": "code",
       "source_file": "lemonade/__init__.py",
       "source_location": "L1",
       "id": "lemonade_init_py",
-      "community": 25,
+      "community": 60,
       "norm_label": "__init__.py"
     },
     {
@@ -2340,7 +2601,7 @@
       "source_file": "lemonade/__init__.py",
       "source_location": "L38",
       "id": "lemonade_init_async_setup",
-      "community": 4,
+      "community": 60,
       "norm_label": "async_setup()"
     },
     {
@@ -2349,7 +2610,7 @@
       "source_file": "lemonade/__init__.py",
       "source_location": "L38",
       "id": "lemonade_init_py_homeassistant",
-      "community": 4,
+      "community": 60,
       "norm_label": "homeassistant"
     },
     {
@@ -2358,7 +2619,7 @@
       "source_file": "lemonade/__init__.py",
       "source_location": "L38",
       "id": "configtype",
-      "community": 4,
+      "community": 62,
       "norm_label": "configtype"
     },
     {
@@ -2367,7 +2628,7 @@
       "source_file": "lemonade/__init__.py",
       "source_location": "L38",
       "id": "lemonade_init_py_bool",
-      "community": 4,
+      "community": 60,
       "norm_label": "bool"
     },
     {
@@ -2376,7 +2637,7 @@
       "source_file": "lemonade/__init__.py",
       "source_location": "L45",
       "id": "lemonade_init_async_update_missing_capability_issues",
-      "community": 4,
+      "community": 60,
       "norm_label": "_async_update_missing_capability_issues()"
     },
     {
@@ -2385,7 +2646,7 @@
       "source_file": "lemonade/__init__.py",
       "source_location": "L45",
       "id": "lemonade_init_py_str",
-      "community": 4,
+      "community": 62,
       "norm_label": "str"
     },
     {
@@ -2394,7 +2655,7 @@
       "source_file": "lemonade/__init__.py",
       "source_location": "L45",
       "id": "lemonade_init_py_any",
-      "community": 4,
+      "community": 62,
       "norm_label": "any"
     },
     {
@@ -2403,7 +2664,7 @@
       "source_file": "lemonade/__init__.py",
       "source_location": "L63",
       "id": "lemonade_init_async_delete_missing_capability_issues",
-      "community": 4,
+      "community": 60,
       "norm_label": "_async_delete_missing_capability_issues()"
     },
     {
@@ -2412,7 +2673,7 @@
       "source_file": "lemonade/__init__.py",
       "source_location": "L73",
       "id": "lemonade_init_async_setup_entry",
-      "community": 4,
+      "community": 60,
       "norm_label": "async_setup_entry()"
     },
     {
@@ -2421,7 +2682,7 @@
       "source_file": "lemonade/__init__.py",
       "source_location": "L73",
       "id": "lemonade_init_py_configentry",
-      "community": 4,
+      "community": 60,
       "norm_label": "configentry"
     },
     {
@@ -2430,7 +2691,7 @@
       "source_file": "lemonade/__init__.py",
       "source_location": "L117",
       "id": "lemonade_init_async_unload_entry",
-      "community": 4,
+      "community": 60,
       "norm_label": "async_unload_entry()"
     },
     {
@@ -2448,7 +2709,7 @@
       "source_file": "lemonade/__init__.py",
       "source_location": "L132",
       "id": "lemonade_init_get_default_model",
-      "community": 61,
+      "community": 60,
       "norm_label": "get_default_model()"
     },
     {
@@ -2457,7 +2718,7 @@
       "source_file": "lemonade/__init__.py",
       "source_location": "L1",
       "id": "lemonade_init_rationale_1",
-      "community": 25,
+      "community": 60,
       "norm_label": "the lemonade server integration."
     },
     {
@@ -2466,7 +2727,7 @@
       "source_file": "lemonade/__init__.py",
       "source_location": "L39",
       "id": "lemonade_init_rationale_39",
-      "community": 4,
+      "community": 60,
       "norm_label": "set up lemonade server."
     },
     {
@@ -2475,7 +2736,7 @@
       "source_file": "lemonade/__init__.py",
       "source_location": "L50",
       "id": "lemonade_init_rationale_50",
-      "community": 4,
+      "community": 60,
       "norm_label": "create or delete repair issues for missing optional capabilities."
     },
     {
@@ -2484,7 +2745,7 @@
       "source_file": "lemonade/__init__.py",
       "source_location": "L66",
       "id": "lemonade_init_rationale_66",
-      "community": 4,
+      "community": 60,
       "norm_label": "delete repair issues for optional capabilities tied to an entry."
     },
     {
@@ -2493,7 +2754,7 @@
       "source_file": "lemonade/__init__.py",
       "source_location": "L74",
       "id": "lemonade_init_rationale_74",
-      "community": 4,
+      "community": 60,
       "norm_label": "set up lemonade server from a config entry."
     },
     {
@@ -2502,7 +2763,7 @@
       "source_file": "lemonade/__init__.py",
       "source_location": "L118",
       "id": "lemonade_init_rationale_118",
-      "community": 4,
+      "community": 60,
       "norm_label": "unload a lemonade server config entry."
     },
     {
@@ -2520,7 +2781,7 @@
       "source_file": "lemonade/__init__.py",
       "source_location": "L133",
       "id": "lemonade_init_rationale_133",
-      "community": 61,
+      "community": 60,
       "norm_label": "return the configured default model for an entry."
     },
     {
@@ -2988,7 +3249,7 @@
       "source_file": "lemonade/api.py",
       "source_location": "L20",
       "id": "lemonade_api_lemonadeerror",
-      "community": 4,
+      "community": 62,
       "norm_label": "lemonadeerror"
     },
     {
@@ -2997,7 +3258,7 @@
       "source_file": "",
       "source_location": "",
       "id": "exception",
-      "community": 4,
+      "community": 62,
       "norm_label": "exception"
     },
     {
@@ -3006,7 +3267,7 @@
       "source_file": "lemonade/api.py",
       "source_location": "L24",
       "id": "lemonade_api_lemonadeautherror",
-      "community": 3,
+      "community": 62,
       "norm_label": "lemonadeautherror"
     },
     {
@@ -3015,7 +3276,7 @@
       "source_file": "lemonade/api.py",
       "source_location": "L28",
       "id": "lemonade_api_lemonadeclient",
-      "community": 4,
+      "community": 62,
       "norm_label": "lemonadeclient"
     },
     {
@@ -3186,7 +3447,7 @@
       "source_file": "lemonade/api.py",
       "source_location": "L21",
       "id": "lemonade_api_rationale_21",
-      "community": 4,
+      "community": 62,
       "norm_label": "base lemonade api error."
     },
     {
@@ -3195,7 +3456,7 @@
       "source_file": "lemonade/api.py",
       "source_location": "L25",
       "id": "lemonade_api_rationale_25",
-      "community": 3,
+      "community": 62,
       "norm_label": "lemonade api authentication error."
     },
     {
@@ -3204,7 +3465,7 @@
       "source_file": "lemonade/api.py",
       "source_location": "L29",
       "id": "lemonade_api_rationale_29",
-      "community": 4,
+      "community": 62,
       "norm_label": "small async lemonade server api client."
     },
     {
@@ -3312,7 +3573,7 @@
       "source_file": "lemonade/repairs.py",
       "source_location": "L11",
       "id": "lemonade_repairs_async_create_missing_capability_issue",
-      "community": 25,
+      "community": 60,
       "norm_label": "async_create_missing_capability_issue()"
     },
     {
@@ -3321,7 +3582,7 @@
       "source_file": "lemonade/repairs.py",
       "source_location": "L11",
       "id": "lemonade_repairs_py_homeassistant",
-      "community": 25,
+      "community": 60,
       "norm_label": "homeassistant"
     },
     {
@@ -3330,7 +3591,7 @@
       "source_file": "lemonade/repairs.py",
       "source_location": "L11",
       "id": "lemonade_repairs_py_str",
-      "community": 25,
+      "community": 60,
       "norm_label": "str"
     },
     {
@@ -3339,7 +3600,7 @@
       "source_file": "lemonade/repairs.py",
       "source_location": "L26",
       "id": "lemonade_repairs_async_delete_missing_capability_issue",
-      "community": 25,
+      "community": 60,
       "norm_label": "async_delete_missing_capability_issue()"
     },
     {
@@ -3357,7 +3618,7 @@
       "source_file": "lemonade/repairs.py",
       "source_location": "L14",
       "id": "lemonade_repairs_rationale_14",
-      "community": 25,
+      "community": 60,
       "norm_label": "create a repair issue for a missing model capability."
     },
     {
@@ -3366,7 +3627,7 @@
       "source_file": "lemonade/repairs.py",
       "source_location": "L29",
       "id": "lemonade_repairs_rationale_29",
-      "community": 25,
+      "community": 60,
       "norm_label": "delete a repair issue for a restored model capability."
     },
     {
@@ -3717,7 +3978,7 @@
       "source_file": "lemonade/strings.json",
       "source_location": "L35",
       "id": "lemonade_strings_options",
-      "community": 58,
+      "community": 56,
       "norm_label": "options"
     },
     {
@@ -3726,7 +3987,7 @@
       "source_file": "lemonade/strings.json",
       "source_location": "L36",
       "id": "lemonade_strings_options_step",
-      "community": 58,
+      "community": 56,
       "norm_label": "step"
     },
     {
@@ -3735,7 +3996,7 @@
       "source_file": "lemonade/strings.json",
       "source_location": "L37",
       "id": "lemonade_strings_step_init",
-      "community": 58,
+      "community": 51,
       "norm_label": "init"
     },
     {
@@ -3744,7 +4005,7 @@
       "source_file": "lemonade/strings.json",
       "source_location": "L38",
       "id": "lemonade_strings_init_title",
-      "community": 58,
+      "community": 51,
       "norm_label": "title"
     },
     {
@@ -3753,7 +4014,7 @@
       "source_file": "lemonade/strings.json",
       "source_location": "L39",
       "id": "lemonade_strings_init_description",
-      "community": 58,
+      "community": 51,
       "norm_label": "description"
     },
     {
@@ -3951,7 +4212,7 @@
       "source_file": "lemonade/strings.json",
       "source_location": "L112",
       "id": "lemonade_strings_entity",
-      "community": 30,
+      "community": 65,
       "norm_label": "entity"
     },
     {
@@ -4077,7 +4338,7 @@
       "source_file": "lemonade/strings.json",
       "source_location": "L133",
       "id": "lemonade_strings_entity_select",
-      "community": 30,
+      "community": 65,
       "norm_label": "select"
     },
     {
@@ -4086,7 +4347,7 @@
       "source_file": "lemonade/strings.json",
       "source_location": "L134",
       "id": "lemonade_strings_select_default_conversation_model",
-      "community": 30,
+      "community": 65,
       "norm_label": "default_conversation_model"
     },
     {
@@ -4095,7 +4356,7 @@
       "source_file": "lemonade/strings.json",
       "source_location": "L135",
       "id": "lemonade_strings_default_conversation_model_name",
-      "community": 30,
+      "community": 65,
       "norm_label": "name"
     },
     {
@@ -4104,7 +4365,7 @@
       "source_file": "lemonade/strings.json",
       "source_location": "L137",
       "id": "lemonade_strings_select_default_ai_task_model",
-      "community": 30,
+      "community": 65,
       "norm_label": "default_ai_task_model"
     },
     {
@@ -4113,7 +4374,7 @@
       "source_file": "lemonade/strings.json",
       "source_location": "L138",
       "id": "lemonade_strings_default_ai_task_model_name",
-      "community": 30,
+      "community": 65,
       "norm_label": "name"
     },
     {
@@ -4122,7 +4383,7 @@
       "source_file": "lemonade/strings.json",
       "source_location": "L140",
       "id": "lemonade_strings_select_default_image_model",
-      "community": 30,
+      "community": 65,
       "norm_label": "default_image_model"
     },
     {
@@ -4131,7 +4392,7 @@
       "source_file": "lemonade/strings.json",
       "source_location": "L141",
       "id": "lemonade_strings_default_image_model_name",
-      "community": 30,
+      "community": 65,
       "norm_label": "name"
     },
     {
@@ -4140,7 +4401,7 @@
       "source_file": "lemonade/strings.json",
       "source_location": "L143",
       "id": "lemonade_strings_select_default_tts_model",
-      "community": 30,
+      "community": 65,
       "norm_label": "default_tts_model"
     },
     {
@@ -4149,7 +4410,7 @@
       "source_file": "lemonade/strings.json",
       "source_location": "L144",
       "id": "lemonade_strings_default_tts_model_name",
-      "community": 30,
+      "community": 65,
       "norm_label": "name"
     },
     {
@@ -4158,7 +4419,7 @@
       "source_file": "lemonade/strings.json",
       "source_location": "L146",
       "id": "lemonade_strings_select_default_stt_model",
-      "community": 30,
+      "community": 65,
       "norm_label": "default_stt_model"
     },
     {
@@ -4167,7 +4428,7 @@
       "source_file": "lemonade/strings.json",
       "source_location": "L147",
       "id": "lemonade_strings_default_stt_model_name",
-      "community": 30,
+      "community": 65,
       "norm_label": "name"
     },
     {
@@ -4185,7 +4446,7 @@
       "source_file": "lemonade/entity.py",
       "source_location": "L13",
       "id": "lemonade_entity_lemonadeentity",
-      "community": 2,
+      "community": 59,
       "norm_label": "lemonadeentity"
     },
     {
@@ -4230,7 +4491,7 @@
       "source_file": "lemonade/entity.py",
       "source_location": "L14",
       "id": "lemonade_entity_rationale_14",
-      "community": 2,
+      "community": 59,
       "norm_label": "base entity for lemonade server platforms."
     },
     {
@@ -4248,7 +4509,7 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L1",
       "id": "lemonade_ai_task_py",
-      "community": 29,
+      "community": 48,
       "norm_label": "ai_task.py"
     },
     {
@@ -4446,7 +4707,7 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L248",
       "id": "lemonade_ai_task_lemonadeaitaskentity_async_generate_data",
-      "community": 48,
+      "community": 68,
       "norm_label": "._async_generate_data()"
     },
     {
@@ -4464,7 +4725,7 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L1",
       "id": "lemonade_ai_task_rationale_1",
-      "community": 29,
+      "community": 48,
       "norm_label": "ai task platform for lemonade server profiles."
     },
     {
@@ -4608,7 +4869,7 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L249",
       "id": "lemonade_ai_task_rationale_249",
-      "community": 48,
+      "community": 68,
       "norm_label": "generate data for an ai task using lemonade."
     },
     {
@@ -4626,7 +4887,7 @@
       "source_file": "lemonade/select.py",
       "source_location": "L1",
       "id": "lemonade_select_py",
-      "community": 38,
+      "community": 25,
       "norm_label": "select.py"
     },
     {
@@ -4725,7 +4986,7 @@
       "source_file": "lemonade/select.py",
       "source_location": "L80",
       "id": "lemonade_select_available",
-      "community": 38,
+      "community": 59,
       "norm_label": "available()"
     },
     {
@@ -4734,7 +4995,7 @@
       "source_file": "lemonade/select.py",
       "source_location": "L80",
       "id": "lemonade_select_py_bool",
-      "community": 38,
+      "community": 59,
       "norm_label": "bool"
     },
     {
@@ -4752,7 +5013,7 @@
       "source_file": "lemonade/select.py",
       "source_location": "L1",
       "id": "lemonade_select_rationale_1",
-      "community": 38,
+      "community": 25,
       "norm_label": "select entities for lemonade server."
     },
     {
@@ -4860,7 +5121,7 @@
       "source_file": "lemonade/config_flow.py",
       "source_location": "L1",
       "id": "lemonade_config_flow_py",
-      "community": 3,
+      "community": 62,
       "norm_label": "config_flow.py"
     },
     {
@@ -4878,7 +5139,7 @@
       "source_file": "lemonade/config_flow.py",
       "source_location": "L59",
       "id": "lemonade_config_flow_py_configentry",
-      "community": 3,
+      "community": 62,
       "norm_label": "configentry"
     },
     {
@@ -4932,7 +5193,7 @@
       "source_file": "lemonade/config_flow.py",
       "source_location": "L77",
       "id": "lemonade_config_flow_py_homeassistant",
-      "community": 3,
+      "community": 62,
       "norm_label": "homeassistant"
     },
     {
@@ -4950,7 +5211,7 @@
       "source_file": "lemonade/config_flow.py",
       "source_location": "L103",
       "id": "lemonade_config_flow_py_float",
-      "community": 3,
+      "community": 62,
       "norm_label": "float"
     },
     {
@@ -4968,7 +5229,7 @@
       "source_file": "lemonade/config_flow.py",
       "source_location": "L133",
       "id": "lemonade_config_flow_async_get_options_flow",
-      "community": 3,
+      "community": 62,
       "norm_label": "async_get_options_flow()"
     },
     {
@@ -4977,7 +5238,7 @@
       "source_file": "lemonade/config_flow.py",
       "source_location": "L133",
       "id": "lemonadeoptionsflow",
-      "community": 3,
+      "community": 62,
       "norm_label": "lemonadeoptionsflow"
     },
     {
@@ -4986,7 +5247,7 @@
       "source_file": "lemonade/config_flow.py",
       "source_location": "L141",
       "id": "lemonade_config_flow_async_get_supported_subentry_types",
-      "community": 3,
+      "community": 62,
       "norm_label": "async_get_supported_subentry_types()"
     },
     {
@@ -4995,7 +5256,7 @@
       "source_file": "lemonade/config_flow.py",
       "source_location": "L141",
       "id": "configsubentryflow",
-      "community": 3,
+      "community": 62,
       "norm_label": "configsubentryflow"
     },
     {
@@ -5031,7 +5292,7 @@
       "source_file": "lemonade/config_flow.py",
       "source_location": "L199",
       "id": "lemonade_config_flow_lemonadeoptionsflow_init",
-      "community": 3,
+      "community": 62,
       "norm_label": ".__init__()"
     },
     {
@@ -5220,7 +5481,7 @@
       "source_file": "lemonade/config_flow.py",
       "source_location": "L200",
       "id": "lemonade_config_flow_rationale_200",
-      "community": 3,
+      "community": 62,
       "norm_label": "initialize the options flow."
     },
     {
@@ -5303,6 +5564,393 @@
       "id": "lemonade_config_flow_rationale_363",
       "community": 3,
       "norm_label": "reconfigure a lemonade profile subentry."
+    },
+    {
+      "label": "stt.py",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L1",
+      "id": "lemonade_stt_py",
+      "community": 64,
+      "norm_label": "stt.py"
+    },
+    {
+      "label": "async_setup_entry()",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L22",
+      "id": "lemonade_stt_async_setup_entry",
+      "community": 61,
+      "norm_label": "async_setup_entry()"
+    },
+    {
+      "label": "HomeAssistant",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L22",
+      "id": "lemonade_stt_py_homeassistant",
+      "community": 61,
+      "norm_label": "homeassistant"
+    },
+    {
+      "label": "LemonadeConfigEntry",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L22",
+      "id": "lemonade_stt_py_lemonadeconfigentry",
+      "community": 61,
+      "norm_label": "lemonadeconfigentry"
+    },
+    {
+      "label": "AddEntitiesCallback",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L22",
+      "id": "lemonade_stt_py_addentitiescallback",
+      "community": 61,
+      "norm_label": "addentitiescallback"
+    },
+    {
+      "label": "_first_catalog_model_id()",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L31",
+      "id": "lemonade_stt_first_catalog_model_id",
+      "community": 61,
+      "norm_label": "_first_catalog_model_id()"
+    },
+    {
+      "label": "str",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L31",
+      "id": "lemonade_stt_py_str",
+      "community": 61,
+      "norm_label": "str"
+    },
+    {
+      "label": "_error_result()",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L47",
+      "id": "lemonade_stt_error_result",
+      "community": 61,
+      "norm_label": "_error_result()"
+    },
+    {
+      "label": "SpeechResult",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L47",
+      "id": "speechresult",
+      "community": 61,
+      "norm_label": "speechresult"
+    },
+    {
+      "label": "LemonadeSTTEntity",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L52",
+      "id": "lemonade_stt_lemonadesttentity",
+      "community": 61,
+      "norm_label": "lemonadesttentity"
+    },
+    {
+      "label": ".__init__()",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L58",
+      "id": "lemonade_stt_lemonadesttentity_init",
+      "community": 61,
+      "norm_label": ".__init__()"
+    },
+    {
+      "label": "supported_languages()",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L64",
+      "id": "lemonade_stt_supported_languages",
+      "community": 61,
+      "norm_label": "supported_languages()"
+    },
+    {
+      "label": "supported_formats()",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L69",
+      "id": "lemonade_stt_supported_formats",
+      "community": 64,
+      "norm_label": "supported_formats()"
+    },
+    {
+      "label": "AudioFormats",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L69",
+      "id": "audioformats",
+      "community": 64,
+      "norm_label": "audioformats"
+    },
+    {
+      "label": "supported_codecs()",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L74",
+      "id": "lemonade_stt_supported_codecs",
+      "community": 64,
+      "norm_label": "supported_codecs()"
+    },
+    {
+      "label": "AudioCodecs",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L74",
+      "id": "audiocodecs",
+      "community": 64,
+      "norm_label": "audiocodecs"
+    },
+    {
+      "label": "supported_bit_rates()",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L79",
+      "id": "lemonade_stt_supported_bit_rates",
+      "community": 64,
+      "norm_label": "supported_bit_rates()"
+    },
+    {
+      "label": "AudioBitRates",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L79",
+      "id": "audiobitrates",
+      "community": 64,
+      "norm_label": "audiobitrates"
+    },
+    {
+      "label": "supported_sample_rates()",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L84",
+      "id": "lemonade_stt_supported_sample_rates",
+      "community": 64,
+      "norm_label": "supported_sample_rates()"
+    },
+    {
+      "label": "AudioSampleRates",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L84",
+      "id": "audiosamplerates",
+      "community": 64,
+      "norm_label": "audiosamplerates"
+    },
+    {
+      "label": "supported_channels()",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L89",
+      "id": "lemonade_stt_supported_channels",
+      "community": 64,
+      "norm_label": "supported_channels()"
+    },
+    {
+      "label": "AudioChannels",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L89",
+      "id": "audiochannels",
+      "community": 64,
+      "norm_label": "audiochannels"
+    },
+    {
+      "label": "._resolve_model()",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L93",
+      "id": "lemonade_stt_lemonadesttentity_resolve_model",
+      "community": 61,
+      "norm_label": "._resolve_model()"
+    },
+    {
+      "label": "available()",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L102",
+      "id": "lemonade_stt_available",
+      "community": 61,
+      "norm_label": "available()"
+    },
+    {
+      "label": "bool",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L102",
+      "id": "lemonade_stt_py_bool",
+      "community": 61,
+      "norm_label": "bool"
+    },
+    {
+      "label": ".async_process_audio_stream()",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L106",
+      "id": "lemonade_stt_lemonadesttentity_async_process_audio_stream",
+      "community": 61,
+      "norm_label": ".async_process_audio_stream()"
+    },
+    {
+      "label": "Any",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L106",
+      "id": "lemonade_stt_py_any",
+      "community": 61,
+      "norm_label": "any"
+    },
+    {
+      "label": "bytes",
+      "file_type": "code",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L106",
+      "id": "lemonade_stt_py_bytes",
+      "community": 61,
+      "norm_label": "bytes"
+    },
+    {
+      "label": "Speech-to-text platform for Lemonade Server.",
+      "file_type": "rationale",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L1",
+      "id": "lemonade_stt_rationale_1",
+      "community": 64,
+      "norm_label": "speech-to-text platform for lemonade server."
+    },
+    {
+      "label": "Set up Lemonade Server speech-to-text.",
+      "file_type": "rationale",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L27",
+      "id": "lemonade_stt_rationale_27",
+      "community": 61,
+      "norm_label": "set up lemonade server speech-to-text."
+    },
+    {
+      "label": "Return the first catalog model ID for a capability.",
+      "file_type": "rationale",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L32",
+      "id": "lemonade_stt_rationale_32",
+      "community": 61,
+      "norm_label": "return the first catalog model id for a capability."
+    },
+    {
+      "label": "Return a Home Assistant STT error result.",
+      "file_type": "rationale",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L48",
+      "id": "lemonade_stt_rationale_48",
+      "community": 61,
+      "norm_label": "return a home assistant stt error result."
+    },
+    {
+      "label": "Speech-to-text entity backed by Lemonade Server.",
+      "file_type": "rationale",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L53",
+      "id": "lemonade_stt_rationale_53",
+      "community": 61,
+      "norm_label": "speech-to-text entity backed by lemonade server."
+    },
+    {
+      "label": "Initialize the Lemonade speech-to-text entity.",
+      "file_type": "rationale",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L59",
+      "id": "lemonade_stt_rationale_59",
+      "community": 61,
+      "norm_label": "initialize the lemonade speech-to-text entity."
+    },
+    {
+      "label": "Return supported languages.",
+      "file_type": "rationale",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L65",
+      "id": "lemonade_stt_rationale_65",
+      "community": 70,
+      "norm_label": "return supported languages."
+    },
+    {
+      "label": "Return supported audio formats.",
+      "file_type": "rationale",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L70",
+      "id": "lemonade_stt_rationale_70",
+      "community": 71,
+      "norm_label": "return supported audio formats."
+    },
+    {
+      "label": "Return supported audio codecs.",
+      "file_type": "rationale",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L75",
+      "id": "lemonade_stt_rationale_75",
+      "community": 72,
+      "norm_label": "return supported audio codecs."
+    },
+    {
+      "label": "Return supported bit rates.",
+      "file_type": "rationale",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L80",
+      "id": "lemonade_stt_rationale_80",
+      "community": 73,
+      "norm_label": "return supported bit rates."
+    },
+    {
+      "label": "Return supported sample rates.",
+      "file_type": "rationale",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L85",
+      "id": "lemonade_stt_rationale_85",
+      "community": 74,
+      "norm_label": "return supported sample rates."
+    },
+    {
+      "label": "Return supported audio channels.",
+      "file_type": "rationale",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L90",
+      "id": "lemonade_stt_rationale_90",
+      "community": 75,
+      "norm_label": "return supported audio channels."
+    },
+    {
+      "label": "Return the configured or first catalog STT model.",
+      "file_type": "rationale",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L94",
+      "id": "lemonade_stt_rationale_94",
+      "community": 61,
+      "norm_label": "return the configured or first catalog stt model."
+    },
+    {
+      "label": "Return true when an STT model is available.",
+      "file_type": "rationale",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L103",
+      "id": "lemonade_stt_rationale_103",
+      "community": 69,
+      "norm_label": "return true when an stt model is available."
+    },
+    {
+      "label": "Transcribe an audio stream with Lemonade Server.",
+      "file_type": "rationale",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L111",
+      "id": "lemonade_stt_rationale_111",
+      "community": 61,
+      "norm_label": "transcribe an audio stream with lemonade server."
     },
     {
       "label": "2026-06-18-lemonade-ha-core-quality.md",
@@ -6254,7 +6902,7 @@
       "file_type": "rationale",
       "source_file": "lemonade/ai_task.py",
       "source_location": "L246",
-      "community": 48,
+      "community": 68,
       "norm_label": "generate data for an ai task using lemonade.",
       "id": "lemonade_ai_task_rationale_246"
     },
@@ -6317,7 +6965,7 @@
       "file_type": "rationale",
       "source_file": "lemonade/ai_task.py",
       "source_location": "L231",
-      "community": 48,
+      "community": 68,
       "norm_label": "generate data for an ai task using lemonade.",
       "id": "lemonade_ai_task_rationale_231"
     },
@@ -6605,7 +7253,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_runtime.py",
       "source_location": "L109",
-      "community": 4,
+      "community": 67,
       "norm_label": "install minimal home assistant dependency stubs for unit tests.",
       "id": "tests_test_runtime_rationale_109"
     },
@@ -6614,7 +7262,7 @@
       "file_type": "code",
       "source_file": "lemonade/config_flow.py",
       "source_location": "L270",
-      "community": 3,
+      "community": 62,
       "norm_label": "_entry()",
       "id": "lemonade_config_flow_entry"
     },
@@ -6695,7 +7343,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_runtime.py",
       "source_location": "L14",
-      "community": 4,
+      "community": 67,
       "norm_label": "install minimal home assistant dependency stubs for unit tests.",
       "id": "tests_test_runtime_rationale_14"
     },
@@ -6785,7 +7433,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_runtime.py",
       "source_location": "L12",
-      "community": 4,
+      "community": 67,
       "norm_label": "install minimal home assistant dependency stubs for unit tests.",
       "id": "tests_test_runtime_rationale_12"
     },
@@ -6794,7 +7442,7 @@
       "file_type": "rationale",
       "source_file": "lemonade/__init__.py",
       "source_location": "L64",
-      "community": 4,
+      "community": 60,
       "norm_label": "set up lemonade server from a config entry.",
       "id": "lemonade_init_rationale_64"
     },
@@ -6803,7 +7451,7 @@
       "file_type": "rationale",
       "source_file": "lemonade/__init__.py",
       "source_location": "L108",
-      "community": 4,
+      "community": 60,
       "norm_label": "unload a lemonade server config entry.",
       "id": "lemonade_init_rationale_108"
     },
@@ -6821,7 +7469,7 @@
       "file_type": "rationale",
       "source_file": "lemonade/__init__.py",
       "source_location": "L122",
-      "community": 61,
+      "community": 60,
       "norm_label": "return the configured default model for an entry.",
       "id": "lemonade_init_rationale_122"
     },
@@ -6983,7 +7631,7 @@
       "file_type": "code",
       "source_file": "lemonade/__init__.py",
       "source_location": "L27",
-      "community": 4,
+      "community": 62,
       "norm_label": "bool",
       "id": "bool"
     },
@@ -6992,7 +7640,7 @@
       "file_type": "rationale",
       "source_file": "lemonade/__init__.py",
       "source_location": "L28",
-      "community": 4,
+      "community": 60,
       "norm_label": "set up lemonade server.",
       "id": "lemonade_init_rationale_28"
     },
@@ -7001,7 +7649,7 @@
       "file_type": "rationale",
       "source_file": "lemonade/__init__.py",
       "source_location": "L35",
-      "community": 4,
+      "community": 60,
       "norm_label": "set up lemonade server from a config entry.",
       "id": "lemonade_init_rationale_35"
     },
@@ -7019,7 +7667,7 @@
       "file_type": "rationale",
       "source_file": "lemonade/__init__.py",
       "source_location": "L78",
-      "community": 61,
+      "community": 60,
       "norm_label": "return the configured default model for an entry.",
       "id": "lemonade_init_rationale_78"
     },
@@ -7387,9 +8035,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1662",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_py",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 1.0
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "imports",
@@ -7522,9 +8170,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1722",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "tests_test_runtime_volmarker",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -7790,9 +8438,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1722",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "tests_test_runtime_py_str",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -8102,9 +8750,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1722",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "tests_test_runtime_py_any",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -8183,9 +8831,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1722",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "tests_test_runtime_py_int",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -8263,9 +8911,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1722",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "tests_test_runtime_volschema",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -8403,9 +9051,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1722",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "tests_test_runtime_flowbase",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -8503,9 +9151,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1722",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "tests_test_runtime_configflowbase",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -8573,9 +9221,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1722",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "tests_test_runtime_optionsflowbase",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -8673,9 +9321,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1722",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "tests_test_runtime_configsubentryflowbase",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -8764,9 +9412,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1722",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "tests_test_runtime_selectselectorconfig",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -8856,9 +9504,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1722",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "tests_test_runtime_py_bool",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -8936,9 +9584,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1722",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "tests_test_runtime_selectselector",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -9006,9 +9654,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1722",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "tests_test_runtime_templateselector",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -9210,9 +9858,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1388",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest_test_ai_task_final_assistant_content_requires_assistant_role",
-      "target": "tests_test_runtime_require_module",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_require_module"
     },
     {
       "relation": "calls",
@@ -9221,9 +9869,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1403",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest_test_ai_task_resolve_data_model_falls_back_to_default_then_catalog",
-      "target": "tests_test_runtime_require_module",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_require_module"
     },
     {
       "relation": "calls",
@@ -9232,9 +9880,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1422",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest_test_ai_task_resolve_image_model_falls_back_to_catalog_model",
-      "target": "tests_test_runtime_require_module",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_require_module"
     },
     {
       "relation": "calls",
@@ -9243,9 +9891,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1440",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_data_errors_when_no_ai_task_model_exists",
-      "target": "tests_test_runtime_require_module",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_require_module"
     },
     {
       "relation": "calls",
@@ -9254,9 +9902,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1464",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_errors_when_no_image_model_exists",
-      "target": "tests_test_runtime_require_module",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_require_module"
     },
     {
       "relation": "calls",
@@ -9265,9 +9913,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1484",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_errors_when_response_has_no_image",
-      "target": "tests_test_runtime_require_module",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_require_module"
     },
     {
       "relation": "calls",
@@ -9276,9 +9924,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1510",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_decodes_case_insensitive_data_url",
-      "target": "tests_test_runtime_require_module",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_require_module"
     },
     {
       "relation": "calls",
@@ -9287,9 +9935,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1541",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_data_structured_response_errors_for_non_json",
-      "target": "tests_test_runtime_require_module",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_require_module"
     },
     {
       "relation": "calls",
@@ -9298,9 +9946,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1588",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_data_returns_raw_assistant_text_without_structure",
-      "target": "tests_test_runtime_require_module",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_require_module"
     },
     {
       "relation": "calls",
@@ -9309,9 +9957,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1633",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_data_translates_aiohttp_client_error",
-      "target": "tests_test_runtime_require_module",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_require_module"
     },
     {
       "relation": "calls",
@@ -9320,9 +9968,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1664",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_data_translates_lemonade_client_error",
-      "target": "tests_test_runtime_require_module",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_require_module"
     },
     {
       "relation": "calls",
@@ -9331,9 +9979,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1695",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_translates_aiohttp_client_error",
-      "target": "tests_test_runtime_require_module",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_require_module"
     },
     {
       "relation": "calls",
@@ -9342,9 +9990,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1724",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_translates_lemonade_client_error",
-      "target": "tests_test_runtime_require_module",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_require_module"
     },
     {
       "relation": "calls",
@@ -9389,6 +10037,39 @@
       "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest_test_sensor_platform_adds_status_and_model_count_entities",
       "target": "tests_test_runtime_require_module"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_runtime.py",
+      "source_location": "L2215",
+      "weight": 1.0,
+      "source": "tests_test_runtime_runtimesetuptest_test_tts_platform_adds_entity_and_generates_audio_with_request_options",
+      "target": "tests_test_runtime_require_module",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_runtime.py",
+      "source_location": "L2273",
+      "weight": 1.0,
+      "source": "tests_test_runtime_runtimesetuptest_test_stt_platform_adds_entity_and_transcribes_stream_with_default_model",
+      "target": "tests_test_runtime_require_module",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_runtime.py",
+      "source_location": "L2337",
+      "weight": 1.0,
+      "source": "tests_test_runtime_runtimesetuptest_test_stt_entity_is_unavailable_and_returns_error_without_model",
+      "target": "tests_test_runtime_require_module",
+      "confidence_score": 1.0
     },
     {
       "relation": "calls",
@@ -9457,9 +10138,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1722",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "moduletype",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -9599,9 +10280,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1722",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "tests_test_runtime_fakeconfigentries",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -9727,6 +10408,28 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "tests/test_runtime.py",
+      "source_location": "L2235",
+      "weight": 1.0,
+      "source": "tests_test_runtime_runtimesetuptest_test_tts_platform_adds_entity_and_generates_audio_with_request_options",
+      "target": "tests_test_runtime_fakehass",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_runtime.py",
+      "source_location": "L2297",
+      "weight": 1.0,
+      "source": "tests_test_runtime_runtimesetuptest_test_stt_platform_adds_entity_and_transcribes_stream_with_default_model",
+      "target": "tests_test_runtime_fakehass",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_runtime.py",
       "source_location": "L1012",
       "weight": 1.0,
       "confidence_score": 1.0,
@@ -9789,9 +10492,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1722",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "tests_test_runtime_fakehass",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -9915,6 +10618,39 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "tests/test_runtime.py",
+      "source_location": "L2230",
+      "weight": 1.0,
+      "source": "tests_test_runtime_runtimesetuptest_test_tts_platform_adds_entity_and_generates_audio_with_request_options",
+      "target": "tests_test_runtime_fakeentry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_runtime.py",
+      "source_location": "L2292",
+      "weight": 1.0,
+      "source": "tests_test_runtime_runtimesetuptest_test_stt_platform_adds_entity_and_transcribes_stream_with_default_model",
+      "target": "tests_test_runtime_fakeentry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_runtime.py",
+      "source_location": "L2338",
+      "weight": 1.0,
+      "source": "tests_test_runtime_runtimesetuptest_test_stt_entity_is_unavailable_and_returns_error_without_model",
+      "target": "tests_test_runtime_fakeentry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_runtime.py",
       "source_location": "L1026",
       "weight": 1.0,
       "confidence_score": 1.0,
@@ -9977,9 +10713,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1722",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "tests_test_runtime_fakeentry",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -10108,9 +10844,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1722",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "tests_test_runtime_fakeresponse",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -10231,9 +10967,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1722",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "tests_test_runtime_fakesession",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -10524,9 +11260,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1408",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest_test_ai_task_resolve_data_model_falls_back_to_default_then_catalog",
-      "target": "tests_test_runtime_fakecatalog",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_fakecatalog"
     },
     {
       "relation": "calls",
@@ -10535,9 +11271,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1427",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest_test_ai_task_resolve_image_model_falls_back_to_catalog_model",
-      "target": "tests_test_runtime_fakecatalog",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_fakecatalog"
     },
     {
       "relation": "calls",
@@ -10546,9 +11282,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1446",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_data_errors_when_no_ai_task_model_exists",
-      "target": "tests_test_runtime_fakecatalog",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_fakecatalog"
     },
     {
       "relation": "calls",
@@ -10557,9 +11293,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1469",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_errors_when_no_image_model_exists",
-      "target": "tests_test_runtime_fakecatalog",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_fakecatalog"
     },
     {
       "relation": "calls",
@@ -10568,9 +11304,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1494",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_errors_when_response_has_no_image",
-      "target": "tests_test_runtime_fakecatalog",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_fakecatalog"
     },
     {
       "relation": "calls",
@@ -10579,9 +11315,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1520",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_decodes_case_insensitive_data_url",
-      "target": "tests_test_runtime_fakecatalog",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_fakecatalog"
     },
     {
       "relation": "calls",
@@ -10590,9 +11326,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1567",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_data_structured_response_errors_for_non_json",
-      "target": "tests_test_runtime_fakecatalog",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_fakecatalog"
     },
     {
       "relation": "calls",
@@ -10601,9 +11337,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1614",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_data_returns_raw_assistant_text_without_structure",
-      "target": "tests_test_runtime_fakecatalog",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_fakecatalog"
     },
     {
       "relation": "calls",
@@ -10612,9 +11348,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1644",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_data_translates_aiohttp_client_error",
-      "target": "tests_test_runtime_fakecatalog",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_fakecatalog"
     },
     {
       "relation": "calls",
@@ -10623,9 +11359,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1675",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_data_translates_lemonade_client_error",
-      "target": "tests_test_runtime_fakecatalog",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_fakecatalog"
     },
     {
       "relation": "calls",
@@ -10634,9 +11370,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1705",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_translates_aiohttp_client_error",
-      "target": "tests_test_runtime_fakecatalog",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_fakecatalog"
     },
     {
       "relation": "calls",
@@ -10645,9 +11381,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1734",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_translates_lemonade_client_error",
-      "target": "tests_test_runtime_fakecatalog",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_fakecatalog"
     },
     {
       "relation": "calls",
@@ -10731,6 +11467,39 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "tests/test_runtime.py",
+      "source_location": "L2227",
+      "weight": 1.0,
+      "source": "tests_test_runtime_runtimesetuptest_test_tts_platform_adds_entity_and_generates_audio_with_request_options",
+      "target": "tests_test_runtime_fakecatalog",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_runtime.py",
+      "source_location": "L2289",
+      "weight": 1.0,
+      "source": "tests_test_runtime_runtimesetuptest_test_stt_platform_adds_entity_and_transcribes_stream_with_default_model",
+      "target": "tests_test_runtime_fakecatalog",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_runtime.py",
+      "source_location": "L2343",
+      "weight": 1.0,
+      "source": "tests_test_runtime_runtimesetuptest_test_stt_entity_is_unavailable_and_returns_error_without_model",
+      "target": "tests_test_runtime_fakecatalog",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_runtime.py",
       "source_location": "L1016",
       "weight": 1.0,
       "confidence_score": 1.0,
@@ -10793,9 +11562,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1722",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "tests_test_runtime_fakecatalog",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -11065,9 +11834,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1387",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest",
-      "target": "tests_test_runtime_runtimesetuptest_test_ai_task_final_assistant_content_requires_assistant_role",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_runtimesetuptest_test_ai_task_final_assistant_content_requires_assistant_role"
     },
     {
       "relation": "method",
@@ -11075,9 +11844,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1402",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest",
-      "target": "tests_test_runtime_runtimesetuptest_test_ai_task_resolve_data_model_falls_back_to_default_then_catalog",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_runtimesetuptest_test_ai_task_resolve_data_model_falls_back_to_default_then_catalog"
     },
     {
       "relation": "method",
@@ -11085,9 +11854,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1421",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest",
-      "target": "tests_test_runtime_runtimesetuptest_test_ai_task_resolve_image_model_falls_back_to_catalog_model",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_runtimesetuptest_test_ai_task_resolve_image_model_falls_back_to_catalog_model"
     },
     {
       "relation": "method",
@@ -11095,9 +11864,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1437",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest",
-      "target": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_data_errors_when_no_ai_task_model_exists",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_data_errors_when_no_ai_task_model_exists"
     },
     {
       "relation": "method",
@@ -11105,9 +11874,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1461",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest",
-      "target": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_errors_when_no_image_model_exists",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_errors_when_no_image_model_exists"
     },
     {
       "relation": "method",
@@ -11115,9 +11884,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1481",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest",
-      "target": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_errors_when_response_has_no_image",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_errors_when_response_has_no_image"
     },
     {
       "relation": "method",
@@ -11125,9 +11894,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1507",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest",
-      "target": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_decodes_case_insensitive_data_url",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_decodes_case_insensitive_data_url"
     },
     {
       "relation": "method",
@@ -11135,9 +11904,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1535",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest",
-      "target": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_data_structured_response_errors_for_non_json",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_data_structured_response_errors_for_non_json"
     },
     {
       "relation": "method",
@@ -11145,9 +11914,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1582",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest",
-      "target": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_data_returns_raw_assistant_text_without_structure",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_data_returns_raw_assistant_text_without_structure"
     },
     {
       "relation": "method",
@@ -11155,9 +11924,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1629",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest",
-      "target": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_data_translates_aiohttp_client_error",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_data_translates_aiohttp_client_error"
     },
     {
       "relation": "method",
@@ -11165,9 +11934,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1660",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest",
-      "target": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_data_translates_lemonade_client_error",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_data_translates_lemonade_client_error"
     },
     {
       "relation": "method",
@@ -11175,9 +11944,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1691",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest",
-      "target": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_translates_aiohttp_client_error",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_translates_aiohttp_client_error"
     },
     {
       "relation": "method",
@@ -11185,9 +11954,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1720",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_runtime_runtimesetuptest",
-      "target": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_translates_lemonade_client_error",
-      "confidence_score": 1.0
+      "target": "tests_test_runtime_runtimesetuptest_test_ai_task_generate_image_translates_lemonade_client_error"
     },
     {
       "relation": "method",
@@ -11333,6 +12102,36 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "tests/test_runtime.py",
+      "source_location": "L2214",
+      "weight": 1.0,
+      "source": "tests_test_runtime_runtimesetuptest",
+      "target": "tests_test_runtime_runtimesetuptest_test_tts_platform_adds_entity_and_generates_audio_with_request_options",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_runtime.py",
+      "source_location": "L2270",
+      "weight": 1.0,
+      "source": "tests_test_runtime_runtimesetuptest",
+      "target": "tests_test_runtime_runtimesetuptest_test_stt_platform_adds_entity_and_transcribes_stream_with_default_model",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_runtime.py",
+      "source_location": "L2334",
+      "weight": 1.0,
+      "source": "tests_test_runtime_runtimesetuptest",
+      "target": "tests_test_runtime_runtimesetuptest_test_stt_entity_is_unavailable_and_returns_error_without_model",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_runtime.py",
       "source_location": "L1010",
       "weight": 1.0,
       "confidence_score": 1.0,
@@ -11405,9 +12204,9 @@
       "source_file": "tests/test_runtime.py",
       "source_location": "L1722",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "tests_test_runtime_runtimesetuptest",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -15086,6 +15885,509 @@
       "target": "lemonade_llm_async_handle_chat_log"
     },
     {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L14",
+      "weight": 1.0,
+      "source": "lemonade_tts_py",
+      "target": "lemonade_api_py",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L15",
+      "weight": 1.0,
+      "source": "lemonade_tts_py",
+      "target": "lemonade_const_py",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L16",
+      "weight": 1.0,
+      "source": "lemonade_tts_py",
+      "target": "lemonade_data_py",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L31",
+      "weight": 1.0,
+      "source": "lemonade_tts_py",
+      "target": "lemonade_tts_async_setup_entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L40",
+      "weight": 1.0,
+      "source": "lemonade_tts_py",
+      "target": "lemonade_tts_first_catalog_model_id",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L56",
+      "weight": 1.0,
+      "source": "lemonade_tts_py",
+      "target": "lemonade_tts_audio_extension",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L75",
+      "weight": 1.0,
+      "source": "lemonade_tts_py",
+      "target": "lemonade_tts_lemonadettsentity",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L102",
+      "weight": 1.0,
+      "source": "lemonade_tts_py",
+      "target": "lemonade_tts_available",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "lemonade_tts_rationale_1",
+      "target": "lemonade_tts_py",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L14",
+      "weight": 1.0,
+      "source": "lemonade_tts_py",
+      "target": "lemonade_api_lemonadeerror",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "parameter_type",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L31",
+      "weight": 1.0,
+      "source": "lemonade_tts_async_setup_entry",
+      "target": "lemonade_tts_py_homeassistant",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "parameter_type",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L31",
+      "weight": 1.0,
+      "source": "lemonade_tts_async_setup_entry",
+      "target": "lemonade_tts_py_lemonadeconfigentry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "parameter_type",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L31",
+      "weight": 1.0,
+      "source": "lemonade_tts_async_setup_entry",
+      "target": "lemonade_tts_py_addentitiescallback",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L37",
+      "weight": 1.0,
+      "source": "lemonade_tts_async_setup_entry",
+      "target": "lemonade_tts_lemonadettsentity",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L36",
+      "weight": 1.0,
+      "source": "lemonade_tts_rationale_36",
+      "target": "lemonade_tts_async_setup_entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L14",
+      "weight": 0.8,
+      "source": "lemonade_tts_py_homeassistant",
+      "target": "lemonade_api_lemonadeerror",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "references",
+      "context": "parameter_type",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L40",
+      "weight": 1.0,
+      "source": "lemonade_tts_first_catalog_model_id",
+      "target": "lemonade_tts_py_lemonadeconfigentry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "parameter_type",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L84",
+      "weight": 1.0,
+      "source": "lemonade_tts_lemonadettsentity_init",
+      "target": "lemonade_tts_py_lemonadeconfigentry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L14",
+      "weight": 0.8,
+      "source": "lemonade_tts_py_lemonadeconfigentry",
+      "target": "lemonade_api_lemonadeerror",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L14",
+      "weight": 0.8,
+      "source": "lemonade_tts_py_addentitiescallback",
+      "target": "lemonade_api_lemonadeerror",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "references",
+      "context": "return_type",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L40",
+      "weight": 1.0,
+      "source": "lemonade_tts_first_catalog_model_id",
+      "target": "lemonade_tts_py_str",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L99",
+      "weight": 1.0,
+      "source": "lemonade_tts_lemonadettsentity_resolve_model",
+      "target": "lemonade_tts_first_catalog_model_id",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L41",
+      "weight": 1.0,
+      "source": "lemonade_tts_rationale_41",
+      "target": "lemonade_tts_first_catalog_model_id",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "return_type",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L56",
+      "weight": 1.0,
+      "source": "lemonade_tts_audio_extension",
+      "target": "lemonade_tts_py_str",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "return_type",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L89",
+      "weight": 1.0,
+      "source": "lemonade_tts_lemonadettsentity_resolve_model",
+      "target": "lemonade_tts_py_str",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "generic_arg",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L106",
+      "weight": 1.0,
+      "source": "lemonade_tts_lemonadettsentity_async_get_tts_audio",
+      "target": "lemonade_tts_py_str",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L14",
+      "weight": 0.8,
+      "source": "lemonade_tts_py_str",
+      "target": "lemonade_api_lemonadeerror",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "references",
+      "context": "parameter_type",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L56",
+      "weight": 1.0,
+      "source": "lemonade_tts_audio_extension",
+      "target": "lemonade_tts_py_any",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L130",
+      "weight": 1.0,
+      "source": "lemonade_tts_lemonadettsentity_async_get_tts_audio",
+      "target": "lemonade_tts_audio_extension",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L57",
+      "weight": 1.0,
+      "source": "lemonade_tts_rationale_57",
+      "target": "lemonade_tts_audio_extension",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "generic_arg",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L89",
+      "weight": 1.0,
+      "source": "lemonade_tts_lemonadettsentity_resolve_model",
+      "target": "lemonade_tts_py_any",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "generic_arg",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L106",
+      "weight": 1.0,
+      "source": "lemonade_tts_lemonadettsentity_async_get_tts_audio",
+      "target": "lemonade_tts_py_any",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L14",
+      "weight": 0.8,
+      "source": "lemonade_tts_py_any",
+      "target": "lemonade_api_lemonadeerror",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L75",
+      "weight": 1.0,
+      "source": "lemonade_tts_lemonadettsentity",
+      "target": "texttospeechentity",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L84",
+      "weight": 1.0,
+      "source": "lemonade_tts_lemonadettsentity",
+      "target": "lemonade_tts_lemonadettsentity_init",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L89",
+      "weight": 1.0,
+      "source": "lemonade_tts_lemonadettsentity",
+      "target": "lemonade_tts_lemonadettsentity_resolve_model",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L106",
+      "weight": 1.0,
+      "source": "lemonade_tts_lemonadettsentity",
+      "target": "lemonade_tts_lemonadettsentity_async_get_tts_audio",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L76",
+      "weight": 1.0,
+      "source": "lemonade_tts_rationale_76",
+      "target": "lemonade_tts_lemonadettsentity",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L14",
+      "weight": 0.8,
+      "source": "lemonade_tts_lemonadettsentity",
+      "target": "lemonade_api_lemonadeerror",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L85",
+      "weight": 1.0,
+      "source": "lemonade_tts_rationale_85",
+      "target": "lemonade_tts_lemonadettsentity_init",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L104",
+      "weight": 1.0,
+      "source": "lemonade_tts_available",
+      "target": "lemonade_tts_lemonadettsentity_resolve_model",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L114",
+      "weight": 1.0,
+      "source": "lemonade_tts_lemonadettsentity_async_get_tts_audio",
+      "target": "lemonade_tts_lemonadettsentity_resolve_model",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L90",
+      "weight": 1.0,
+      "source": "lemonade_tts_rationale_90",
+      "target": "lemonade_tts_lemonadettsentity_resolve_model",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "return_type",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L102",
+      "weight": 1.0,
+      "source": "lemonade_tts_available",
+      "target": "lemonade_tts_py_bool",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L14",
+      "weight": 0.8,
+      "source": "lemonade_tts_py_bool",
+      "target": "lemonade_api_lemonadeerror",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "references",
+      "context": "generic_arg",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L106",
+      "weight": 1.0,
+      "source": "lemonade_tts_lemonadettsentity_async_get_tts_audio",
+      "target": "lemonade_tts_py_bytes",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L112",
+      "weight": 1.0,
+      "source": "lemonade_tts_rationale_112",
+      "target": "lemonade_tts_lemonadettsentity_async_get_tts_audio",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "lemonade/tts.py",
+      "source_location": "L14",
+      "weight": 0.8,
+      "source": "lemonade_tts_py_bytes",
+      "target": "lemonade_api_lemonadeerror",
+      "confidence_score": 0.5
+    },
+    {
       "relation": "re_exports",
       "context": "export",
       "confidence": "EXTRACTED",
@@ -17586,9 +18888,9 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L25",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "lemonade_ai_task_py",
-      "target": "lemonade_api_py",
-      "confidence_score": 1.0
+      "target": "lemonade_api_py"
     },
     {
       "relation": "imports_from",
@@ -17611,6 +18913,17 @@
       "confidence_score": 1.0,
       "source": "lemonade_config_flow_py",
       "target": "lemonade_api_py"
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L15",
+      "weight": 1.0,
+      "source": "lemonade_stt_py",
+      "target": "lemonade_api_py",
+      "confidence_score": 1.0
     },
     {
       "relation": "inherits",
@@ -17671,9 +18984,9 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L25",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "lemonade_ai_task_py",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 1.0
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "imports",
@@ -17687,14 +19000,25 @@
       "target": "lemonade_api_lemonadeerror"
     },
     {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L15",
+      "weight": 1.0,
+      "source": "lemonade_stt_py",
+      "target": "lemonade_api_lemonadeerror",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "uses",
       "confidence": "INFERRED",
       "source_file": "lemonade/ai_task.py",
       "source_location": "L25",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "lemonade_ai_task_py_any",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -17702,9 +19026,9 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L25",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "lemonade_ai_task_py_str",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -17712,9 +19036,9 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L25",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "lemonade_ai_task_py_lemonadeconfigentry",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -17722,9 +19046,9 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L25",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "lemonade_ai_task_py_homeassistant",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -17732,9 +19056,9 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L25",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "lemonade_ai_task_py_addentitiescallback",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -17742,9 +19066,9 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L25",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "lemonade_ai_task_py_bytes",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -17752,9 +19076,9 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L25",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "lemonade_ai_task_lemonadeaitaskentity",
-      "target": "lemonade_api_lemonadeerror",
-      "confidence_score": 0.5
+      "target": "lemonade_api_lemonadeerror"
     },
     {
       "relation": "uses",
@@ -17885,6 +19209,146 @@
       "confidence_score": 0.5,
       "source": "schema",
       "target": "lemonade_api_lemonadeerror"
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L15",
+      "weight": 0.8,
+      "source": "lemonade_stt_py_homeassistant",
+      "target": "lemonade_api_lemonadeerror",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L15",
+      "weight": 0.8,
+      "source": "lemonade_stt_py_lemonadeconfigentry",
+      "target": "lemonade_api_lemonadeerror",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L15",
+      "weight": 0.8,
+      "source": "lemonade_stt_py_addentitiescallback",
+      "target": "lemonade_api_lemonadeerror",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L15",
+      "weight": 0.8,
+      "source": "lemonade_stt_py_str",
+      "target": "lemonade_api_lemonadeerror",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L15",
+      "weight": 0.8,
+      "source": "speechresult",
+      "target": "lemonade_api_lemonadeerror",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L15",
+      "weight": 0.8,
+      "source": "lemonade_stt_lemonadesttentity",
+      "target": "lemonade_api_lemonadeerror",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L15",
+      "weight": 0.8,
+      "source": "audioformats",
+      "target": "lemonade_api_lemonadeerror",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L15",
+      "weight": 0.8,
+      "source": "audiocodecs",
+      "target": "lemonade_api_lemonadeerror",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L15",
+      "weight": 0.8,
+      "source": "audiobitrates",
+      "target": "lemonade_api_lemonadeerror",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L15",
+      "weight": 0.8,
+      "source": "audiosamplerates",
+      "target": "lemonade_api_lemonadeerror",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L15",
+      "weight": 0.8,
+      "source": "audiochannels",
+      "target": "lemonade_api_lemonadeerror",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L15",
+      "weight": 0.8,
+      "source": "lemonade_stt_py_bool",
+      "target": "lemonade_api_lemonadeerror",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L15",
+      "weight": 0.8,
+      "source": "lemonade_stt_py_any",
+      "target": "lemonade_api_lemonadeerror",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L15",
+      "weight": 0.8,
+      "source": "lemonade_stt_py_bytes",
+      "target": "lemonade_api_lemonadeerror",
+      "confidence_score": 0.5
     },
     {
       "relation": "uses",
@@ -20514,9 +21978,9 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L39",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "lemonade_ai_task_rationale_39",
-      "target": "lemonade_ai_task_subentry_data",
-      "confidence_score": 1.0
+      "target": "lemonade_ai_task_subentry_data"
     },
     {
       "relation": "rationale_for",
@@ -20732,9 +22196,9 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L45",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "lemonade_ai_task_rationale_45",
-      "target": "lemonade_ai_task_ai_task_subentries",
-      "confidence_score": 1.0
+      "target": "lemonade_ai_task_ai_task_subentries"
     },
     {
       "relation": "rationale_for",
@@ -20807,9 +22271,9 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L59",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "lemonade_ai_task_rationale_59",
-      "target": "lemonade_ai_task_maybe_await",
-      "confidence_score": 1.0
+      "target": "lemonade_ai_task_maybe_await"
     },
     {
       "relation": "rationale_for",
@@ -20860,9 +22324,9 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L69",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "lemonade_ai_task_rationale_69",
-      "target": "lemonade_ai_task_async_setup_entry",
-      "confidence_score": 1.0
+      "target": "lemonade_ai_task_async_setup_entry"
     },
     {
       "relation": "rationale_for",
@@ -20902,9 +22366,9 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L84",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "lemonade_ai_task_rationale_84",
-      "target": "lemonade_ai_task_catalog_model_ids",
-      "confidence_score": 1.0
+      "target": "lemonade_ai_task_catalog_model_ids"
     },
     {
       "relation": "rationale_for",
@@ -20944,9 +22408,9 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L94",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "lemonade_ai_task_rationale_94",
-      "target": "lemonade_ai_task_first_catalog_model_id",
-      "confidence_score": 1.0
+      "target": "lemonade_ai_task_first_catalog_model_id"
     },
     {
       "relation": "rationale_for",
@@ -20975,9 +22439,9 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L105",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "lemonade_ai_task_rationale_105",
-      "target": "lemonade_ai_task_value",
-      "confidence_score": 1.0
+      "target": "lemonade_ai_task_value"
     },
     {
       "relation": "rationale_for",
@@ -21006,9 +22470,9 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L112",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "lemonade_ai_task_rationale_112",
-      "target": "lemonade_ai_task_final_assistant_content",
-      "confidence_score": 1.0
+      "target": "lemonade_ai_task_final_assistant_content"
     },
     {
       "relation": "rationale_for",
@@ -21037,9 +22501,9 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L130",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "lemonade_ai_task_rationale_130",
-      "target": "lemonade_ai_task_image_response_values",
-      "confidence_score": 1.0
+      "target": "lemonade_ai_task_image_response_values"
     },
     {
       "relation": "rationale_for",
@@ -21079,9 +22543,9 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L165",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "lemonade_ai_task_rationale_165",
-      "target": "lemonade_ai_task_decode_image_value",
-      "confidence_score": 1.0
+      "target": "lemonade_ai_task_decode_image_value"
     },
     {
       "relation": "rationale_for",
@@ -21131,9 +22595,9 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L184",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "lemonade_ai_task_rationale_184",
-      "target": "lemonade_ai_task_decode_image_response",
-      "confidence_score": 1.0
+      "target": "lemonade_ai_task_decode_image_response"
     },
     {
       "relation": "rationale_for",
@@ -21211,9 +22675,9 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L193",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "lemonade_ai_task_rationale_193",
-      "target": "lemonade_ai_task_lemonadeaitaskentity",
-      "confidence_score": 1.0
+      "target": "lemonade_ai_task_lemonadeaitaskentity"
     },
     {
       "relation": "rationale_for",
@@ -21241,9 +22705,9 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L199",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "lemonade_ai_task_rationale_199",
-      "target": "lemonade_ai_task_lemonadeaitaskentity_init",
-      "confidence_score": 1.0
+      "target": "lemonade_ai_task_lemonadeaitaskentity_init"
     },
     {
       "relation": "rationale_for",
@@ -21282,9 +22746,9 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L220",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "lemonade_ai_task_rationale_220",
-      "target": "lemonade_ai_task_lemonadeaitaskentity_resolve_data_model",
-      "confidence_score": 1.0
+      "target": "lemonade_ai_task_lemonadeaitaskentity_resolve_data_model"
     },
     {
       "relation": "rationale_for",
@@ -21323,9 +22787,9 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L237",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "lemonade_ai_task_rationale_237",
-      "target": "lemonade_ai_task_lemonadeaitaskentity_resolve_image_model",
-      "confidence_score": 1.0
+      "target": "lemonade_ai_task_lemonadeaitaskentity_resolve_image_model"
     },
     {
       "relation": "rationale_for",
@@ -21353,9 +22817,9 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L249",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "lemonade_ai_task_rationale_249",
-      "target": "lemonade_ai_task_lemonadeaitaskentity_async_generate_data",
-      "confidence_score": 1.0
+      "target": "lemonade_ai_task_lemonadeaitaskentity_async_generate_data"
     },
     {
       "relation": "rationale_for",
@@ -21383,9 +22847,9 @@
       "source_file": "lemonade/ai_task.py",
       "source_location": "L278",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "lemonade_ai_task_rationale_278",
-      "target": "lemonade_ai_task_lemonadeaitaskentity_async_generate_image",
-      "confidence_score": 1.0
+      "target": "lemonade_ai_task_lemonadeaitaskentity_async_generate_image"
     },
     {
       "relation": "rationale_for",
@@ -21691,6 +23155,17 @@
       "target": "lemonade_const_py"
     },
     {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L16",
+      "weight": 1.0,
+      "source": "lemonade_stt_py",
+      "target": "lemonade_const_py",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "lemonade/data.py",
@@ -21699,6 +23174,17 @@
       "confidence_score": 1.0,
       "source": "lemonade_data_py",
       "target": "lemonade_data_lemonaderuntimedata"
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L17",
+      "weight": 1.0,
+      "source": "lemonade_stt_py",
+      "target": "lemonade_data_py",
+      "confidence_score": 1.0
     },
     {
       "relation": "imports_from",
@@ -22872,6 +24358,479 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L22",
+      "weight": 1.0,
+      "source": "lemonade_stt_py",
+      "target": "lemonade_stt_async_setup_entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L31",
+      "weight": 1.0,
+      "source": "lemonade_stt_py",
+      "target": "lemonade_stt_first_catalog_model_id",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L47",
+      "weight": 1.0,
+      "source": "lemonade_stt_py",
+      "target": "lemonade_stt_error_result",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L52",
+      "weight": 1.0,
+      "source": "lemonade_stt_py",
+      "target": "lemonade_stt_lemonadesttentity",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L64",
+      "weight": 1.0,
+      "source": "lemonade_stt_py",
+      "target": "lemonade_stt_supported_languages",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L69",
+      "weight": 1.0,
+      "source": "lemonade_stt_py",
+      "target": "lemonade_stt_supported_formats",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L74",
+      "weight": 1.0,
+      "source": "lemonade_stt_py",
+      "target": "lemonade_stt_supported_codecs",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L79",
+      "weight": 1.0,
+      "source": "lemonade_stt_py",
+      "target": "lemonade_stt_supported_bit_rates",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L84",
+      "weight": 1.0,
+      "source": "lemonade_stt_py",
+      "target": "lemonade_stt_supported_sample_rates",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L89",
+      "weight": 1.0,
+      "source": "lemonade_stt_py",
+      "target": "lemonade_stt_supported_channels",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L102",
+      "weight": 1.0,
+      "source": "lemonade_stt_py",
+      "target": "lemonade_stt_available",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "lemonade_stt_rationale_1",
+      "target": "lemonade_stt_py",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "parameter_type",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L22",
+      "weight": 1.0,
+      "source": "lemonade_stt_async_setup_entry",
+      "target": "lemonade_stt_py_homeassistant",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "parameter_type",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L22",
+      "weight": 1.0,
+      "source": "lemonade_stt_async_setup_entry",
+      "target": "lemonade_stt_py_lemonadeconfigentry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "parameter_type",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L22",
+      "weight": 1.0,
+      "source": "lemonade_stt_async_setup_entry",
+      "target": "lemonade_stt_py_addentitiescallback",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L28",
+      "weight": 1.0,
+      "source": "lemonade_stt_async_setup_entry",
+      "target": "lemonade_stt_lemonadesttentity",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L27",
+      "weight": 1.0,
+      "source": "lemonade_stt_rationale_27",
+      "target": "lemonade_stt_async_setup_entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "parameter_type",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L31",
+      "weight": 1.0,
+      "source": "lemonade_stt_first_catalog_model_id",
+      "target": "lemonade_stt_py_lemonadeconfigentry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "parameter_type",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L58",
+      "weight": 1.0,
+      "source": "lemonade_stt_lemonadesttentity_init",
+      "target": "lemonade_stt_py_lemonadeconfigentry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "return_type",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L31",
+      "weight": 1.0,
+      "source": "lemonade_stt_first_catalog_model_id",
+      "target": "lemonade_stt_py_str",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L99",
+      "weight": 1.0,
+      "source": "lemonade_stt_lemonadesttentity_resolve_model",
+      "target": "lemonade_stt_first_catalog_model_id",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L32",
+      "weight": 1.0,
+      "source": "lemonade_stt_rationale_32",
+      "target": "lemonade_stt_first_catalog_model_id",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "generic_arg",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L64",
+      "weight": 1.0,
+      "source": "lemonade_stt_supported_languages",
+      "target": "lemonade_stt_py_str",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "return_type",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L93",
+      "weight": 1.0,
+      "source": "lemonade_stt_lemonadesttentity_resolve_model",
+      "target": "lemonade_stt_py_str",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L49",
+      "weight": 1.0,
+      "source": "lemonade_stt_error_result",
+      "target": "speechresult",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L115",
+      "weight": 1.0,
+      "source": "lemonade_stt_lemonadesttentity_async_process_audio_stream",
+      "target": "lemonade_stt_error_result",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L48",
+      "weight": 1.0,
+      "source": "lemonade_stt_rationale_48",
+      "target": "lemonade_stt_error_result",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L130",
+      "weight": 1.0,
+      "source": "lemonade_stt_lemonadesttentity_async_process_audio_stream",
+      "target": "speechresult",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L58",
+      "weight": 1.0,
+      "source": "lemonade_stt_lemonadesttentity",
+      "target": "lemonade_stt_lemonadesttentity_init",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L93",
+      "weight": 1.0,
+      "source": "lemonade_stt_lemonadesttentity",
+      "target": "lemonade_stt_lemonadesttentity_resolve_model",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L106",
+      "weight": 1.0,
+      "source": "lemonade_stt_lemonadesttentity",
+      "target": "lemonade_stt_lemonadesttentity_async_process_audio_stream",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L53",
+      "weight": 1.0,
+      "source": "lemonade_stt_rationale_53",
+      "target": "lemonade_stt_lemonadesttentity",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L59",
+      "weight": 1.0,
+      "source": "lemonade_stt_rationale_59",
+      "target": "lemonade_stt_lemonadesttentity_init",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "generic_arg",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L69",
+      "weight": 1.0,
+      "source": "lemonade_stt_supported_formats",
+      "target": "audioformats",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "generic_arg",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L74",
+      "weight": 1.0,
+      "source": "lemonade_stt_supported_codecs",
+      "target": "audiocodecs",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "generic_arg",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L79",
+      "weight": 1.0,
+      "source": "lemonade_stt_supported_bit_rates",
+      "target": "audiobitrates",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "generic_arg",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L84",
+      "weight": 1.0,
+      "source": "lemonade_stt_supported_sample_rates",
+      "target": "audiosamplerates",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "generic_arg",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L89",
+      "weight": 1.0,
+      "source": "lemonade_stt_supported_channels",
+      "target": "audiochannels",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L104",
+      "weight": 1.0,
+      "source": "lemonade_stt_available",
+      "target": "lemonade_stt_lemonadesttentity_resolve_model",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L112",
+      "weight": 1.0,
+      "source": "lemonade_stt_lemonadesttentity_async_process_audio_stream",
+      "target": "lemonade_stt_lemonadesttentity_resolve_model",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L94",
+      "weight": 1.0,
+      "source": "lemonade_stt_rationale_94",
+      "target": "lemonade_stt_lemonadesttentity_resolve_model",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "return_type",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L102",
+      "weight": 1.0,
+      "source": "lemonade_stt_available",
+      "target": "lemonade_stt_py_bool",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "parameter_type",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L106",
+      "weight": 1.0,
+      "source": "lemonade_stt_lemonadesttentity_async_process_audio_stream",
+      "target": "lemonade_stt_py_any",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "generic_arg",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L106",
+      "weight": 1.0,
+      "source": "lemonade_stt_lemonadesttentity_async_process_audio_stream",
+      "target": "lemonade_stt_py_bytes",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "lemonade/stt.py",
+      "source_location": "L111",
+      "weight": 1.0,
+      "source": "lemonade_stt_rationale_111",
+      "target": "lemonade_stt_lemonadesttentity_async_process_audio_stream",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
       "source_file": "docs/superpowers/plans/2026-06-18-lemonade-ha-core-quality.md",
       "source_location": "L1",
       "weight": 1.0,
@@ -23772,5 +25731,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "185e4466ddba06857d5f86ad3b69bae9fb7a85eb"
+  "built_at_commit": "9db5af9e2bf99ee57e221c3903cd04de1a31b154"
 }
