@@ -6,7 +6,7 @@ from homeassistant.components.select import SelectEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import default_model_capability_presentations
+from .const import DEFAULT_MODEL_OPTION_NAMES, default_model_capability_presentations
 from .data import LemonadeConfigEntry
 from .entity import LemonadeEntity
 from .model_resolution import runtime_model_view
@@ -44,6 +44,7 @@ class LemonadeDefaultModelSelect(LemonadeEntity, SelectEntity):
         super().__init__(entry, option_key)
         self._capability = capability
         self._option_key = option_key
+        self._attr_name = DEFAULT_MODEL_OPTION_NAMES.get(option_key, option_key)
         self._attr_translation_key = option_key
 
     @property

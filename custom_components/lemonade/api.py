@@ -35,12 +35,14 @@ class LemonadeClient:
         url: str,
         api_key: str | None = None,
         timeout: float = 30.0,
+        verify_ssl: bool = True,
     ) -> None:
         """Initialize the client."""
         self.session = session
         self.url = url.rstrip("/")
         self.api_key = api_key.strip() if api_key else None
         self.timeout = timeout
+        self.verify_ssl = verify_ssl
 
     @property
     def headers(self) -> dict[str, str]:
@@ -97,12 +99,16 @@ class LemonadeClient:
         **kwargs: Any,
     ) -> Any:
         """Request data from Lemonade Server and classify response status."""
+        request_kwargs = kwargs
+        if not self.verify_ssl:
+            request_kwargs = {**kwargs, "ssl": False}
+
         async with asyncio.timeout(self.timeout):
             async with self.session.request(
                 method,
                 f"{self.url}{path}",
                 headers=self.headers,
-                **kwargs,
+                **request_kwargs,
             ) as response:
                 await self._raise_for_response_status(response)
                 return await read_response(response)

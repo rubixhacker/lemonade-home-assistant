@@ -19,12 +19,12 @@ from homeassistant.helpers.typing import ConfigType
 from .api import LemonadeAuthError, LemonadeClient, LemonadeError
 from .const import (
     CONF_TIMEOUT,
+    CONF_VERIFY_SSL,
     DEFAULT_TIMEOUT,
     DOMAIN,
     PLATFORMS,
     repair_issue_capabilities,
 )
-from .model_resolution import runtime_model_view
 from .services import async_register_services
 
 _LOGGER = logging.getLogger(__name__)
@@ -42,20 +42,10 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 def _async_update_missing_capability_issues(
     hass: HomeAssistant,
     entry_id: str,
-    coordinator: Any,
+    _coordinator: Any,
 ) -> None:
-    """Create or delete repair issues for missing optional capabilities."""
-    from .repairs import (
-        async_create_missing_capability_issue,
-        async_delete_missing_capability_issue,
-    )
-
-    model_view = runtime_model_view(coordinator)
-    for capability in repair_issue_capabilities():
-        if model_view.has_models(capability):
-            async_delete_missing_capability_issue(hass, entry_id, capability)
-        else:
-            async_create_missing_capability_issue(hass, entry_id, capability)
+    """Delete legacy missing-capability repair issues."""
+    _async_delete_missing_capability_issues(hass, entry_id)
 
 
 def _async_delete_missing_capability_issues(
@@ -74,11 +64,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     timeout = entry.options.get(
         CONF_TIMEOUT, entry.data.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)
     )
+    verify_ssl = entry.options.get(
+        CONF_VERIFY_SSL,
+        entry.data.get(CONF_VERIFY_SSL, True),
+    )
     client = LemonadeClient(
         async_get_clientsession(hass),
         entry.data[CONF_URL],
-        api_key,
-        timeout,
+        api_key=api_key,
+        timeout=timeout,
+        verify_ssl=verify_ssl,
     )
 
     try:
@@ -87,8 +82,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except LemonadeAuthError as err:
         raise ConfigEntryAuthFailed from err
     except (TimeoutError, aiohttp.ClientError, ConnectionError) as err:
+        _LOGGER.warning(
+            "Failed to connect to Lemonade Server at %s: %s",
+            entry.data[CONF_URL],
+            err,
+        )
         raise ConfigEntryNotReady(err) from err
     except LemonadeError as err:
+        _LOGGER.warning(
+            "Lemonade Server returned an error during setup at %s: %s",
+            entry.data[CONF_URL],
+            err,
+        )
         raise ConfigEntryError(err) from err
 
     from .coordinator import LemonadeCoordinator

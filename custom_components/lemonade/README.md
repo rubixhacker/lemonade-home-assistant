@@ -34,6 +34,29 @@ or, if Lemonade runs on the same host/container network visible to Home Assistan
 http://localhost:13305
 ```
 
+For a reverse proxy, use the externally reachable base URL without a trailing slash, for example:
+
+```text
+https://lemonade.lan.example
+```
+
+The proxy must pass through Lemonade's OpenAI-compatible API paths, including `/v1/health`, `/v1/models`, `/v1/chat/completions`, `/v1/images/generations`, `/v1/audio/speech`, and `/v1/audio/transcriptions`. If setup fails, check the Home Assistant log for the exact Lemonade connection or HTTP error.
+
+Leave **Verify SSL certificate** enabled for public CA certificates such as Let's Encrypt. Disable it only for private/self-signed certificates that Home Assistant cannot validate.
+
+## Assist and AI task profiles
+
+The integration creates default model controls first. Conversation agents and AI task entities are added as profiles on the Lemonade integration entry:
+
+1. Go to **Settings → Devices & services → Lemonade Server**.
+2. In the entry details, use the **Add service** area or one of the `+` buttons.
+3. Choose **Conversation profile** to create an Assist conversation agent.
+4. Choose **AI task profile** to create an AI task entity.
+5. Pick a profile name, model, and optional prompt.
+6. For conversation profiles, select any Home Assistant LLM APIs the profile may use when controlling Home Assistant.
+
+After creating a conversation profile, select it from your Assist pipeline or voice assistant settings as the conversation agent. After creating an AI task profile, use Home Assistant automations, scripts, or service calls that target AI task entities.
+
 ## Native Home Assistant platforms
 
 The integration exposes native platforms for:

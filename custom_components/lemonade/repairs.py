@@ -8,21 +8,6 @@ from homeassistant.helpers import issue_registry as ir
 from .const import DOMAIN
 
 
-def async_create_missing_capability_issue(
-    hass: HomeAssistant, entry_id: str, capability: str
-) -> None:
-    """Create a repair issue for a missing model capability."""
-    ir.async_create_issue(
-        hass,
-        DOMAIN,
-        f"missing_{capability}_{entry_id}",
-        is_fixable=False,
-        severity=ir.IssueSeverity.WARNING,
-        translation_key="missing_capability",
-        translation_placeholders={"capability": capability},
-    )
-
-
 def async_delete_missing_capability_issue(
     hass: HomeAssistant, entry_id: str, capability: str
 ) -> None:

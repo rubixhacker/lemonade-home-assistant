@@ -6,7 +6,7 @@ from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import model_count_capability_presentations
+from .const import MODEL_COUNT_SENSOR_NAMES, model_count_capability_presentations
 from .data import LemonadeConfigEntry
 from .entity import LemonadeEntity
 from .model_resolution import runtime_model_view
@@ -47,6 +47,7 @@ class LemonadeServerStatusSensor(LemonadeSensor):
     def __init__(self, entry: LemonadeConfigEntry) -> None:
         """Initialize the server status sensor."""
         super().__init__(entry, "server_status")
+        self._attr_name = MODEL_COUNT_SENSOR_NAMES["server_status"]
 
     @property
     def native_value(self) -> str:
@@ -68,6 +69,7 @@ class LemonadeTotalModelCountSensor(LemonadeSensor):
     def __init__(self, entry: LemonadeConfigEntry) -> None:
         """Initialize the model count sensor."""
         super().__init__(entry, "model_count")
+        self._attr_name = MODEL_COUNT_SENSOR_NAMES["model_count"]
 
     @property
     def native_value(self) -> int:
@@ -89,6 +91,7 @@ class LemonadeCapabilityCountSensor(LemonadeSensor):
         """Initialize the capability count sensor."""
         super().__init__(entry, translation_key)
         self._capability = capability
+        self._attr_name = MODEL_COUNT_SENSOR_NAMES.get(translation_key, translation_key)
         self._attr_translation_key = translation_key
 
     @property

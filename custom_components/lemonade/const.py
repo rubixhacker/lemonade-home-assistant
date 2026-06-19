@@ -12,9 +12,9 @@ DEFAULT_NAME = "Lemonade Server"
 DEFAULT_URL = "http://localhost:13305"
 DEFAULT_TIMEOUT = 30.0
 DEFAULT_SCAN_INTERVAL_SECONDS = 60
-DEFAULT_MODEL = "lemonade-omni"
 
 CONF_TIMEOUT = "timeout"
+CONF_VERIFY_SSL = "verify_ssl"
 CONF_ENTRY_ID = "entry_id"
 CONF_DEFAULT_CONVERSATION_MODEL = "default_conversation_model"
 CONF_DEFAULT_AI_TASK_MODEL = "default_ai_task_model"
@@ -52,6 +52,23 @@ MODEL_OPTION_BY_CAPABILITY = {
     CAPABILITY_IMAGE: CONF_DEFAULT_IMAGE_MODEL,
     CAPABILITY_TTS: CONF_DEFAULT_TTS_MODEL,
     CAPABILITY_STT: CONF_DEFAULT_STT_MODEL,
+}
+
+DEFAULT_MODEL_OPTION_NAMES = {
+    CONF_DEFAULT_CONVERSATION_MODEL: "Default conversation model",
+    CONF_DEFAULT_AI_TASK_MODEL: "Default AI task model",
+    CONF_DEFAULT_IMAGE_MODEL: "Default image model",
+    CONF_DEFAULT_TTS_MODEL: "Default text-to-speech model",
+    CONF_DEFAULT_STT_MODEL: "Default speech-to-text model",
+}
+
+MODEL_COUNT_SENSOR_NAMES = {
+    "server_status": "Server status",
+    "model_count": "Model count",
+    "conversation_model_count": "Conversation model count",
+    "image_model_count": "Image model count",
+    "tts_model_count": "Text-to-speech model count",
+    "stt_model_count": "Speech-to-text model count",
 }
 
 
@@ -115,7 +132,7 @@ def model_count_capability_presentations() -> Iterable[CapabilityPresentation]:
 
 
 def repair_issue_capabilities() -> Iterable[str]:
-    """Iterate capabilities that surface missing-capability repair issues."""
+    """Iterate legacy missing-capability repair issues to clean up."""
     return (
         presentation.capability
         for presentation in CAPABILITY_PRESENTATIONS

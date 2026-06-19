@@ -62,6 +62,17 @@ Copy the `custom_components/lemonade` directory from this repository to:
 
 Then restart Home Assistant and add the integration from the UI.
 
+## Assist and AI tasks
+
+After installing the integration, create a profile before using Lemonade with Assist or AI tasks:
+
+1. Open **Settings -> Devices & services -> Lemonade Server**.
+2. Use **Add service** or the `+` buttons in the entry details.
+3. Add a **Conversation profile** for Assist.
+4. Add an **AI task profile** for AI task entities.
+
+See [custom_components/lemonade/README.md](custom_components/lemonade/README.md) for setup details and reverse-proxy notes.
+
 ## Features
 
 - Sensors for server status and model counts.

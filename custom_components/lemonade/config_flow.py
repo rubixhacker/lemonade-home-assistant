@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import aiohttp
@@ -22,7 +23,7 @@ except ImportError:  # pragma: no cover - older Home Assistant compatibility
 from .api import LemonadeAuthError, LemonadeClient, LemonadeError
 from .const import (
     CONF_TIMEOUT,
-    DEFAULT_MODEL,
+    CONF_VERIFY_SSL,
     DEFAULT_NAME,
     DEFAULT_TIMEOUT,
     DEFAULT_URL,
@@ -35,6 +36,9 @@ from .profiles import (
     profile_definition,
     profile_definitions,
 )
+
+_LOGGER = logging.getLogger(__name__)
+
 
 def _entry_current_value(
     config_entry: config_entries.ConfigEntry, key: str, default: Any = None
@@ -74,8 +78,8 @@ DATA_SCHEMA = vol.Schema(
         vol.Optional(CONF_NAME, default=DEFAULT_NAME): str,
         vol.Required(CONF_URL, default=DEFAULT_URL): str,
         vol.Optional(CONF_API_KEY): str,
-        vol.Optional(CONF_MODEL, default=DEFAULT_MODEL): str,
         vol.Optional(CONF_TIMEOUT, default=DEFAULT_TIMEOUT): vol.Coerce(float),
+        vol.Optional(CONF_VERIFY_SSL, default=True): cv.boolean,
     }
 )
 
@@ -85,20 +89,30 @@ async def _async_validate_connection(
     url: str,
     api_key: str | None,
     timeout: float,
+    verify_ssl: bool,
 ) -> dict[str, str]:
     """Validate that Lemonade Server is reachable."""
     errors: dict[str, str] = {}
-    client = LemonadeClient(async_get_clientsession(hass), url, api_key, timeout)
+    client = LemonadeClient(
+        async_get_clientsession(hass),
+        url,
+        api_key=api_key,
+        timeout=timeout,
+        verify_ssl=verify_ssl,
+    )
 
     try:
         await client.health()
     except LemonadeAuthError:
         errors["base"] = "invalid_auth"
-    except (TimeoutError, aiohttp.ClientError):
+    except (TimeoutError, aiohttp.ClientError) as err:
+        _LOGGER.warning("Failed to connect to Lemonade Server at %s: %s", url, err)
         errors["base"] = "cannot_connect"
-    except LemonadeError:
+    except LemonadeError as err:
+        _LOGGER.warning("Lemonade Server validation failed at %s: %s", url, err)
         errors["base"] = "cannot_connect"
     except Exception:  # noqa: BLE001 - surface unexpected config-flow failures in logs
+        _LOGGER.exception("Unexpected Lemonade Server validation failure for %s", url)
         errors["base"] = "unknown"
 
     return errors
@@ -139,8 +153,8 @@ class LemonadeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         api_key = user_input.get(CONF_API_KEY)
         if isinstance(api_key, str):
             api_key = api_key.strip() or None
-        model = user_input.get(CONF_MODEL, DEFAULT_MODEL).strip()
         timeout = user_input.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)
+        verify_ssl = user_input.get(CONF_VERIFY_SSL, True)
 
         try:
             url = cv.url(url)
@@ -150,7 +164,13 @@ class LemonadeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if not errors:
             await self.async_set_unique_id(url)
             self._abort_if_unique_id_configured()
-            errors = await _async_validate_connection(self.hass, url, api_key, timeout)
+            errors = await _async_validate_connection(
+                self.hass,
+                url,
+                api_key,
+                timeout,
+                verify_ssl,
+            )
 
         if errors:
             return self.async_show_form(
@@ -161,8 +181,8 @@ class LemonadeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         data: dict[str, Any] = {
             CONF_URL: url,
-            CONF_MODEL: model,
             CONF_TIMEOUT: timeout,
+            CONF_VERIFY_SSL: verify_ssl,
         }
         if api_key:
             data[CONF_API_KEY] = api_key
@@ -219,6 +239,10 @@ class LemonadeOptionsFlow(config_entries.OptionsFlow):
                     config_entry, CONF_TIMEOUT, DEFAULT_TIMEOUT
                 ),
             ): vol.Coerce(float),
+            vol.Required(
+                CONF_VERIFY_SSL,
+                default=_entry_current_value(config_entry, CONF_VERIFY_SSL, True),
+            ): cv.boolean,
         }
 
         model_view = runtime_model_view(config_entry)

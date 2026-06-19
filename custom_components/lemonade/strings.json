@@ -8,8 +8,8 @@
           "name": "Name",
           "url": "Server URL",
           "api_key": "API key",
-          "model": "Default model",
-          "timeout": "Request timeout (seconds)"
+          "timeout": "Request timeout (seconds)",
+          "verify_ssl": "Verify SSL certificate"
         }
       }
     },
@@ -26,12 +26,6 @@
       "unknown_profile_type": "Unsupported Lemonade profile type."
     }
   },
-  "issues": {
-    "missing_capability": {
-      "title": "Lemonade Server missing {capability} model capability",
-      "description": "No downloaded Lemonade Server model advertises the {capability} capability in /v1/models. Install or expose a model with the required capability label, then reload the integration."
-    }
-  },
   "options": {
     "step": {
       "init": {
@@ -40,6 +34,7 @@
         "data": {
           "api_key": "API key",
           "timeout": "Request timeout (seconds)",
+          "verify_ssl": "Verify SSL certificate",
           "default_conversation_model": "Default conversation model",
           "default_ai_task_model": "Default AI task model",
           "default_image_model": "Default image model",

@@ -502,6 +502,7 @@ from lemonade.const import (  # noqa: E402
     CONF_DEFAULT_TTS_MODEL,
     CONF_LLM_HASS_API,
     CONF_TIMEOUT,
+    CONF_VERIFY_SSL,
     DEFAULT_SCAN_INTERVAL_SECONDS,
     DOMAIN,
     PLATFORMS,
@@ -1176,6 +1177,18 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             list(inspect.signature(LemonadeProfileSubentryFlow).parameters),
         )
 
+    async def test_initial_config_flow_omits_default_model_selector(self) -> None:
+        from lemonade.config_flow import LemonadeConfigFlow
+
+        flow = LemonadeConfigFlow()
+
+        result = await flow.async_step_user()
+
+        self.assertEqual("form", result["type"])
+        fields = _schema_fields(result["data_schema"])
+        self.assertNotIn(CONF_MODEL, fields)
+        self.assertTrue(fields[CONF_VERIFY_SSL][0].default)
+
     async def test_ai_task_profile_subentry_flow_uses_ai_task_models(self) -> None:
         from lemonade.config_flow import LemonadeProfileSubentryFlow
 
@@ -1281,9 +1294,10 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         from lemonade.config_flow import LemonadeConfigFlow, LemonadeOptionsFlow
 
         entry = SimpleNamespace(
-            data={CONF_API_KEY: "secret", CONF_TIMEOUT: 12.0},
+            data={CONF_API_KEY: "secret", CONF_TIMEOUT: 12.0, CONF_VERIFY_SSL: True},
             options={
                 CONF_TIMEOUT: 8.0,
+                CONF_VERIFY_SSL: False,
                 CONF_DEFAULT_CONVERSATION_MODEL: "chat-b",
             },
             runtime_data=SimpleNamespace(
@@ -1309,6 +1323,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         fields = _schema_fields(result["data_schema"])
         self.assertEqual("secret", fields[CONF_API_KEY][0].description["suggested_value"])
         self.assertEqual(8.0, fields[CONF_TIMEOUT][0].default)
+        self.assertFalse(fields[CONF_VERIFY_SSL][0].default)
         self.assertEqual(
             ["chat-a", "chat-b"],
             fields[CONF_DEFAULT_CONVERSATION_MODEL][1].config.options,
@@ -1331,6 +1346,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
         submitted = {
             CONF_TIMEOUT: 9.5,
+            CONF_VERIFY_SSL: False,
             CONF_DEFAULT_CONVERSATION_MODEL: "chat-a",
         }
 
@@ -1510,6 +1526,10 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(tools, payload["tools"])
         self.assertEqual(response_format, payload["response_format"])
 
+    async def test_chat_completion_omits_tool_payload_when_absent(self) -> None:
+        session = FakeSession({"choices": []})
+        client = LemonadeClient(session, "http://server")
+
         await client.chat_completion(
             model="chat-model", messages=[{"role": "user", "content": "Hi"}]
         )
@@ -1517,6 +1537,22 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         payload = session.requests[-1][2]["json"]
         self.assertNotIn("tools", payload)
         self.assertNotIn("response_format", payload)
+
+    async def test_api_requests_use_default_ssl_verification(self) -> None:
+        session = FakeHttpSession(FakeHttpResponse(status=200, payload={"ok": True}))
+        client = LemonadeClient(session, "https://server")
+
+        await client.health()
+
+        self.assertNotIn("ssl", session.requests[-1][2])
+
+    async def test_api_request_can_disable_ssl_verification(self) -> None:
+        session = FakeHttpSession(FakeHttpResponse(status=200, payload={"ok": True}))
+        client = LemonadeClient(session, "https://server", verify_ssl=False)
+
+        await client.health()
+
+        self.assertFalse(session.requests[-1][2]["ssl"])
 
     def test_llm_converts_content_and_tools_to_openai_shapes(self) -> None:
         from homeassistant.components.conversation import (
@@ -3197,6 +3233,8 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("options", strings)
         option_data = strings["options"]["step"]["init"]["data"]
+        self.assertIn(CONF_VERIFY_SSL, strings["config"]["step"]["user"]["data"])
+        self.assertIn(CONF_VERIFY_SSL, option_data)
         self.assertIn(CONF_DEFAULT_CONVERSATION_MODEL, option_data)
         self.assertIn(CONF_DEFAULT_AI_TASK_MODEL, option_data)
         self.assertIn(CONF_DEFAULT_IMAGE_MODEL, option_data)
@@ -3221,39 +3259,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             strings["config"]["abort"]["unknown_profile_type"],
         )
 
-    def test_strings_define_missing_capability_repair_translation(self) -> None:
-        strings = json.loads(Path("custom_components/lemonade/strings.json").read_text())
-
-        issue = strings.get("issues", {}).get("missing_capability")
-
-        self.assertIsNotNone(issue)
-        self.assertIn("{capability}", issue["title"])
-        self.assertIn("{capability}", issue["description"])
-
-    def test_repairs_create_and_delete_missing_capability_issues(self) -> None:
-        from lemonade.repairs import (
-            async_create_missing_capability_issue,
-            async_delete_missing_capability_issue,
-        )
-
-        hass = FakeHass()
-
-        async_create_missing_capability_issue(hass, "entry-1", CAPABILITY_IMAGE)
-        async_delete_missing_capability_issue(hass, "entry-1", CAPABILITY_IMAGE)
-
-        self.assertEqual((hass, DOMAIN, "missing_image_entry-1"), ir.CREATED[0][0])
-        self.assertEqual(
-            {
-                "is_fixable": False,
-                "severity": ir.IssueSeverity.WARNING,
-                "translation_key": "missing_capability",
-                "translation_placeholders": {"capability": CAPABILITY_IMAGE},
-            },
-            ir.CREATED[0][1],
-        )
-        self.assertEqual((hass, DOMAIN, "missing_image_entry-1"), ir.DELETED[0][0])
-
-    def test_missing_capability_repairs_use_shared_catalog_adapter(self) -> None:
+    def test_missing_capability_repairs_are_cleanup_only(self) -> None:
         ir.CREATED.clear()
         ir.DELETED.clear()
         coordinator = SimpleNamespace(
@@ -3266,11 +3272,15 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             coordinator,
         )
 
-        self.assertEqual(["missing_image_entry-1"], [call[0][2] for call in ir.DELETED])
         self.assertEqual(
-            ["missing_tts_entry-1", "missing_stt_entry-1"],
-            [call[0][2] for call in ir.CREATED],
+            [
+                "missing_image_entry-1",
+                "missing_tts_entry-1",
+                "missing_stt_entry-1",
+            ],
+            [call[0][2] for call in ir.DELETED],
         )
+        self.assertEqual([], ir.CREATED)
 
     def test_services_use_client_from_runtime_data_for_requested_entry(self) -> None:
         from homeassistant.exceptions import HomeAssistantError
@@ -4257,11 +4267,13 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 url: str,
                 api_key: str | None = None,
                 timeout: float = 30.0,
+                verify_ssl: bool = True,
             ) -> None:
                 self.session = session
                 self.url = url
                 self.api_key = api_key
                 self.timeout = timeout
+                self.verify_ssl = verify_ssl
 
             async def health(self) -> dict[str, Any]:
                 return {"status": "ok"}
@@ -4295,7 +4307,11 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             CONF_API_KEY: "data-secret",
             CONF_TIMEOUT: 12.0,
         }
-        entry.options = {CONF_API_KEY: "option-secret", CONF_TIMEOUT: 3.5}
+        entry.options = {
+            CONF_API_KEY: "option-secret",
+            CONF_TIMEOUT: 3.5,
+            CONF_VERIFY_SSL: False,
+        }
 
         self.assertTrue(await integration.async_setup_entry(hass, entry))
 
@@ -4303,6 +4319,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("http://lemonade.local", entry.runtime_data.client.url)
         self.assertEqual("option-secret", entry.runtime_data.client.api_key)
         self.assertEqual(3.5, entry.runtime_data.client.timeout)
+        self.assertFalse(entry.runtime_data.client.verify_ssl)
         self.assertEqual([3.5], health_timeouts)
 
 
@@ -4314,11 +4331,13 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 url: str,
                 api_key: str | None = None,
                 timeout: float = 30.0,
+                verify_ssl: bool = True,
             ) -> None:
                 self.session = session
                 self.url = url
                 self.api_key = api_key
                 self.timeout = timeout
+                self.verify_ssl = verify_ssl
 
             async def health(self) -> dict[str, Any]:
                 return {"status": "ok"}
@@ -4355,13 +4374,11 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             [
                 (hass, DOMAIN, "missing_image_entry-1"),
                 (hass, DOMAIN, "missing_tts_entry-1"),
+                (hass, DOMAIN, "missing_stt_entry-1"),
             ],
             [call[0] for call in ir.DELETED],
         )
-        self.assertEqual(
-            [(hass, DOMAIN, "missing_stt_entry-1")],
-            [call[0] for call in ir.CREATED],
-        )
+        self.assertEqual([], ir.CREATED)
 
 
     def test_entity_base_sets_unique_id_and_service_device_info(self) -> None:
@@ -4448,6 +4465,10 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             getattr(entities["image_model_count"], "_attr_state_class", None),
         )
         self.assertEqual(1, entities["tts_model_count"].native_value)
+        self.assertEqual(
+            "Text-to-speech model count",
+            entities["tts_model_count"]._attr_name,
+        )
         self.assertEqual(
             SensorStateClass.MEASUREMENT,
             getattr(entities["tts_model_count"], "_attr_state_class", None),
@@ -4916,6 +4937,10 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(
             "chat-b", entities[CONF_DEFAULT_CONVERSATION_MODEL].current_option
+        )
+        self.assertEqual(
+            "Default conversation model",
+            entities[CONF_DEFAULT_CONVERSATION_MODEL]._attr_name,
         )
         self.assertEqual("task-a", entities[CONF_DEFAULT_AI_TASK_MODEL].current_option)
         self.assertEqual([], entities[CONF_DEFAULT_TTS_MODEL].options)
