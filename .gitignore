@@ -1,0 +1,5 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.worktrees/
+lemonade_custom_component.tar.gz

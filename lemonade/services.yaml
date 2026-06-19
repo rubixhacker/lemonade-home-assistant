@@ -1,0 +1,123 @@
+chat_completion:
+  name: Chat completion
+  description: Send a chat completion request to Lemonade Server.
+  fields:
+    entry_id:
+      name: Config entry ID
+      description: Optional Lemonade Server config entry ID. If omitted, the first loaded entry is used.
+      selector:
+        text:
+    model:
+      name: Model
+      description: Model ID. If omitted, the integration's default model is used.
+      selector:
+        text:
+    prompt:
+      name: Prompt
+      description: User prompt. Use either prompt or messages.
+      selector:
+        text:
+          multiline: true
+    system_prompt:
+      name: System prompt
+      description: Optional system prompt used when prompt is provided.
+      selector:
+        text:
+          multiline: true
+    messages:
+      name: Messages
+      description: OpenAI-compatible messages list.
+      selector:
+        object:
+    temperature:
+      name: Temperature
+      selector:
+        number:
+          min: 0
+          max: 2
+          step: 0.1
+          mode: slider
+    max_tokens:
+      name: Max tokens
+      selector:
+        number:
+          min: 1
+          max: 32768
+          step: 1
+          mode: box
+
+generate_image:
+  name: Generate image
+  description: Generate an image using Lemonade Server.
+  fields:
+    entry_id:
+      name: Config entry ID
+      selector:
+        text:
+    model:
+      name: Model
+      selector:
+        text:
+    prompt:
+      name: Prompt
+      required: true
+      selector:
+        text:
+          multiline: true
+    size:
+      name: Size
+      description: Optional size such as 1024x1024, if supported by the selected model/backend.
+      selector:
+        text:
+
+transcribe_audio:
+  name: Transcribe audio
+  description: Transcribe a local audio file with Lemonade Server.
+  fields:
+    entry_id:
+      name: Config entry ID
+      selector:
+        text:
+    model:
+      name: Model
+      selector:
+        text:
+    file_path:
+      name: File path
+      description: Path to a local audio file available to Home Assistant.
+      required: true
+      selector:
+        text:
+    language:
+      name: Language
+      description: Optional language code.
+      selector:
+        text:
+
+text_to_speech:
+  name: Text to speech
+  description: Convert text to speech using Lemonade Server. Response audio is returned as base64.
+  fields:
+    entry_id:
+      name: Config entry ID
+      selector:
+        text:
+    model:
+      name: Model
+      selector:
+        text:
+    text:
+      name: Text
+      required: true
+      selector:
+        text:
+          multiline: true
+    voice:
+      name: Voice
+      selector:
+        text:
+    response_format:
+      name: Response format
+      description: Optional format such as mp3, wav, or opus, if supported by the backend.
+      selector:
+        text:
