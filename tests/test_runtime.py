@@ -1384,6 +1384,368 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(b"image-bytes", result.image_data)
         self.assertEqual("catalog-image", result.model)
 
+    def test_ai_task_final_assistant_content_requires_assistant_role(self) -> None:
+        ai_task_module = _require_module("lemonade.ai_task")
+        chat_log = SimpleNamespace(
+            content=[
+                SimpleNamespace(role="assistant", content="assistant text"),
+                SimpleNamespace(content="missing role text"),
+            ],
+            deltas=[],
+        )
+
+        self.assertEqual(
+            "assistant text",
+            ai_task_module._final_assistant_content(chat_log),
+        )
+
+    def test_ai_task_resolve_data_model_falls_back_to_default_then_catalog(self) -> None:
+        ai_task_module = _require_module("lemonade.ai_task")
+        entry = SimpleNamespace(
+            options={CONF_DEFAULT_AI_TASK_MODEL: "entry-task"},
+            runtime_data=SimpleNamespace(
+                coordinator=SimpleNamespace(
+                    catalog=FakeCatalog({CAPABILITY_AI_TASK: ["catalog-task"]})
+                )
+            ),
+        )
+        entity = ai_task_module.LemonadeAITaskEntity(
+            entry, SimpleNamespace(subentry_id="task-1", data={})
+        )
+
+        self.assertEqual("entry-task", entity._resolve_data_model())
+
+        entry.options = {}
+        self.assertEqual("catalog-task", entity._resolve_data_model())
+
+    def test_ai_task_resolve_image_model_falls_back_to_catalog_model(self) -> None:
+        ai_task_module = _require_module("lemonade.ai_task")
+        entry = SimpleNamespace(
+            options={},
+            runtime_data=SimpleNamespace(
+                coordinator=SimpleNamespace(
+                    catalog=FakeCatalog({CAPABILITY_IMAGE: ["catalog-image"]})
+                )
+            ),
+        )
+        entity = ai_task_module.LemonadeAITaskEntity(
+            entry, SimpleNamespace(subentry_id="task-1", data={})
+        )
+
+        self.assertEqual("catalog-image", entity._resolve_image_model())
+
+    async def test_ai_task_generate_data_errors_when_no_ai_task_model_exists(self) -> None:
+        from homeassistant.exceptions import HomeAssistantError
+
+        ai_task_module = _require_module("lemonade.ai_task")
+        entry = SimpleNamespace(
+            options={},
+            runtime_data=SimpleNamespace(
+                client=object(),
+                coordinator=SimpleNamespace(
+                    catalog=FakeCatalog({CAPABILITY_AI_TASK: []})
+                ),
+            ),
+        )
+        entity = ai_task_module.LemonadeAITaskEntity(
+            entry, SimpleNamespace(subentry_id="task-1", data={})
+        )
+
+        with self.assertRaisesRegex(
+            HomeAssistantError, "No Lemonade AI task model is available"
+        ):
+            await entity._async_generate_data(
+                SimpleNamespace(structure=None), SimpleNamespace()
+            )
+
+    async def test_ai_task_generate_image_errors_when_no_image_model_exists(self) -> None:
+        from homeassistant.exceptions import HomeAssistantError
+
+        ai_task_module = _require_module("lemonade.ai_task")
+        entry = SimpleNamespace(
+            options={},
+            runtime_data=SimpleNamespace(
+                client=object(),
+                coordinator=SimpleNamespace(catalog=FakeCatalog({CAPABILITY_IMAGE: []})),
+            ),
+        )
+        entity = ai_task_module.LemonadeAITaskEntity(
+            entry, SimpleNamespace(subentry_id="task-1", data={})
+        )
+
+        with self.assertRaisesRegex(
+            HomeAssistantError, "No Lemonade image model is available"
+        ):
+            await entity._async_generate_image(SimpleNamespace(), SimpleNamespace())
+
+    async def test_ai_task_generate_image_errors_when_response_has_no_image(self) -> None:
+        from homeassistant.exceptions import HomeAssistantError
+
+        ai_task_module = _require_module("lemonade.ai_task")
+
+        class Client:
+            async def generate_image(self, **kwargs: Any) -> dict[str, Any]:
+                return {"data": [{"b64_json": "not base64"}]}
+
+        entry = SimpleNamespace(
+            options={CONF_DEFAULT_IMAGE_MODEL: "entry-image"},
+            runtime_data=SimpleNamespace(
+                client=Client(),
+                coordinator=SimpleNamespace(catalog=FakeCatalog({CAPABILITY_IMAGE: []})),
+            ),
+        )
+        entity = ai_task_module.LemonadeAITaskEntity(
+            entry, SimpleNamespace(subentry_id="task-1", data={})
+        )
+
+        with self.assertRaisesRegex(HomeAssistantError, "No image returned"):
+            await entity._async_generate_image(
+                SimpleNamespace(instructions="Draw a lemon"),
+                SimpleNamespace(conversation_id="conversation-1"),
+            )
+
+    async def test_ai_task_generate_image_decodes_case_insensitive_data_url(self) -> None:
+        from homeassistant.components import ai_task
+
+        ai_task_module = _require_module("lemonade.ai_task")
+
+        class Client:
+            async def generate_image(self, **kwargs: Any) -> dict[str, Any]:
+                return {"data": [{"url": "DATA:image/png;base64,aW1hZ2UtYnl0ZXM="}]}
+
+        entry = SimpleNamespace(
+            options={CONF_DEFAULT_IMAGE_MODEL: "entry-image"},
+            runtime_data=SimpleNamespace(
+                client=Client(),
+                coordinator=SimpleNamespace(catalog=FakeCatalog({CAPABILITY_IMAGE: []})),
+            ),
+        )
+        entity = ai_task_module.LemonadeAITaskEntity(
+            entry, SimpleNamespace(subentry_id="task-1", data={})
+        )
+
+        result = await entity._async_generate_image(
+            SimpleNamespace(instructions="Draw a lemon"),
+            SimpleNamespace(conversation_id="conversation-1"),
+        )
+
+        self.assertIsInstance(result, ai_task.GenImageTaskResult)
+        self.assertEqual(b"image-bytes", result.image_data)
+
+    async def test_ai_task_generate_data_structured_response_errors_for_non_json(
+        self,
+    ) -> None:
+        from homeassistant.components.conversation import UserContent
+        from homeassistant.exceptions import HomeAssistantError
+
+        ai_task_module = _require_module("lemonade.ai_task")
+
+        class Client:
+            async def chat_completion(self, **kwargs: Any) -> dict[str, Any]:
+                return {"choices": [{"message": {"content": "not json"}}]}
+
+        class ChatLog:
+            conversation_id = "conversation-1"
+
+            def __init__(self) -> None:
+                self.content = [UserContent("Return JSON")]
+                self.llm_api = None
+                self.unresponded_tool_results: list[Any] = []
+                self.deltas: list[dict[str, Any]] = []
+
+            async def async_add_delta_content_stream(
+                self, agent_id: str, stream: Any
+            ) -> None:
+                async for delta in stream:
+                    self.deltas.append(delta)
+
+        entry = SimpleNamespace(
+            options={CONF_DEFAULT_AI_TASK_MODEL: "entry-task"},
+            runtime_data=SimpleNamespace(
+                client=Client(),
+                coordinator=SimpleNamespace(
+                    catalog=FakeCatalog({CAPABILITY_AI_TASK: ["catalog-task"]})
+                ),
+            ),
+        )
+        entity = ai_task_module.LemonadeAITaskEntity(
+            entry, SimpleNamespace(subentry_id="task-1", data={})
+        )
+
+        with self.assertRaisesRegex(
+            HomeAssistantError, "Error with Lemonade structured response"
+        ):
+            await entity._async_generate_data(
+                SimpleNamespace(structure={"type": "json_object"}), ChatLog()
+            )
+
+    async def test_ai_task_generate_data_returns_raw_assistant_text_without_structure(
+        self,
+    ) -> None:
+        from homeassistant.components.conversation import UserContent
+        from homeassistant.components import ai_task
+
+        ai_task_module = _require_module("lemonade.ai_task")
+
+        class Client:
+            async def chat_completion(self, **kwargs: Any) -> dict[str, Any]:
+                return {"choices": [{"message": {"content": "plain text"}}]}
+
+        class ChatLog:
+            conversation_id = "conversation-1"
+
+            def __init__(self) -> None:
+                self.content = [UserContent("Say hi")]
+                self.llm_api = None
+                self.unresponded_tool_results: list[Any] = []
+                self.deltas: list[dict[str, Any]] = []
+
+            async def async_add_delta_content_stream(
+                self, agent_id: str, stream: Any
+            ) -> None:
+                async for delta in stream:
+                    self.deltas.append(delta)
+
+        entry = SimpleNamespace(
+            options={CONF_DEFAULT_AI_TASK_MODEL: "entry-task"},
+            runtime_data=SimpleNamespace(
+                client=Client(),
+                coordinator=SimpleNamespace(
+                    catalog=FakeCatalog({CAPABILITY_AI_TASK: ["catalog-task"]})
+                ),
+            ),
+        )
+        entity = ai_task_module.LemonadeAITaskEntity(
+            entry, SimpleNamespace(subentry_id="task-1", data={})
+        )
+
+        result = await entity._async_generate_data(
+            SimpleNamespace(structure=None), ChatLog()
+        )
+
+        self.assertIsInstance(result, ai_task.GenDataTaskResult)
+        self.assertEqual("plain text", result.data)
+
+    async def test_ai_task_generate_data_translates_aiohttp_client_error(self) -> None:
+        import aiohttp
+        from homeassistant.exceptions import HomeAssistantError
+
+        ai_task_module = _require_module("lemonade.ai_task")
+
+        class Client:
+            async def chat_completion(self, **kwargs: Any) -> dict[str, Any]:
+                raise aiohttp.ClientError("network down")
+
+        entry = SimpleNamespace(
+            options={CONF_DEFAULT_AI_TASK_MODEL: "entry-task"},
+            runtime_data=SimpleNamespace(
+                client=Client(),
+                coordinator=SimpleNamespace(
+                    catalog=FakeCatalog({CAPABILITY_AI_TASK: ["catalog-task"]})
+                ),
+            ),
+        )
+        entity = ai_task_module.LemonadeAITaskEntity(
+            entry, SimpleNamespace(subentry_id="task-1", data={})
+        )
+
+        with self.assertRaisesRegex(
+            HomeAssistantError, "Error generating data with Lemonade: network down"
+        ):
+            await entity._async_generate_data(
+                SimpleNamespace(structure=None),
+                SimpleNamespace(content=[], llm_api=None),
+            )
+
+    async def test_ai_task_generate_data_translates_lemonade_client_error(self) -> None:
+        from homeassistant.exceptions import HomeAssistantError
+        from lemonade.api import LemonadeError
+
+        ai_task_module = _require_module("lemonade.ai_task")
+
+        class Client:
+            async def chat_completion(self, **kwargs: Any) -> dict[str, Any]:
+                raise LemonadeError("boom")
+
+        entry = SimpleNamespace(
+            options={CONF_DEFAULT_AI_TASK_MODEL: "entry-task"},
+            runtime_data=SimpleNamespace(
+                client=Client(),
+                coordinator=SimpleNamespace(
+                    catalog=FakeCatalog({CAPABILITY_AI_TASK: ["catalog-task"]})
+                ),
+            ),
+        )
+        entity = ai_task_module.LemonadeAITaskEntity(
+            entry, SimpleNamespace(subentry_id="task-1", data={})
+        )
+
+        with self.assertRaisesRegex(
+            HomeAssistantError, "Error generating data with Lemonade: boom"
+        ):
+            await entity._async_generate_data(
+                SimpleNamespace(structure=None),
+                SimpleNamespace(content=[], llm_api=None),
+            )
+
+    async def test_ai_task_generate_image_translates_aiohttp_client_error(self) -> None:
+        import aiohttp
+        from homeassistant.exceptions import HomeAssistantError
+
+        ai_task_module = _require_module("lemonade.ai_task")
+
+        class Client:
+            async def generate_image(self, **kwargs: Any) -> dict[str, Any]:
+                raise aiohttp.ClientError("network down")
+
+        entry = SimpleNamespace(
+            options={CONF_DEFAULT_IMAGE_MODEL: "entry-image"},
+            runtime_data=SimpleNamespace(
+                client=Client(),
+                coordinator=SimpleNamespace(catalog=FakeCatalog({CAPABILITY_IMAGE: []})),
+            ),
+        )
+        entity = ai_task_module.LemonadeAITaskEntity(
+            entry, SimpleNamespace(subentry_id="task-1", data={})
+        )
+
+        with self.assertRaisesRegex(
+            HomeAssistantError, "Error generating image with Lemonade: network down"
+        ):
+            await entity._async_generate_image(
+                SimpleNamespace(instructions="Draw a lemon"),
+                SimpleNamespace(conversation_id="conversation-1"),
+            )
+
+    async def test_ai_task_generate_image_translates_lemonade_client_error(self) -> None:
+        from homeassistant.exceptions import HomeAssistantError
+        from lemonade.api import LemonadeError
+
+        ai_task_module = _require_module("lemonade.ai_task")
+
+        class Client:
+            async def generate_image(self, **kwargs: Any) -> dict[str, Any]:
+                raise LemonadeError("boom")
+
+        entry = SimpleNamespace(
+            options={CONF_DEFAULT_IMAGE_MODEL: "entry-image"},
+            runtime_data=SimpleNamespace(
+                client=Client(),
+                coordinator=SimpleNamespace(catalog=FakeCatalog({CAPABILITY_IMAGE: []})),
+            ),
+        )
+        entity = ai_task_module.LemonadeAITaskEntity(
+            entry, SimpleNamespace(subentry_id="task-1", data={})
+        )
+
+        with self.assertRaisesRegex(
+            HomeAssistantError, "Error generating image with Lemonade: boom"
+        ):
+            await entity._async_generate_image(
+                SimpleNamespace(instructions="Draw a lemon"),
+                SimpleNamespace(conversation_id="conversation-1"),
+            )
+
     async def test_conversation_entity_handles_message_with_resolved_model(self) -> None:
         from homeassistant.components import conversation
 

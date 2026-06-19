@@ -9,6 +9,8 @@ import json
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+import aiohttp
+
 from homeassistant.components import ai_task
 from homeassistant.const import CONF_MODEL
 from homeassistant.core import HomeAssistant
@@ -20,6 +22,7 @@ try:
 except ImportError:  # pragma: no cover - Home Assistant always provides this
     json_loads = json.loads
 
+from .api import LemonadeError
 from .const import (
     CAPABILITY_AI_TASK,
     CAPABILITY_IMAGE,
@@ -114,7 +117,7 @@ def _final_assistant_content(chat_log: Any) -> str:
 
     for content_item in reversed(getattr(chat_log, "content", []) or []):
         role = _value(content_item, "role")
-        if role is not None and role != "assistant":
+        if role != "assistant":
             continue
         content = _value(content_item, "content")
         if isinstance(content, str):
@@ -166,7 +169,7 @@ def _decode_image_value(value: Any) -> bytes | None:
         return None
 
     encoded = value
-    if value.startswith("data:"):
+    if value[:5].lower() == "data:":
         _metadata, separator, encoded = value.partition(",")
         if not separator:
             return None
@@ -245,13 +248,19 @@ class LemonadeAITaskEntity(ai_task.AITaskEntity):
     async def _async_generate_data(self, task: Any, chat_log: Any) -> Any:
         """Generate data for an AI task using Lemonade."""
         structure = getattr(task, "structure", None)
-        await async_handle_chat_log(
-            getattr(self, "entity_id", None) or self._attr_unique_id,
-            self.entry.runtime_data.client,
-            self._resolve_data_model(),
-            chat_log,
-            structure=structure,
-        )
+        model = self._resolve_data_model()
+        try:
+            await async_handle_chat_log(
+                getattr(self, "entity_id", None) or self._attr_unique_id,
+                self.entry.runtime_data.client,
+                model,
+                chat_log,
+                structure=structure,
+            )
+        except (LemonadeError, aiohttp.ClientError) as err:
+            raise HomeAssistantError(
+                f"Error generating data with Lemonade: {err}"
+            ) from err
         content = _final_assistant_content(chat_log)
         if structure is not None:
             try:
@@ -268,16 +277,23 @@ class LemonadeAITaskEntity(ai_task.AITaskEntity):
     async def _async_generate_image(self, task: Any, chat_log: Any) -> Any:
         """Generate an image for an AI task using Lemonade."""
         image_model = self._resolve_image_model()
-        response = await self.entry.runtime_data.client.generate_image(
-            prompt=getattr(task, "instructions", ""),
-            model=image_model,
-        )
+        try:
+            response = await self.entry.runtime_data.client.generate_image(
+                prompt=getattr(task, "instructions", ""),
+                model=image_model,
+            )
+        except (LemonadeError, aiohttp.ClientError) as err:
+            raise HomeAssistantError(
+                f"Error generating image with Lemonade: {err}"
+            ) from err
         image_bytes = _decode_image_response(response)
         if image_bytes is None:
             raise HomeAssistantError("No image returned")
         return ai_task.GenImageTaskResult(
             image_data=image_bytes,
             conversation_id=getattr(chat_log, "conversation_id", None),
+            # Lemonade image responses currently do not include a MIME type.
+            # Treat decoded image payloads as PNG for Home Assistant results.
             mime_type="image/png",
             model=image_model,
         )
