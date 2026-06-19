@@ -108,5 +108,44 @@
         "unknown_profile_type": "Unsupported Lemonade profile type."
       }
     }
+  },
+  "entity": {
+    "sensor": {
+      "server_status": {
+        "name": "Server status"
+      },
+      "model_count": {
+        "name": "Model count"
+      },
+      "conversation_model_count": {
+        "name": "Conversation model count"
+      },
+      "image_model_count": {
+        "name": "Image model count"
+      },
+      "tts_model_count": {
+        "name": "Text-to-speech model count"
+      },
+      "stt_model_count": {
+        "name": "Speech-to-text model count"
+      }
+    },
+    "select": {
+      "default_conversation_model": {
+        "name": "Default conversation model"
+      },
+      "default_ai_task_model": {
+        "name": "Default AI task model"
+      },
+      "default_image_model": {
+        "name": "Default image model"
+      },
+      "default_tts_model": {
+        "name": "Default text-to-speech model"
+      },
+      "default_stt_model": {
+        "name": "Default speech-to-text model"
+      }
+    }
   }
 }

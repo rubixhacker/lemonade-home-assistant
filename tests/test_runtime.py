@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import inspect
 import json
 from pathlib import Path
@@ -131,6 +132,20 @@ def _install_homeassistant_stubs() -> None:
     homeassistant.__path__ = []
     sys.modules.setdefault("homeassistant", homeassistant)
 
+    components = ModuleType("homeassistant.components")
+    components.__path__ = []
+    sys.modules.setdefault("homeassistant.components", components)
+
+    sensor_component = ModuleType("homeassistant.components.sensor")
+    sensor_component.SensorEntity = type("SensorEntity", (), {})
+    sys.modules.setdefault("homeassistant.components.sensor", sensor_component)
+    components.sensor = sensor_component
+
+    select_component = ModuleType("homeassistant.components.select")
+    select_component.SelectEntity = type("SelectEntity", (), {})
+    sys.modules.setdefault("homeassistant.components.select", select_component)
+    components.select = select_component
+
     config_entries = ModuleType("homeassistant.config_entries")
     config_entries.ConfigEntry = type(
         "ConfigEntry",
@@ -190,6 +205,23 @@ def _install_homeassistant_stubs() -> None:
     )
     helpers.config_validation = config_validation
 
+
+    device_registry = ModuleType("homeassistant.helpers.device_registry")
+
+    class DeviceInfo(dict):
+        def __init__(self, **kwargs: Any) -> None:
+            super().__init__(**kwargs)
+
+    device_registry.DeviceEntryType = SimpleNamespace(SERVICE="service")
+    device_registry.DeviceInfo = DeviceInfo
+    sys.modules.setdefault("homeassistant.helpers.device_registry", device_registry)
+    helpers.device_registry = device_registry
+
+    entity_platform = ModuleType("homeassistant.helpers.entity_platform")
+    entity_platform.AddEntitiesCallback = object
+    sys.modules.setdefault("homeassistant.helpers.entity_platform", entity_platform)
+    helpers.entity_platform = entity_platform
+
     aiohttp_client = ModuleType("homeassistant.helpers.aiohttp_client")
     aiohttp_client.async_get_clientsession = lambda hass: "session"
     sys.modules.setdefault("homeassistant.helpers.aiohttp_client", aiohttp_client)
@@ -243,6 +275,21 @@ def _install_homeassistant_stubs() -> None:
             self.listeners.append(update_callback)
             return lambda: self.listeners.remove(update_callback)
 
+
+    class CoordinatorEntity:
+        def __init__(self, coordinator: Any) -> None:
+            self.coordinator = coordinator
+            self.hass = getattr(coordinator, "hass", None)
+
+        @classmethod
+        def __class_getitem__(cls, item: Any) -> type["CoordinatorEntity"]:
+            return cls
+
+        @property
+        def available(self) -> bool:
+            return getattr(self.coordinator, "last_update_success", True)
+
+    update_coordinator.CoordinatorEntity = CoordinatorEntity
     update_coordinator.DataUpdateCoordinator = DataUpdateCoordinator
     sys.modules.setdefault("homeassistant.helpers.update_coordinator", update_coordinator)
 
@@ -252,6 +299,13 @@ def _install_homeassistant_stubs() -> None:
 
 
 _install_homeassistant_stubs()
+
+
+def _require_module(module_name: str) -> ModuleType:
+    spec = importlib.util.find_spec(module_name)
+    if spec is None:
+        raise AssertionError(f"{module_name} should exist")
+    return importlib.import_module(module_name)
 
 from homeassistant.const import (  # noqa: E402
     CONF_API_KEY,
@@ -290,6 +344,7 @@ class FakeConfigEntries:
     def __init__(self) -> None:
         self.forwarded: list[tuple[Any, Any]] = []
         self.unloaded: list[tuple[Any, Any]] = []
+        self.updated: list[tuple[Any, dict[str, Any]]] = []
 
     async def async_forward_entry_setups(self, entry: Any, platforms: Any) -> None:
         self.forwarded.append((entry, platforms))
@@ -297,6 +352,11 @@ class FakeConfigEntries:
     async def async_unload_platforms(self, entry: Any, platforms: Any) -> bool:
         self.unloaded.append((entry, platforms))
         return True
+
+    def async_update_entry(self, entry: Any, **kwargs: Any) -> None:
+        self.updated.append((entry, kwargs))
+        if "options" in kwargs:
+            entry.options = kwargs["options"]
 
     async def async_reload(self, entry_id: str) -> None:
         self.reloaded = entry_id
@@ -310,6 +370,7 @@ class FakeHass:
 
 class FakeEntry:
     entry_id = "entry-1"
+    title = "Lemonade Server"
     state = "loaded"
     data = {
         CONF_URL: "http://lemonade.local",
@@ -379,9 +440,18 @@ def _profile_flow(entry: Any, subentry_type: str, subentry: Any | None = None) -
 class FakeCatalog:
     def __init__(self, model_ids: dict[str, list[str]]) -> None:
         self._model_ids = model_ids
+        all_model_ids = dict.fromkeys(
+            model_id for ids in model_ids.values() for model_id in ids
+        )
+        self.models = tuple(SimpleNamespace(id=model_id) for model_id in all_model_ids)
 
     def model_ids(self, capability: str) -> list[str]:
         return list(self._model_ids.get(capability, []))
+
+    def models_for(self, capability: str) -> tuple[Any, ...]:
+        return tuple(
+            SimpleNamespace(id=model_id) for model_id in self._model_ids.get(capability, [])
+        )
 
 
 class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
@@ -863,6 +933,169 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             [(hass, DOMAIN, "missing_stt_entry-1")],
             [call[0] for call in ir.CREATED],
+        )
+
+
+    def test_entity_base_sets_unique_id_and_service_device_info(self) -> None:
+        entity_module = _require_module("lemonade.entity")
+        hass = FakeHass()
+        coordinator = SimpleNamespace(
+            hass=hass,
+            catalog=FakeCatalog({}),
+            last_update_success=True,
+        )
+        entry = FakeEntry()
+        entry.title = "Kitchen Lemonade"
+        entry.runtime_data = SimpleNamespace(coordinator=coordinator)
+
+        entity = entity_module.LemonadeEntity(entry, "server_status")
+
+        self.assertIs(entity.coordinator, coordinator)
+        self.assertIs(entity.entry, entry)
+        self.assertTrue(entity._attr_has_entity_name)
+        self.assertEqual("entry-1_server_status", entity._attr_unique_id)
+        self.assertEqual(
+            {
+                "identifiers": {(DOMAIN, entry.entry_id)},
+                "name": "Kitchen Lemonade",
+                "manufacturer": "Lemonade Server",
+                "entry_type": "service",
+            },
+            dict(entity._attr_device_info),
+        )
+
+    async def test_sensor_platform_adds_status_and_model_count_entities(self) -> None:
+        sensor_module = _require_module("lemonade.sensor")
+        hass = FakeHass()
+        coordinator = SimpleNamespace(
+            hass=hass,
+            last_update_success=True,
+            catalog=FakeCatalog(
+                {
+                    CAPABILITY_CONVERSATION: ["chat-a", "chat-b"],
+                    CAPABILITY_IMAGE: ["image-a"],
+                    CAPABILITY_TTS: ["voice-a"],
+                    CAPABILITY_STT: [],
+                }
+            ),
+        )
+        entry = FakeEntry()
+        entry.runtime_data = SimpleNamespace(coordinator=coordinator)
+        added: list[Any] = []
+
+        await sensor_module.async_setup_entry(hass, entry, added.extend)
+
+        entities = {entity._attr_translation_key: entity for entity in added}
+        self.assertEqual(
+            {
+                "server_status",
+                "model_count",
+                "conversation_model_count",
+                "image_model_count",
+                "tts_model_count",
+                "stt_model_count",
+            },
+            set(entities),
+        )
+        self.assertEqual("online", entities["server_status"].native_value)
+        coordinator.last_update_success = False
+        self.assertEqual("offline", entities["server_status"].native_value)
+        self.assertTrue(entities["server_status"].available)
+        self.assertEqual(4, entities["model_count"].native_value)
+        self.assertEqual(2, entities["conversation_model_count"].native_value)
+        self.assertEqual(1, entities["image_model_count"].native_value)
+        self.assertEqual(1, entities["tts_model_count"].native_value)
+        self.assertEqual(0, entities["stt_model_count"].native_value)
+
+    async def test_select_platform_adds_default_model_selects_and_updates_options(self) -> None:
+        select_module = _require_module("lemonade.select")
+        hass = FakeHass()
+        coordinator = SimpleNamespace(
+            hass=hass,
+            last_update_success=True,
+            catalog=FakeCatalog(
+                {
+                    CAPABILITY_CONVERSATION: ["chat-a", "chat-b"],
+                    CAPABILITY_AI_TASK: ["task-a"],
+                    CAPABILITY_IMAGE: ["image-a"],
+                    CAPABILITY_TTS: [],
+                    CAPABILITY_STT: ["stt-a"],
+                }
+            ),
+        )
+        entry = FakeEntry()
+        entry.options = {CONF_DEFAULT_CONVERSATION_MODEL: "chat-b"}
+        entry.runtime_data = SimpleNamespace(coordinator=coordinator)
+        added: list[Any] = []
+
+        await select_module.async_setup_entry(hass, entry, added.extend)
+
+        entities = {entity._attr_translation_key: entity for entity in added}
+        self.assertEqual(
+            {
+                CONF_DEFAULT_CONVERSATION_MODEL,
+                CONF_DEFAULT_AI_TASK_MODEL,
+                CONF_DEFAULT_IMAGE_MODEL,
+                CONF_DEFAULT_TTS_MODEL,
+                CONF_DEFAULT_STT_MODEL,
+            },
+            set(entities),
+        )
+        self.assertEqual(
+            ["chat-a", "chat-b"],
+            entities[CONF_DEFAULT_CONVERSATION_MODEL].options,
+        )
+        self.assertEqual(
+            "chat-b", entities[CONF_DEFAULT_CONVERSATION_MODEL].current_option
+        )
+        self.assertEqual("task-a", entities[CONF_DEFAULT_AI_TASK_MODEL].current_option)
+        self.assertEqual([], entities[CONF_DEFAULT_TTS_MODEL].options)
+        self.assertFalse(entities[CONF_DEFAULT_TTS_MODEL].available)
+        self.assertIsNone(entities[CONF_DEFAULT_TTS_MODEL].current_option)
+
+        await entities[CONF_DEFAULT_AI_TASK_MODEL].async_select_option("task-a")
+
+        self.assertEqual(
+            [
+                (
+                    entry,
+                    {
+                        "options": {
+                            CONF_DEFAULT_CONVERSATION_MODEL: "chat-b",
+                            CONF_DEFAULT_AI_TASK_MODEL: "task-a",
+                        }
+                    },
+                )
+            ],
+            hass.config_entries.updated,
+        )
+        self.assertEqual("entry-1", hass.config_entries.reloaded)
+
+    def test_strings_define_status_sensor_and_default_model_select_translations(self) -> None:
+        strings = json.loads(Path("lemonade/strings.json").read_text())
+
+        sensor_strings = strings.get("entity", {}).get("sensor", {})
+        self.assertEqual(
+            {
+                "server_status",
+                "model_count",
+                "conversation_model_count",
+                "image_model_count",
+                "tts_model_count",
+                "stt_model_count",
+            },
+            set(sensor_strings),
+        )
+        select_strings = strings.get("entity", {}).get("select", {})
+        self.assertEqual(
+            {
+                CONF_DEFAULT_CONVERSATION_MODEL,
+                CONF_DEFAULT_AI_TASK_MODEL,
+                CONF_DEFAULT_IMAGE_MODEL,
+                CONF_DEFAULT_TTS_MODEL,
+                CONF_DEFAULT_STT_MODEL,
+            },
+            set(select_strings),
         )
 
 

@@ -1,16 +1,16 @@
 # Graph Report - lemonade-core-quality  (2026-06-19)
 
 ## Corpus Check
-- 16 files · ~10,709 words
+- 19 files · ~11,790 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 493 nodes · 1032 edges · 41 communities (31 shown, 10 thin omitted)
-- Extraction: 79% EXTRACTED · 21% INFERRED · 0% AMBIGUOUS · INFERRED: 221 edges (avg confidence: 0.5)
+- 588 nodes · 1189 edges · 43 communities (26 shown, 17 thin omitted)
+- Extraction: 79% EXTRACTED · 21% INFERRED · 0% AMBIGUOUS · INFERRED: 247 edges (avg confidence: 0.5)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `45b8f3c9`
+- Built from commit: `f067d112`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -56,60 +56,62 @@
 - [[_COMMUNITY_Community 38|Community 38]]
 - [[_COMMUNITY_Community 39|Community 39]]
 - [[_COMMUNITY_Community 40|Community 40]]
+- [[_COMMUNITY_Community 41|Community 41]]
+- [[_COMMUNITY_Community 42|Community 42]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `LemonadeClient` - 75 edges
-2. `LemonadeRuntimeData` - 40 edges
-3. `LemonadeCoordinator` - 38 edges
-4. `LemonadeProfileSubentryFlow` - 34 edges
-5. `LemonadeConfigFlow` - 30 edges
-6. `LemonadeError` - 29 edges
-7. `LemonadeOptionsFlow` - 29 edges
-8. `RuntimeSetupTest` - 28 edges
-9. `LemonadeAuthError` - 28 edges
-10. `Any` - 27 edges
+1. `LemonadeClient` - 76 edges
+2. `LemonadeCoordinator` - 43 edges
+3. `LemonadeRuntimeData` - 41 edges
+4. `LemonadeProfileSubentryFlow` - 35 edges
+5. `RuntimeSetupTest` - 32 edges
+6. `LemonadeConfigFlow` - 31 edges
+7. `LemonadeOptionsFlow` - 30 edges
+8. `Any` - 29 edges
+9. `LemonadeError` - 29 edges
+10. `LemonadeAuthError` - 28 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `_VolMarker` --uses--> `LemonadeClient`  [INFERRED]
   tests/test_runtime.py → lemonade/api.py
-- `str` --uses--> `LemonadeClient`  [INFERRED]
-  tests/test_runtime.py → lemonade/api.py
-- `Any` --uses--> `LemonadeClient`  [INFERRED]
-  tests/test_runtime.py → lemonade/api.py
-- `int` --uses--> `LemonadeClient`  [INFERRED]
-  tests/test_runtime.py → lemonade/api.py
-- `_VolSchema` --uses--> `LemonadeClient`  [INFERRED]
-  tests/test_runtime.py → lemonade/api.py
+- `_VolMarker` --uses--> `LemonadeRuntimeData`  [INFERRED]
+  tests/test_runtime.py → lemonade/data.py
+- `_VolMarker` --uses--> `LemonadeProfileSubentryFlow`  [INFERRED]
+  tests/test_runtime.py → lemonade/config_flow.py
+- `_VolMarker` --uses--> `LemonadeConfigFlow`  [INFERRED]
+  tests/test_runtime.py → lemonade/config_flow.py
+- `_VolMarker` --uses--> `LemonadeOptionsFlow`  [INFERRED]
+  tests/test_runtime.py → lemonade/config_flow.py
 
-## Communities (41 total, 10 thin omitted)
+## Communities (43 total, 17 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.12
-Nodes (40): _async_chat_completion(), _async_generate_image(), async_register_services(), _async_text_to_speech(), _async_transcribe_audio(), _default_model(), _extract_chat_content(), _get_entry_and_client() (+32 more)
+Nodes (39): _async_chat_completion(), _async_generate_image(), async_register_services(), _async_text_to_speech(), _async_transcribe_audio(), _default_model(), _extract_chat_content(), _get_entry_and_client() (+31 more)
 
 ### Community 1 - "Community 1"
-Cohesion: 0.06
-Nodes (55): bool, bytes, ClientSession, ConfigSubentryFlow, ConfigType, Exception, int, LemonadeAuthError (+47 more)
+Cohesion: 0.15
+Nodes (15): bytes, Any, str, Return Lemonade Server health., Return available Lemonade models., Return Lemonade Server health., Return available Lemonade models., Convert text to speech and return audio bytes. (+7 more)
 
 ### Community 2 - "Community 2"
-Cohesion: 0.25
-Nodes (7): config, error, step, cannot_connect, invalid_auth, invalid_url, unknown
+Cohesion: 0.06
+Nodes (45): LemonadeEntity, LemonadeConfigEntry, str, Base entities for Lemonade Server., Base entity for Lemonade Server platforms., Initialize the Lemonade entity., async_setup_entry(), available() (+37 more)
 
 ### Community 3 - "Community 3"
-Cohesion: 0.07
-Nodes (39): FlowResult, async_get_options_flow(), async_get_supported_subentry_types(), _async_validate_connection(), _entry(), _entry_current_value(), _llm_api_options(), _model_select_selector() (+31 more)
+Cohesion: 0.18
+Nodes (11): FlowResult, Any, Update a profile subentry., Return the subentry being reconfigured, if any., Update a profile subentry., Handle profile creation or reconfiguration., Handle profile creation or reconfiguration., Create a Lemonade profile subentry. (+3 more)
 
 ### Community 4 - "Community 4"
 Cohesion: 0.06
-Nodes (39): LemonadeConfigFlow, LemonadeOptionsFlow, LemonadeProfileSubentryFlow, Handle a config flow for Lemonade Server., Handle Lemonade Server options., Handle Lemonade profile subentries., Initialize the subentry flow., Handle a config flow for Lemonade Server. (+31 more)
+Nodes (49): ConfigType, LemonadeClient, Small async Lemonade Server API client., LemonadeConfigFlow, LemonadeOptionsFlow, LemonadeProfileSubentryFlow, Handle a config flow for Lemonade Server., Handle Lemonade Server options. (+41 more)
 
 ### Community 5 - "Community 5"
 Cohesion: 0.17
 Nodes (11): after_dependencies, codeowners, config_flow, dependencies, documentation, domain, integration_type, iot_class (+3 more)
 
 ### Community 6 - "Community 6"
-Cohesion: 0.16
-Nodes (16): all_model_ids(), _capabilities(), is_llm(), _labels(), LemonadeModel, Any, bool, str (+8 more)
+Cohesion: 0.07
+Nodes (35): catalog(), health(), Any, ConfigEntry, HomeAssistant, LemonadeClient, str, Initialize the coordinator. (+27 more)
 
 ### Community 7 - "Community 7"
 Cohesion: 0.20
@@ -160,72 +162,52 @@ Cohesion: 0.50
 Nodes (3): File structure, Lemonade Home Assistant Core-Quality Implementation Plan, Self-review checklist
 
 ### Community 25 - "Community 25"
-Cohesion: 0.23
-Nodes (11): _async_delete_missing_capability_issues(), _async_update_missing_capability_issues(), str, Create or delete repair issues for missing optional capabilities., Delete repair issues for optional capabilities tied to an entry., async_create_missing_capability_issue(), async_delete_missing_capability_issue(), HomeAssistant (+3 more)
+Cohesion: 0.21
+Nodes (15): ConfigSubentryFlow, Exception, LemonadeAuthError, LemonadeError, Base Lemonade API error., Lemonade API authentication error., async_get_options_flow(), async_get_supported_subentry_types() (+7 more)
 
 ### Community 26 - "Community 26"
-Cohesion: 0.18
-Nodes (12): step, title, ai_task_data, conversation, step, title, description, title (+4 more)
+Cohesion: 0.06
+Nodes (42): already_configured, entry_not_loaded, no_models, unknown_profile_type, abort, step, title, config (+34 more)
 
 ### Community 27 - "Community 27"
-Cohesion: 0.25
-Nodes (8): api_key, default_ai_task_model, default_conversation_model, default_image_model, default_stt_model, default_tts_model, timeout, data
+Cohesion: 0.15
+Nodes (13): _async_validate_connection(), float, Config flow for Lemonade Server., Validate that Lemonade Server is reachable., Handle the initial step., Validate that Lemonade Server is reachable., Validate that Lemonade Server is reachable., Handle the initial step. (+5 more)
 
 ### Community 28 - "Community 28"
-Cohesion: 0.48
-Nodes (7): already_configured, entry_not_loaded, no_models, unknown_profile_type, abort, abort, abort
+Cohesion: 0.22
+Nodes (11): _entry_current_value(), _model_select_selector(), _profile_type(), str, Manage Lemonade Server options., Return the schema for a Lemonade profile., Return the schema for a Lemonade profile., Return an option value falling back to config entry data. (+3 more)
 
 ### Community 29 - "Community 29"
-Cohesion: 0.43
-Nodes (7): llm_hass_api, model, name, prompt, url, data, data
+Cohesion: 0.22
+Nodes (7): ClientSession, int, float, int, Create a chat completion., Create a chat completion., Initialize the client.
 
 ### Community 30 - "Community 30"
-Cohesion: 0.33
-Nodes (5): config_subentries, issues, missing_capability, description, title
-
-### Community 31 - "Community 31"
-Cohesion: 0.40
-Nodes (5): description, title, options, step, init
-
-### Community 32 - "Community 32"
-Cohesion: 0.21
-Nodes (8): catalog(), parse_models_response(), Parse a Lemonade models response into a capability catalog., LemonadeModelCatalog, _install_homeassistant_stubs(), ParseModelsResponseTest, Tests for Lemonade model parsing., Install minimal Home Assistant dependency stubs for unit tests.
-
-### Community 37 - "Community 37"
-Cohesion: 0.19
-Nodes (9): ConfigEntry, HomeAssistant, LemonadeClient, Initialize the coordinator., LemonadeModelCatalog, Parsed Lemonade models grouped by capability., Return models for a capability., Return model IDs for a capability. (+1 more)
+Cohesion: 0.06
+Nodes (34): name, name, name, name, name, name, entity, select (+26 more)
 
 ### Community 38 - "Community 38"
-Cohesion: 0.26
-Nodes (6): headers(), Async client for Lemonade Server's OpenAI-compatible API., Constants for the Lemonade Server integration., Data coordinator for Lemonade Server., The Lemonade Server integration., Repairs helpers for Lemonade Server.
-
-### Community 39 - "Community 39"
-Cohesion: 0.47
-Nodes (5): health(), Any, str, Fetch Lemonade Server health and models., server_status()
-
-### Community 40 - "Community 40"
-Cohesion: 0.50
-Nodes (4): get_default_model(), Return the configured default model for an entry., Return the configured default model for an entry., Return the configured default model for an entry.
+Cohesion: 0.07
+Nodes (40): bool, headers(), Async client for Lemonade Server's OpenAI-compatible API., Constants for the Lemonade Server integration., Data coordinator for Lemonade Server., _async_delete_missing_capability_issues(), async_setup(), async_setup_entry() (+32 more)
 
 ## Knowledge Gaps
-- **108 isolated node(s):** `bool`, `ClientSession`, `int`, `domain`, `name` (+103 more)
+- **119 isolated node(s):** `bool`, `ClientSession`, `int`, `domain`, `name` (+114 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **10 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **17 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `LemonadeClient` connect `Community 1` to `Community 0`, `Community 32`, `Community 3`, `Community 4`, `Community 37`, `Community 38`, `Community 39`, `Community 25`?**
-  _High betweenness centrality (0.192) - this node is a cross-community bridge._
-- **Why does `LemonadeCoordinator` connect `Community 4` to `Community 1`, `Community 37`, `Community 38`, `Community 39`, `Community 25`?**
-  _High betweenness centrality (0.048) - this node is a cross-community bridge._
-- **Why does `parse_models_response()` connect `Community 32` to `Community 38`, `Community 37`, `Community 6`, `Community 39`?**
-  _High betweenness centrality (0.039) - this node is a cross-community bridge._
-- **Are the 55 inferred relationships involving `LemonadeClient` (e.g. with `_VolMarker` and `str`) actually correct?**
-  _`LemonadeClient` has 55 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 34 inferred relationships involving `LemonadeRuntimeData` (e.g. with `_VolMarker` and `str`) actually correct?**
-  _`LemonadeRuntimeData` has 34 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 29 inferred relationships involving `LemonadeCoordinator` (e.g. with `_VolMarker` and `str`) actually correct?**
-  _`LemonadeCoordinator` has 29 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 23 inferred relationships involving `LemonadeProfileSubentryFlow` (e.g. with `_VolMarker` and `str`) actually correct?**
-  _`LemonadeProfileSubentryFlow` has 23 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `LemonadeClient` connect `Community 4` to `Community 0`, `Community 1`, `Community 3`, `Community 38`, `Community 6`, `Community 25`, `Community 27`, `Community 28`, `Community 29`?**
+  _High betweenness centrality (0.162) - this node is a cross-community bridge._
+- **Why does `LemonadeCoordinator` connect `Community 4` to `Community 2`, `Community 38`, `Community 6`?**
+  _High betweenness centrality (0.102) - this node is a cross-community bridge._
+- **Why does `LemonadeEntity` connect `Community 2` to `Community 4`?**
+  _High betweenness centrality (0.061) - this node is a cross-community bridge._
+- **Are the 56 inferred relationships involving `LemonadeClient` (e.g. with `_VolMarker` and `str`) actually correct?**
+  _`LemonadeClient` has 56 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 33 inferred relationships involving `LemonadeCoordinator` (e.g. with `_VolMarker` and `str`) actually correct?**
+  _`LemonadeCoordinator` has 33 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 35 inferred relationships involving `LemonadeRuntimeData` (e.g. with `_VolMarker` and `str`) actually correct?**
+  _`LemonadeRuntimeData` has 35 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 24 inferred relationships involving `LemonadeProfileSubentryFlow` (e.g. with `_VolMarker` and `str`) actually correct?**
+  _`LemonadeProfileSubentryFlow` has 24 INFERRED edges - model-reasoned connections that need verification._
