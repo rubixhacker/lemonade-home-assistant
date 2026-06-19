@@ -495,6 +495,7 @@ from lemonade.const import (  # noqa: E402
     CAPABILITY_IMAGE,
     CAPABILITY_STT,
     CAPABILITY_TTS,
+    CONF_DEFAULT_MODEL,
     CONF_DEFAULT_AI_TASK_MODEL,
     CONF_DEFAULT_CONVERSATION_MODEL,
     CONF_DEFAULT_IMAGE_MODEL,
@@ -759,6 +760,7 @@ class ModelResolutionTest(unittest.TestCase):
 
         entry = SimpleNamespace(
             data={
+                CONF_DEFAULT_MODEL: "global-model",
                 CONF_DEFAULT_AI_TASK_MODEL: "data-task",
                 CONF_DEFAULT_IMAGE_MODEL: "missing-image",
             },
@@ -815,6 +817,14 @@ class ModelResolutionTest(unittest.TestCase):
                 entry,
                 CAPABILITY_AI_TASK,
                 default_option=CONF_DEFAULT_AI_TASK_MODEL,
+            ),
+        )
+        self.assertEqual(
+            "global-model",
+            view.resolve_entry_model(
+                entry,
+                CAPABILITY_STT,
+                default_option=CONF_DEFAULT_STT_MODEL,
             ),
         )
         self.assertEqual(
@@ -1214,8 +1224,28 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual("form", result["type"])
         fields = _schema_fields(result["data_schema"])
-        self.assertEqual(["task-a"], fields[CONF_MODEL][1].config.options)
+        self.assertEqual(["chat-a", "task-a"], fields[CONF_MODEL][1].config.options)
         self.assertNotIn(CONF_LLM_HASS_API, fields)
+
+    async def test_conversation_profile_subentry_flow_uses_all_models(self) -> None:
+        from lemonade.config_flow import LemonadeProfileSubentryFlow
+
+        entry = SimpleNamespace(
+            state="loaded",
+            runtime_data=SimpleNamespace(
+                coordinator=SimpleNamespace(
+                    catalog=FakeCatalog({CAPABILITY_AI_TASK: ["omni-model"]})
+                )
+            ),
+        )
+        flow = _profile_flow(entry, SUBENTRY_TYPE_CONVERSATION)
+        flow.hass = SimpleNamespace(llm_apis=[])
+
+        result = await flow.async_step_user()
+
+        self.assertEqual("form", result["type"])
+        fields = _schema_fields(result["data_schema"])
+        self.assertEqual(["omni-model"], fields[CONF_MODEL][1].config.options)
 
     async def test_conversation_profile_subentry_flow_builds_schema(self) -> None:
         from lemonade.config_flow import LemonadeProfileSubentryFlow
@@ -1298,6 +1328,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             options={
                 CONF_TIMEOUT: 8.0,
                 CONF_VERIFY_SSL: False,
+                CONF_DEFAULT_MODEL: "chat-a",
                 CONF_DEFAULT_CONVERSATION_MODEL: "chat-b",
             },
             runtime_data=SimpleNamespace(
@@ -1325,6 +1356,11 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(8.0, fields[CONF_TIMEOUT][0].default)
         self.assertFalse(fields[CONF_VERIFY_SSL][0].default)
         self.assertEqual(
+            ["chat-a", "chat-b", "task-a", "image-a", "tts-a"],
+            fields[CONF_DEFAULT_MODEL][1].config.options,
+        )
+        self.assertEqual("chat-a", fields[CONF_DEFAULT_MODEL][0].default)
+        self.assertEqual(
             ["chat-a", "chat-b"],
             fields[CONF_DEFAULT_CONVERSATION_MODEL][1].config.options,
         )
@@ -1332,7 +1368,10 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(["task-a"], fields[CONF_DEFAULT_AI_TASK_MODEL][1].config.options)
         self.assertEqual(["image-a"], fields[CONF_DEFAULT_IMAGE_MODEL][1].config.options)
         self.assertEqual(["tts-a"], fields[CONF_DEFAULT_TTS_MODEL][1].config.options)
-        self.assertNotIn(CONF_DEFAULT_STT_MODEL, fields)
+        self.assertEqual(
+            ["chat-a", "chat-b", "task-a", "image-a", "tts-a"],
+            fields[CONF_DEFAULT_STT_MODEL][1].config.options,
+        )
 
     async def test_options_flow_creates_entry_with_submitted_options(self) -> None:
         from lemonade.config_flow import LemonadeOptionsFlow
@@ -1347,6 +1386,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         submitted = {
             CONF_TIMEOUT: 9.5,
             CONF_VERIFY_SSL: False,
+            CONF_DEFAULT_MODEL: "chat-a",
             CONF_DEFAULT_CONVERSATION_MODEL: "chat-a",
         }
 
@@ -3235,6 +3275,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         option_data = strings["options"]["step"]["init"]["data"]
         self.assertIn(CONF_VERIFY_SSL, strings["config"]["step"]["user"]["data"])
         self.assertIn(CONF_VERIFY_SSL, option_data)
+        self.assertIn(CONF_DEFAULT_MODEL, option_data)
         self.assertIn(CONF_DEFAULT_CONVERSATION_MODEL, option_data)
         self.assertIn(CONF_DEFAULT_AI_TASK_MODEL, option_data)
         self.assertIn(CONF_DEFAULT_IMAGE_MODEL, option_data)
@@ -3251,7 +3292,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             strings["config"]["abort"]["entry_not_loaded"],
         )
         self.assertEqual(
-            "No compatible Lemonade models are available for this profile type.",
+            "No Lemonade models are available.",
             strings["config"]["abort"]["no_models"],
         )
         self.assertEqual(
@@ -4916,7 +4957,10 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             ),
         )
         entry = FakeEntry()
-        entry.options = {CONF_DEFAULT_CONVERSATION_MODEL: "chat-b"}
+        entry.options = {
+            CONF_DEFAULT_MODEL: "task-a",
+            CONF_DEFAULT_CONVERSATION_MODEL: "chat-b",
+        }
         entry.runtime_data = SimpleNamespace(coordinator=coordinator)
         added: list[Any] = []
 
@@ -4924,13 +4968,20 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
         entities = {entity._attr_translation_key: entity for entity in added}
         self.assertEqual(
-            {
+            {CONF_DEFAULT_MODEL}
+            | {
                 presentation.default_option_key
                 for presentation in default_model_capability_presentations()
                 if presentation.default_option_key is not None
             },
             set(entities),
         )
+        self.assertEqual(
+            ["chat-a", "chat-b", "task-a", "image-a", "stt-a"],
+            entities[CONF_DEFAULT_MODEL].options,
+        )
+        self.assertEqual("task-a", entities[CONF_DEFAULT_MODEL].current_option)
+        self.assertEqual("Default model", entities[CONF_DEFAULT_MODEL]._attr_name)
         self.assertEqual(
             ["chat-a", "chat-b"],
             entities[CONF_DEFAULT_CONVERSATION_MODEL].options,
@@ -4943,9 +4994,12 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             entities[CONF_DEFAULT_CONVERSATION_MODEL]._attr_name,
         )
         self.assertEqual("task-a", entities[CONF_DEFAULT_AI_TASK_MODEL].current_option)
-        self.assertEqual([], entities[CONF_DEFAULT_TTS_MODEL].options)
-        self.assertFalse(entities[CONF_DEFAULT_TTS_MODEL].available)
-        self.assertIsNone(entities[CONF_DEFAULT_TTS_MODEL].current_option)
+        self.assertEqual(
+            ["chat-a", "chat-b", "task-a", "image-a", "stt-a"],
+            entities[CONF_DEFAULT_TTS_MODEL].options,
+        )
+        self.assertTrue(entities[CONF_DEFAULT_TTS_MODEL].available)
+        self.assertEqual("task-a", entities[CONF_DEFAULT_TTS_MODEL].current_option)
 
         await entities[CONF_DEFAULT_AI_TASK_MODEL].async_select_option("task-a")
 
@@ -4956,6 +5010,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                     {
                         "options": {
                             CONF_DEFAULT_CONVERSATION_MODEL: "chat-b",
+                            CONF_DEFAULT_MODEL: "task-a",
                             CONF_DEFAULT_AI_TASK_MODEL: "task-a",
                         }
                     },
@@ -4983,6 +5038,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         select_strings = strings.get("entity", {}).get("select", {})
         self.assertEqual(
             {
+                CONF_DEFAULT_MODEL,
                 CONF_DEFAULT_CONVERSATION_MODEL,
                 CONF_DEFAULT_AI_TASK_MODEL,
                 CONF_DEFAULT_IMAGE_MODEL,
@@ -4991,6 +5047,14 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             },
             set(select_strings),
         )
+
+    def test_custom_component_runtime_translations_match_strings(self) -> None:
+        strings = json.loads(Path("custom_components/lemonade/strings.json").read_text())
+        translations = json.loads(
+            Path("custom_components/lemonade/translations/en.json").read_text()
+        )
+
+        self.assertEqual(strings, translations)
 
 
 if __name__ == "__main__":

@@ -22,6 +22,7 @@ except ImportError:  # pragma: no cover - older Home Assistant compatibility
 
 from .api import LemonadeAuthError, LemonadeClient, LemonadeError
 from .const import (
+    CONF_DEFAULT_MODEL,
     CONF_TIMEOUT,
     CONF_VERIFY_SSL,
     DEFAULT_NAME,
@@ -246,11 +247,20 @@ class LemonadeOptionsFlow(config_entries.OptionsFlow):
         }
 
         model_view = runtime_model_view(config_entry)
+        all_model_ids = model_view.all_model_ids
+        if all_model_ids:
+            schema[
+                vol.Optional(
+                    CONF_DEFAULT_MODEL,
+                    default=_entry_current_value(config_entry, CONF_DEFAULT_MODEL),
+                )
+            ] = _model_select_selector(all_model_ids)
+
         for presentation in default_model_capability_presentations():
             option_key = presentation.default_option_key
             if option_key is None:
                 continue
-            model_ids = model_view.model_ids(presentation.capability)
+            model_ids = model_view.model_ids(presentation.capability) or all_model_ids
             if not model_ids:
                 continue
             schema[
@@ -345,7 +355,7 @@ class LemonadeProfileSubentryFlow(config_entries.ConfigSubentryFlow):
         if definition is None:
             return self.async_abort(reason="unknown_profile_type")
 
-        model_ids = runtime_model_view(config_entry).model_ids(definition.capability)
+        model_ids = runtime_model_view(config_entry).all_model_ids
         if not model_ids:
             return self.async_abort(reason="no_models")
 

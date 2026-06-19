@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from .const import CONF_DEFAULT_MODEL
 from .models import Capability, ModelId, parse_models_response
 
 
@@ -42,6 +43,25 @@ def catalog_model_ids(catalog: Any, capability: Capability | str) -> list[str]:
             if (model_id := _model_id(getattr(model, "id", None))) is not None
         ]
     return []
+
+
+def catalog_all_model_ids(catalog: Any) -> list[str]:
+    """Return every usable model ID in catalog order."""
+    if hasattr(catalog, "all_model_ids"):
+        return [
+            str(model_id)
+            for model_id in (
+                ModelId.parse(model_id) for model_id in catalog.all_model_ids
+            )
+            if model_id is not None
+        ]
+
+    models = getattr(catalog, "models", ())
+    return [
+        model_id
+        for model in models
+        if (model_id := _model_id(getattr(model, "id", None))) is not None
+    ]
 
 
 def first_catalog_model_id(catalog: Any, capability: Capability | str) -> str | None:
@@ -94,6 +114,11 @@ class RuntimeModelView:
         """Return model IDs available for a capability."""
         return catalog_model_ids(self.catalog, capability)
 
+    @property
+    def all_model_ids(self) -> list[str]:
+        """Return all model IDs available from Lemonade."""
+        return catalog_all_model_ids(self.catalog)
+
     def model_count(self, capability: Capability | str) -> int:
         """Return the number of models available for a capability."""
         return len(self.model_ids(capability))
@@ -138,7 +163,8 @@ class RuntimeModelView:
             capability,
             explicit_model=explicit_model,
             profile_model=profile_model,
-            default_model=self.entry_default_model(entry, default_option),
+            default_model=self.entry_default_model(entry, default_option)
+            or self.entry_default_model(entry, CONF_DEFAULT_MODEL),
         )
 
     def current_entry_model_option(
@@ -149,9 +175,14 @@ class RuntimeModelView:
     ) -> str | None:
         """Return the valid selected model option or first available model."""
         options = self.model_ids(capability)
+        if not options:
+            options = self.all_model_ids
         configured = self.entry_default_model(entry, option_key)
         if configured in options:
             return configured
+        global_default = self.entry_default_model(entry, CONF_DEFAULT_MODEL)
+        if global_default in options:
+            return global_default
         return options[0] if options else None
 
 
