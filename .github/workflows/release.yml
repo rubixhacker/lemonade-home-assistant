@@ -20,10 +20,33 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Resolve release metadata
+        id: release
+        env:
+          DISPATCH_TAG: ${{ inputs.tag }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="${DISPATCH_TAG}"
+          else
+            tag="${GITHUB_REF_NAME}"
+          fi
+
+          prerelease=false
+          case "${tag}" in
+            *-alpha*|*-beta*|*-rc*)
+              prerelease=true
+              ;;
+          esac
+
+          {
+            echo "tag=${tag}"
+            echo "prerelease=${prerelease}"
+          } >> "${GITHUB_OUTPUT}"
+
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ steps.release.outputs.tag }}
 
       - name: Build HACS release asset
         run: scripts/build-hacs-release.sh
@@ -31,8 +54,9 @@ jobs:
       - name: Publish release asset
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
-          name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          tag_name: ${{ steps.release.outputs.tag }}
+          name: ${{ steps.release.outputs.tag }}
+          prerelease: ${{ steps.release.outputs.prerelease }}
           files: dist/lemonade.zip
           fail_on_unmatched_files: true
           generate_release_notes: true

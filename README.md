@@ -37,7 +37,14 @@ git tag v0.2.1
 git push origin v0.2.1
 ```
 
-The release workflow builds `dist/lemonade.zip` and publishes it as the HACS release asset.
+Testing tags are marked as GitHub pre-releases:
+
+```bash
+git tag v0.2.1-beta.1
+git push origin v0.2.1-beta.1
+```
+
+The release workflow builds `dist/lemonade.zip` and publishes it as the HACS release asset. Tags containing `-alpha`, `-beta`, or `-rc` are published as pre-releases; plain version tags are published as stable releases.
 
 ## Manual install
 
