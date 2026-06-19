@@ -64,4 +64,4 @@ Service calls support response data. For `text_to_speech`, audio is returned as 
 }
 ```
 
-Pass `filename` to choose a filename under `/media/lemonade`; path components are stripped to avoid traversal. If omitted, a timestamped `lemonade_*.png` filename is used.
+Pass `filename` to choose a filename under `/media/lemonade`; path components are stripped to avoid traversal. If omitted, the default filename uses the decoded image extension, e.g. `lemonade_*.jpg` for JPEG responses and `lemonade_*.png` when no extension is decoded.

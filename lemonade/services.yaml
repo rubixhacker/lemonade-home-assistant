@@ -79,7 +79,7 @@ generate_image:
         boolean:
     filename:
       name: Filename
-      description: Optional filename to use under /media/lemonade when save is enabled. Path components are stripped to prevent path traversal. If omitted, a timestamped PNG filename is used.
+      description: Optional filename to use under /media/lemonade when save is enabled. Path components are stripped to prevent path traversal. If omitted, the default filename uses the decoded image extension, e.g. lemonade_*.jpg for JPEG responses and lemonade_*.png when no extension is decoded.
       selector:
         text:
 
