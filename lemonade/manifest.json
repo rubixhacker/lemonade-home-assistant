@@ -9,5 +9,5 @@
   "documentation": "https://lemonade-server.ai/docs/",
   "integration_type": "service",
   "iot_class": "local_polling",
-  "requirements": []
+  "requirements": ["voluptuous-openapi"]
 }

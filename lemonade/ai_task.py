@@ -257,6 +257,10 @@ class LemonadeAITaskEntity(ai_task.AITaskEntity):
                 chat_log,
                 structure=structure,
             )
+        except TimeoutError as err:
+            raise HomeAssistantError(
+                "Timeout communicating with Lemonade Server"
+            ) from err
         except (LemonadeError, aiohttp.ClientError) as err:
             raise HomeAssistantError(
                 f"Error generating data with Lemonade: {err}"
@@ -282,6 +286,10 @@ class LemonadeAITaskEntity(ai_task.AITaskEntity):
                 prompt=getattr(task, "instructions", ""),
                 model=image_model,
             )
+        except TimeoutError as err:
+            raise HomeAssistantError(
+                "Timeout communicating with Lemonade Server"
+            ) from err
         except (LemonadeError, aiohttp.ClientError) as err:
             raise HomeAssistantError(
                 f"Error generating image with Lemonade: {err}"

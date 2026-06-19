@@ -744,7 +744,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             [{"value": "assist", "label": "Assist"}],
             fields[CONF_LLM_HASS_API][1].config.options,
         )
-        self.assertTrue(fields[CONF_LLM_HASS_API][1].config.multiple)
+        self.assertFalse(fields[CONF_LLM_HASS_API][1].config.multiple)
 
     async def test_profile_subentry_flow_reconfigures_existing_profile(self) -> None:
         from lemonade.config_flow import LemonadeProfileSubentryFlow
@@ -754,7 +754,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 CONF_NAME: "Old profile",
                 CONF_MODEL: "chat-b",
                 CONF_PROMPT: "Old prompt",
-                CONF_LLM_HASS_API: ["assist"],
+                CONF_LLM_HASS_API: "assist",
             }
         )
         entry = SimpleNamespace(
@@ -776,7 +776,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("Old profile", fields[CONF_NAME][0].default)
         self.assertEqual("chat-b", fields[CONF_MODEL][0].default)
         self.assertEqual("Old prompt", fields[CONF_PROMPT][0].default)
-        self.assertEqual(["assist"], fields[CONF_LLM_HASS_API][0].default)
+        self.assertEqual("assist", fields[CONF_LLM_HASS_API][0].default)
 
         submitted = {CONF_NAME: "New profile", CONF_MODEL: "chat-a"}
         result = await flow.async_step_reconfigure(submitted)
@@ -1750,6 +1750,36 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 SimpleNamespace(content=[], llm_api=None),
             )
 
+    async def test_ai_task_generate_data_translates_timeout_error(self) -> None:
+        from homeassistant.exceptions import HomeAssistantError
+
+        ai_task_module = _require_module("lemonade.ai_task")
+
+        class Client:
+            async def chat_completion(self, **kwargs: Any) -> dict[str, Any]:
+                raise TimeoutError("slow")
+
+        entry = SimpleNamespace(
+            options={CONF_DEFAULT_AI_TASK_MODEL: "entry-task"},
+            runtime_data=SimpleNamespace(
+                client=Client(),
+                coordinator=SimpleNamespace(
+                    catalog=FakeCatalog({CAPABILITY_AI_TASK: ["catalog-task"]})
+                ),
+            ),
+        )
+        entity = ai_task_module.LemonadeAITaskEntity(
+            entry, SimpleNamespace(subentry_id="task-1", data={})
+        )
+
+        with self.assertRaisesRegex(
+            HomeAssistantError, "Timeout communicating with Lemonade Server"
+        ):
+            await entity._async_generate_data(
+                SimpleNamespace(structure=None),
+                SimpleNamespace(content=[], llm_api=None),
+            )
+
     async def test_ai_task_generate_image_translates_aiohttp_client_error(self) -> None:
         import aiohttp
         from homeassistant.exceptions import HomeAssistantError
@@ -1808,6 +1838,34 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 SimpleNamespace(conversation_id="conversation-1"),
             )
 
+    async def test_ai_task_generate_image_translates_timeout_error(self) -> None:
+        from homeassistant.exceptions import HomeAssistantError
+
+        ai_task_module = _require_module("lemonade.ai_task")
+
+        class Client:
+            async def generate_image(self, **kwargs: Any) -> dict[str, Any]:
+                raise TimeoutError("slow")
+
+        entry = SimpleNamespace(
+            options={CONF_DEFAULT_IMAGE_MODEL: "entry-image"},
+            runtime_data=SimpleNamespace(
+                client=Client(),
+                coordinator=SimpleNamespace(catalog=FakeCatalog({CAPABILITY_IMAGE: []})),
+            ),
+        )
+        entity = ai_task_module.LemonadeAITaskEntity(
+            entry, SimpleNamespace(subentry_id="task-1", data={})
+        )
+
+        with self.assertRaisesRegex(
+            HomeAssistantError, "Timeout communicating with Lemonade Server"
+        ):
+            await entity._async_generate_image(
+                SimpleNamespace(instructions="Draw a lemon"),
+                SimpleNamespace(conversation_id="conversation-1"),
+            )
+
     async def test_conversation_entity_handles_message_with_resolved_model(self) -> None:
         from homeassistant.components import conversation
 
@@ -1851,7 +1909,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         subentry = SimpleNamespace(
             subentry_id="conv-1",
             data={
-                CONF_LLM_HASS_API: ["assist"],
+                CONF_LLM_HASS_API: "assist",
                 CONF_PROMPT: "Be helpful",
             },
         )
@@ -1879,7 +1937,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([entry], entity.hass.unset_agents)
         self.assertEqual(["entry-chat"], client.models)
         self.assertEqual(
-            [({"domain": DOMAIN}, ["assist"], "Be helpful", "extra")],
+            [({"domain": DOMAIN}, "assist", "Be helpful", "extra")],
             chat_log.provided,
         )
         self.assertEqual(
@@ -1992,6 +2050,11 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             {"type": "abort", "reason": "unknown_profile_type"},
             result,
         )
+
+    def test_manifest_declares_voluptuous_openapi_requirement(self) -> None:
+        manifest = json.loads(Path("lemonade/manifest.json").read_text())
+
+        self.assertIn("voluptuous-openapi", manifest["requirements"])
 
     def test_strings_define_options_and_profile_subentry_translations(self) -> None:
         strings = json.loads(Path("lemonade/strings.json").read_text())

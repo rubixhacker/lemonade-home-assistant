@@ -307,7 +307,6 @@ class LemonadeProfileSubentryFlow(config_entries.ConfigSubentryFlow):
             schema[marker(CONF_LLM_HASS_API)] = selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=_llm_api_options(self.hass),
-                    multiple=True,
                 )
             )
 

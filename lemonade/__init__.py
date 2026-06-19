@@ -9,7 +9,7 @@ from typing import Any
 import aiohttp
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_API_KEY, CONF_MODEL, CONF_URL
+from homeassistant.const import CONF_API_KEY, CONF_URL
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
@@ -128,7 +128,3 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload Lemonade Server when options are updated."""
     await hass.config_entries.async_reload(entry.entry_id)
 
-
-def get_default_model(entry: ConfigEntry) -> str | None:
-    """Return the configured default model for an entry."""
-    return entry.options.get(CONF_MODEL) or entry.data.get(CONF_MODEL)

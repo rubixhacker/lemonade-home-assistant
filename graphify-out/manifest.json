@@ -45,8 +45,8 @@
     "semantic_hash": ""
   },
   "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/tests/test_runtime.py": {
-    "mtime": 1781855604.0291421,
-    "ast_hash": "63287061c131c66912ac2ec9d018bdab",
+    "mtime": 1781858020.5620599,
+    "ast_hash": "8aa6090ecae8ea5db4552316c44e370d",
     "semantic_hash": ""
   },
   "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/tests/test_models.py": {
@@ -70,8 +70,8 @@
     "semantic_hash": ""
   },
   "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/lemonade/__init__.py": {
-    "mtime": 1781846179.6888752,
-    "ast_hash": "c9250614b425cd1c151a8e6ce1991499",
+    "mtime": 1781858267.9976032,
+    "ast_hash": "a16c3b018cade0c0bbfd6442199d41c2",
     "semantic_hash": ""
   },
   "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/lemonade/api.py": {
@@ -85,8 +85,8 @@
     "semantic_hash": ""
   },
   "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/lemonade/manifest.json": {
-    "mtime": 1781843664.6314223,
-    "ast_hash": "95b9d22effc7016ed54cde2d52ff08b0",
+    "mtime": 1781858390.0851572,
+    "ast_hash": "9dfaa7869fde765cceb85f23fb42060d",
     "semantic_hash": ""
   },
   "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/lemonade/strings.json": {
@@ -105,8 +105,8 @@
     "semantic_hash": ""
   },
   "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/lemonade/config_flow.py": {
-    "mtime": 1781848167.7974968,
-    "ast_hash": "7714789ec08ef354adfedf7ec2123184",
+    "mtime": 1781858267.994743,
+    "ast_hash": "cd071cb7ebf2c98229f171f7551775c0",
     "semantic_hash": ""
   },
   "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/docs/superpowers/plans/2026-06-18-lemonade-ha-core-quality.md": {
@@ -155,8 +155,8 @@
     "semantic_hash": ""
   },
   "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/lemonade/ai_task.py": {
-    "mtime": 1781852520.9323168,
-    "ast_hash": "26e86c9a2f3c2ebdbd24262a59aba687",
+    "mtime": 1781858267.9964964,
+    "ast_hash": "2fa9895ce639eddd7587c707aa565490",
     "semantic_hash": ""
   },
   "/Users/stewartboling/Workspace/lemonade-home-assistant/.worktrees/lemonade-core-quality/lemonade/tts.py": {
