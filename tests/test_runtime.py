@@ -229,6 +229,36 @@ def _install_homeassistant_stubs() -> None:
     )
     components.conversation = conversation_component
 
+    ai_task_component = ModuleType("homeassistant.components.ai_task")
+
+    class GenDataTaskResult:
+        def __init__(self, *, conversation_id: str | None = None, data: Any = None) -> None:
+            self.conversation_id = conversation_id
+            self.data = data
+
+    class GenImageTaskResult:
+        def __init__(
+            self,
+            *,
+            image_data: bytes,
+            conversation_id: str | None = None,
+            mime_type: str | None = None,
+            model: str | None = None,
+        ) -> None:
+            self.image_data = image_data
+            self.conversation_id = conversation_id
+            self.mime_type = mime_type
+            self.model = model
+
+    ai_task_component.AITaskEntity = type("AITaskEntity", (), {})
+    ai_task_component.AITaskEntityFeature = SimpleNamespace(
+        GENERATE_DATA=1, GENERATE_IMAGE=2, SUPPORT_ATTACHMENTS=4
+    )
+    ai_task_component.GenDataTaskResult = GenDataTaskResult
+    ai_task_component.GenImageTaskResult = GenImageTaskResult
+    sys.modules.setdefault("homeassistant.components.ai_task", ai_task_component)
+    components.ai_task = ai_task_component
+
     config_entries = ModuleType("homeassistant.config_entries")
     config_entries.ConfigEntry = type(
         "ConfigEntry",
@@ -1169,6 +1199,190 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(entity._attr_name)
         self.assertTrue(entity._attr_has_entity_name)
         self.assertFalse(entity._attr_supports_streaming)
+
+    async def test_ai_task_platform_adds_only_ai_task_subentries_and_features(self) -> None:
+        from homeassistant.components import ai_task
+
+        ai_task_module = _require_module("lemonade.ai_task")
+        entry = SimpleNamespace(
+            entry_id="entry-1",
+            title="Lemonade Server",
+            runtime_data=SimpleNamespace(
+                coordinator=SimpleNamespace(
+                    catalog=FakeCatalog({CAPABILITY_IMAGE: ["image-a"]})
+                )
+            ),
+            subentries={
+                "conv-1": SimpleNamespace(
+                    subentry_id="conv-1",
+                    subentry_type=SUBENTRY_TYPE_CONVERSATION,
+                    data={},
+                ),
+                "task-1": SimpleNamespace(
+                    subentry_id="task-1",
+                    subentry_type=SUBENTRY_TYPE_AI_TASK,
+                    data={},
+                ),
+            },
+        )
+        calls: list[tuple[list[Any], dict[str, Any]]] = []
+
+        def add_entities(entities: list[Any], **kwargs: Any) -> None:
+            calls.append((entities, kwargs))
+
+        await ai_task_module.async_setup_entry(FakeHass(), entry, add_entities)
+
+        self.assertEqual(1, len(calls))
+        self.assertEqual({"config_subentry_id": "task-1"}, calls[0][1])
+        entity = calls[0][0][0]
+        self.assertIsInstance(entity, ai_task_module.LemonadeAITaskEntity)
+        self.assertEqual("task-1", entity._attr_unique_id)
+        self.assertIsNone(entity._attr_name)
+        self.assertTrue(entity._attr_has_entity_name)
+        self.assertEqual(
+            ai_task.AITaskEntityFeature.GENERATE_DATA
+            | ai_task.AITaskEntityFeature.SUPPORT_ATTACHMENTS
+            | ai_task.AITaskEntityFeature.GENERATE_IMAGE,
+            entity._attr_supported_features,
+        )
+
+    async def test_ai_task_generate_data_prefers_profile_model_and_parses_structured_json(self) -> None:
+        from homeassistant.components import ai_task
+        from homeassistant.components.conversation import UserContent
+
+        ai_task_module = _require_module("lemonade.ai_task")
+
+        class Client:
+            def __init__(self) -> None:
+                self.calls: list[dict[str, Any]] = []
+
+            async def chat_completion(self, **kwargs: Any) -> dict[str, Any]:
+                self.calls.append(kwargs)
+                return {"choices": [{"message": {"content": '{"ok": true}'}}]}
+
+        class ChatLog:
+            conversation_id = "conversation-1"
+
+            def __init__(self) -> None:
+                self.content = [UserContent("Return JSON")]
+                self.llm_api = None
+                self.unresponded_tool_results: list[Any] = []
+                self.deltas: list[dict[str, Any]] = []
+
+            async def async_add_delta_content_stream(
+                self, agent_id: str, stream: Any
+            ) -> None:
+                async for delta in stream:
+                    self.deltas.append(delta)
+
+        client = Client()
+        entry = SimpleNamespace(
+            options={CONF_DEFAULT_AI_TASK_MODEL: "entry-task"},
+            runtime_data=SimpleNamespace(
+                client=client,
+                coordinator=SimpleNamespace(
+                    catalog=FakeCatalog({CAPABILITY_AI_TASK: ["catalog-task"]})
+                ),
+            ),
+        )
+        subentry = SimpleNamespace(
+            subentry_id="task-1",
+            data={CONF_MODEL: "profile-task"},
+        )
+        entity = ai_task_module.LemonadeAITaskEntity(entry, subentry)
+        entity.entity_id = "ai_task.lemonade"
+
+        result = await entity._async_generate_data(
+            SimpleNamespace(structure={"type": "json_object"}),
+            ChatLog(),
+        )
+
+        self.assertIsInstance(result, ai_task.GenDataTaskResult)
+        self.assertEqual("conversation-1", result.conversation_id)
+        self.assertEqual({"ok": True}, result.data)
+        self.assertEqual("profile-task", client.calls[0]["model"])
+        self.assertEqual(
+            {"type": "json_object"}, client.calls[0]["response_format"]
+        )
+
+    async def test_ai_task_generate_image_decodes_response_and_uses_default_image_model(self) -> None:
+        from homeassistant.components import ai_task
+
+        ai_task_module = _require_module("lemonade.ai_task")
+
+        class Client:
+            def __init__(self) -> None:
+                self.calls: list[dict[str, Any]] = []
+
+            async def generate_image(self, **kwargs: Any) -> dict[str, Any]:
+                self.calls.append(kwargs)
+                return {"data": [{"b64_json": "aW1hZ2UtYnl0ZXM="}]}
+
+        client = Client()
+        entry = SimpleNamespace(
+            options={CONF_DEFAULT_IMAGE_MODEL: "entry-image"},
+            runtime_data=SimpleNamespace(
+                client=client,
+                coordinator=SimpleNamespace(
+                    catalog=FakeCatalog({CAPABILITY_IMAGE: ["catalog-image"]})
+                ),
+            ),
+        )
+        entity = ai_task_module.LemonadeAITaskEntity(
+            entry, SimpleNamespace(subentry_id="task-1", data={})
+        )
+
+        result = await entity._async_generate_image(
+            SimpleNamespace(instructions="Draw a lemon"),
+            SimpleNamespace(conversation_id="conversation-1"),
+        )
+
+        self.assertIsInstance(result, ai_task.GenImageTaskResult)
+        self.assertEqual(b"image-bytes", result.image_data)
+        self.assertEqual("conversation-1", result.conversation_id)
+        self.assertEqual("image/png", result.mime_type)
+        self.assertEqual("entry-image", result.model)
+        self.assertEqual(
+            [{"prompt": "Draw a lemon", "model": "entry-image"}],
+            client.calls,
+        )
+
+    async def test_ai_task_generate_image_decodes_object_data_url_and_uses_catalog_model(self) -> None:
+        from homeassistant.components import ai_task
+
+        ai_task_module = _require_module("lemonade.ai_task")
+
+        class Client:
+            async def generate_image(self, **kwargs: Any) -> Any:
+                return SimpleNamespace(
+                    data=[
+                        SimpleNamespace(
+                            image="data:image/png;base64,aW1hZ2UtYnl0ZXM="
+                        )
+                    ]
+                )
+
+        entry = SimpleNamespace(
+            options={},
+            runtime_data=SimpleNamespace(
+                client=Client(),
+                coordinator=SimpleNamespace(
+                    catalog=FakeCatalog({CAPABILITY_IMAGE: ["catalog-image"]})
+                ),
+            ),
+        )
+        entity = ai_task_module.LemonadeAITaskEntity(
+            entry, SimpleNamespace(subentry_id="task-1", data={})
+        )
+
+        result = await entity._async_generate_image(
+            SimpleNamespace(instructions="Draw a lemon"),
+            SimpleNamespace(conversation_id="conversation-1"),
+        )
+
+        self.assertIsInstance(result, ai_task.GenImageTaskResult)
+        self.assertEqual(b"image-bytes", result.image_data)
+        self.assertEqual("catalog-image", result.model)
 
     async def test_conversation_entity_handles_message_with_resolved_model(self) -> None:
         from homeassistant.components import conversation
