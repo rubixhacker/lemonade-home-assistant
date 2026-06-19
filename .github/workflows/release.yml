@@ -48,15 +48,17 @@ jobs:
         with:
           ref: ${{ steps.release.outputs.tag }}
 
-      - name: Build HACS release asset
-        run: scripts/build-hacs-release.sh
+      - name: Verify HACS package shape
+        run: |
+          scripts/build-hacs-release.sh
+          unzip -t dist/lemonade.zip
+          unzip -l dist/lemonade.zip | grep "custom_components/lemonade/manifest.json"
+          unzip -l dist/lemonade.zip | grep "custom_components/lemonade/brand/icon.png"
 
-      - name: Publish release asset
+      - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release.outputs.tag }}
           name: ${{ steps.release.outputs.tag }}
           prerelease: ${{ steps.release.outputs.prerelease }}
-          files: dist/lemonade.zip
-          fail_on_unmatched_files: true
           generate_release_notes: true
