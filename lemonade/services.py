@@ -15,6 +15,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 
 from .api import LemonadeClient
+from .data import LemonadeRuntimeData
 from .const import (
     ATTR_FILE_PATH,
     ATTR_LANGUAGE,
@@ -88,9 +89,11 @@ def _get_entry_and_client(
     for entry in entries:
         if requested_entry_id and entry.entry_id != requested_entry_id:
             continue
-        client = getattr(entry, "runtime_data", None)
-        if isinstance(client, LemonadeClient):
-            return entry, client
+        runtime_data = getattr(entry, "runtime_data", None)
+        if isinstance(runtime_data, LemonadeRuntimeData):
+            return entry, runtime_data.client
+        if isinstance(runtime_data, LemonadeClient):
+            return entry, runtime_data
 
     if requested_entry_id:
         raise HomeAssistantError(f"Lemonade Server entry is not loaded: {requested_entry_id}")

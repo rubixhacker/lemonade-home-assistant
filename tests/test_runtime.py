@@ -281,6 +281,30 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual((hass, DOMAIN, "missing_image_entry-1"), ir.DELETED[0][0])
 
+    def test_services_use_client_from_runtime_data_for_requested_entry(self) -> None:
+        from homeassistant.exceptions import HomeAssistantError
+
+        from lemonade.const import CONF_ENTRY_ID
+        from lemonade.services import _get_entry_and_client
+
+        client = LemonadeClient(FakeSession({}), "http://server")
+        entry = FakeEntry()
+        entry.runtime_data = LemonadeRuntimeData(client=client, coordinator=object())
+        hass = SimpleNamespace(
+            config_entries=SimpleNamespace(
+                async_entries=lambda domain: [entry],
+            ),
+        )
+        call = SimpleNamespace(data={CONF_ENTRY_ID: entry.entry_id})
+
+        try:
+            selected_entry, selected_client = _get_entry_and_client(hass, call)
+        except HomeAssistantError as err:
+            self.fail(f"Expected runtime data client, got error: {err}")
+
+        self.assertIs(entry, selected_entry)
+        self.assertIs(client, selected_client)
+
     async def test_setup_entry_stores_runtime_data_and_updates_capability_repairs(self) -> None:
         class Client:
             def __init__(
