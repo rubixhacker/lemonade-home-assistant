@@ -54,6 +54,21 @@ def _is_content(content: Any, cls: type[Any], class_name: str) -> bool:
     return isinstance(content, cls) or content.__class__.__name__ == class_name
 
 
+def _attribute_value(obj: Any, *names: str, default: Any = None) -> Any:
+    """Return the first present attribute from an object."""
+    for name in names:
+        if hasattr(obj, name):
+            return getattr(obj, name)
+    return default
+
+
+def _tool_result_json_value(tool_result: Any) -> Any:
+    """Return JSON payload without treating mappings as result wrappers."""
+    if isinstance(tool_result, Mapping):
+        return tool_result
+    return _attribute_value(tool_result, "result", default=tool_result)
+
+
 def format_tool(tool: Any, custom_serializer: Any) -> dict[str, Any]:
     """Format a Home Assistant LLM tool as an OpenAI function tool."""
     function: dict[str, Any] = {
@@ -200,11 +215,16 @@ def content_to_message(content: Any) -> dict[str, Any]:
         return {"role": "user", "content": parts}
 
     if _is_content(content, AssistantContent, "AssistantContent"):
+        assistant_content = _value(content, "content")
+        tool_calls = _value(content, "tool_calls", default=None) or []
         message: dict[str, Any] = {
             "role": "assistant",
-            "content": _value(content, "content"),
+            "content": (
+                ""
+                if assistant_content is None and not tool_calls
+                else assistant_content
+            ),
         }
-        tool_calls = _value(content, "tool_calls", default=None) or []
         if tool_calls:
             message["tool_calls"] = [
                 _tool_call_to_openai(tool_call) for tool_call in tool_calls
@@ -217,16 +237,12 @@ def content_to_message(content: Any) -> dict[str, Any]:
         )
         message = {
             "role": "tool",
-            "content": json_dumps(_value(tool_result, "result", default=tool_result)),
+            "content": json_dumps(_tool_result_json_value(tool_result)),
         }
-        tool_call_id = _value(content, "tool_call_id", "id") or _value(
-            tool_result, "tool_call_id", "id"
-        )
+        tool_call_id = _attribute_value(content, "tool_call_id", "id")
         if tool_call_id:
             message["tool_call_id"] = tool_call_id
-        name = _value(content, "tool_name", "name") or _value(
-            tool_result, "tool_name", "name"
-        )
+        name = _attribute_value(content, "tool_name", "name")
         if name:
             message["name"] = name
         return message

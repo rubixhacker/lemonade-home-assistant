@@ -948,6 +948,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                     result={"ok": True},
                 ),
                 tool_call_id="call-1",
+                tool_name="HassTurnOn",
             )
         )
 
@@ -960,6 +961,33 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             },
             message,
         )
+
+    def test_llm_assistant_content_without_text_or_tool_calls_uses_empty_string(self) -> None:
+        from homeassistant.components.conversation import AssistantContent
+
+        llm_module = _require_module("lemonade.llm")
+
+        message = llm_module.content_to_message(AssistantContent(None))
+
+        self.assertEqual({"role": "assistant", "content": ""}, message)
+
+    def test_llm_preserves_tool_result_mapping_payload_without_using_payload_metadata(self) -> None:
+        from homeassistant.components.conversation import ToolResultContent
+
+        llm_module = _require_module("lemonade.llm")
+        payload = {
+            "result": "ok",
+            "other": 1,
+            "tool_call_id": "payload-call",
+            "tool_name": "PayloadTool",
+        }
+
+        message = llm_module.content_to_message(ToolResultContent(payload))
+
+        self.assertEqual("tool", message["role"])
+        self.assertEqual(payload, json.loads(message["content"]))
+        self.assertNotIn("tool_call_id", message)
+        self.assertNotIn("name", message)
 
     def test_llm_response_to_delta_returns_single_chat_log_delta(self) -> None:
         from homeassistant.helpers.llm import ToolInput
