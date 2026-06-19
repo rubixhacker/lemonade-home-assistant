@@ -1,7 +1,7 @@
 {
   "domain": "lemonade",
   "name": "Lemonade Server",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "after_dependencies": ["assist_pipeline", "intent"],
   "codeowners": [],
   "config_flow": true,

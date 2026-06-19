@@ -11,12 +11,20 @@
           "timeout": "Request timeout (seconds)",
           "verify_ssl": "Verify SSL certificate"
         }
+      },
+      "model": {
+        "title": "Default model",
+        "description": "Choose the default Lemonade model to use across features. You can override this per capability later.",
+        "data": {
+          "default_model": "Default model"
+        }
       }
     },
     "error": {
       "cannot_connect": "Failed to connect to Lemonade Server.",
       "invalid_auth": "Invalid authentication.",
       "invalid_url": "Invalid URL.",
+      "no_models": "No Lemonade models are available.",
       "unknown": "Unexpected error. Check the Home Assistant logs."
     },
     "abort": {

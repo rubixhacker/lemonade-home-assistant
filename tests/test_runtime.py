@@ -118,7 +118,7 @@ def _install_homeassistant_stubs() -> None:
     )
     sys.modules.setdefault("aiohttp", aiohttp)
 
-    voluptuous = ModuleType("voluptuous")
+    voluptuous = sys.modules.setdefault("voluptuous", ModuleType("voluptuous"))
     voluptuous.Optional = lambda key, *args, **kwargs: _VolMarker(
         key, *args, **kwargs
     )
@@ -128,7 +128,6 @@ def _install_homeassistant_stubs() -> None:
     voluptuous.Schema = _VolSchema
     voluptuous.Coerce = lambda value_type: value_type
     voluptuous.Invalid = type("Invalid", (Exception,), {})
-    sys.modules.setdefault("voluptuous", voluptuous)
 
     voluptuous_openapi = ModuleType("voluptuous_openapi")
 
@@ -343,14 +342,14 @@ def _install_homeassistant_stubs() -> None:
     sys.modules.setdefault("homeassistant.util", util)
     sys.modules.setdefault("homeassistant.util.json", util_json)
 
-    config_validation = ModuleType("homeassistant.helpers.config_validation")
+    config_validation = sys.modules.setdefault(
+        "homeassistant.helpers.config_validation",
+        ModuleType("homeassistant.helpers.config_validation"),
+    )
     config_validation.config_entry_only_config_schema = lambda domain: None
     config_validation.string = str
     config_validation.boolean = bool
-    sys.modules.setdefault(
-        "homeassistant.helpers.config_validation",
-        config_validation,
-    )
+    config_validation.url = lambda value: value
     helpers.config_validation = config_validation
 
 
@@ -1197,7 +1196,78 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("form", result["type"])
         fields = _schema_fields(result["data_schema"])
         self.assertNotIn(CONF_MODEL, fields)
+        self.assertNotIn(CONF_DEFAULT_MODEL, fields)
         self.assertTrue(fields[CONF_VERIFY_SSL][0].default)
+
+    async def test_initial_config_flow_queries_models_for_default_model_selector(
+        self,
+    ) -> None:
+        from lemonade import config_flow
+
+        class Client:
+            def __init__(
+                self,
+                session: Any,
+                url: str,
+                api_key: str | None = None,
+                timeout: float = 30.0,
+                verify_ssl: bool = True,
+            ) -> None:
+                self.session = session
+                self.url = url
+                self.api_key = api_key
+                self.timeout = timeout
+                self.verify_ssl = verify_ssl
+
+            async def health(self) -> dict[str, Any]:
+                return {"status": "ok"}
+
+            async def models(self) -> dict[str, Any]:
+                return {
+                    "data": [
+                        {"id": "Bonsai-1.7B-gguf", "recipe": "llamacpp"},
+                        {"id": "lemonade-omni", "recipe": "llamacpp"},
+                    ]
+                }
+
+        original_client = config_flow.LemonadeClient
+        config_flow.LemonadeClient = Client
+        self.addCleanup(setattr, config_flow, "LemonadeClient", original_client)
+        flow = config_flow.LemonadeConfigFlow()
+        flow.hass = FakeHass()
+
+        result = await flow.async_step_user(
+            {
+                CONF_NAME: "Kitchen Lemonade",
+                CONF_URL: "http://lemonade.local/",
+                CONF_API_KEY: " secret ",
+                CONF_TIMEOUT: 9.5,
+                CONF_VERIFY_SSL: False,
+            }
+        )
+
+        self.assertEqual("form", result["type"])
+        self.assertEqual("model", result["step_id"])
+        fields = _schema_fields(result["data_schema"])
+        self.assertEqual(
+            ["Bonsai-1.7B-gguf", "lemonade-omni"],
+            fields[CONF_DEFAULT_MODEL][1].config.options,
+        )
+
+        created = await flow.async_step_model({CONF_DEFAULT_MODEL: "lemonade-omni"})
+
+        self.assertEqual("create_entry", created["type"])
+        self.assertEqual("Kitchen Lemonade", created["title"])
+        self.assertEqual(
+            {
+                CONF_URL: "http://lemonade.local",
+                CONF_TIMEOUT: 9.5,
+                CONF_VERIFY_SSL: False,
+                CONF_API_KEY: "secret",
+                CONF_DEFAULT_MODEL: "lemonade-omni",
+            },
+            created["data"],
+        )
 
     async def test_ai_task_profile_subentry_flow_uses_ai_task_models(self) -> None:
         from lemonade.config_flow import LemonadeProfileSubentryFlow

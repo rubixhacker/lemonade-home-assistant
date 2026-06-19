@@ -67,7 +67,7 @@ Then restart Home Assistant and add the integration from the UI.
 After installing the integration, create a profile before using Lemonade with Assist or AI tasks:
 
 1. Open **Settings -> Devices & services -> Lemonade Server**.
-2. Set **Default model** if one omni model should back every Lemonade feature.
+2. Pick **Default model** from the Lemonade model dropdown if one omni model should back every Lemonade feature.
 3. Use **Add service** or the `+` buttons in the entry details.
 4. Add a **Conversation profile** for Assist.
 5. Add an **AI task profile** for AI task entities.
