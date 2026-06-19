@@ -94,12 +94,12 @@ from lemonade.models import parse_models_response  # noqa: E402
 
 
 SAMPLE_MODELS = [
-    {"id": "Bonsai-8B-gguf", "recipe": "llamacpp", "labels": []},
+    {"id": "Bonsai-8B-gguf", "recipe": "llamacpp", "labels": ["tool-calling"]},
     {"id": "Qwen3.6-27B-GGUF", "recipe": "llamacpp", "labels": ["vision"]},
     {
         "id": "Flux-2-Klein-9B-GGUF",
         "recipe": "diffusers",
-        "labels": ["image", "image_edit"],
+        "labels": ["image", "edit"],
     },
     {"id": "kokoro-v1", "recipe": "tts", "labels": ["tts"]},
     {"id": "future-stt", "recipe": "stt", "labels": ["speech-to-text"]},
@@ -130,7 +130,7 @@ class ParseModelsResponseTest(unittest.TestCase):
             catalog.model_ids(CAPABILITY_AI_TASK),
         )
         self.assertEqual(
-            ["Bonsai-8B-gguf", "Qwen3.6-27B-GGUF"],
+            ["Bonsai-8B-gguf"],
             catalog.model_ids(CAPABILITY_TOOL_CALLING),
         )
         self.assertEqual(
@@ -152,6 +152,53 @@ class ParseModelsResponseTest(unittest.TestCase):
             catalog.model_ids(CAPABILITY_EMBEDDINGS),
         )
         self.assertNotIn("not-downloaded", catalog.all_model_ids)
+
+    def test_tool_calling_requires_exact_tool_calling_label(self) -> None:
+        catalog = parse_models_response(
+            {
+                "data": [
+                    {"id": "plain-llm", "recipe": "llamacpp", "labels": []},
+                    {
+                        "id": "underscore-llm",
+                        "recipe": "llamacpp",
+                        "labels": ["tool_calling"],
+                    },
+                    {
+                        "id": "tool-llm",
+                        "recipe": "llamacpp",
+                        "labels": ["tool-calling"],
+                    },
+                ]
+            }
+        )
+
+        self.assertEqual(
+            ["tool-llm"],
+            catalog.model_ids(CAPABILITY_TOOL_CALLING),
+        )
+
+    def test_image_edit_accepts_edit_label(self) -> None:
+        catalog = parse_models_response(
+            {
+                "data": [
+                    {
+                        "id": "edit-image-model",
+                        "recipe": "diffusers",
+                        "labels": ["edit"],
+                    }
+                ]
+            }
+        )
+
+        self.assertEqual(
+            ["edit-image-model"],
+            catalog.model_ids(CAPABILITY_IMAGE_EDIT),
+        )
+
+    def test_models_for_returns_tuple(self) -> None:
+        catalog = parse_models_response({"data": SAMPLE_MODELS})
+
+        self.assertIsInstance(catalog.models_for(CAPABILITY_CONVERSATION), tuple)
 
 
 if __name__ == "__main__":

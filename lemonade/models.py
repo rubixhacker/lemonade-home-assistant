@@ -51,9 +51,9 @@ class LemonadeModelCatalog:
         """Return every parsed model ID."""
         return [model.id for model in self.models]
 
-    def models_for(self, capability: str) -> list[LemonadeModel]:
+    def models_for(self, capability: str) -> tuple[LemonadeModel, ...]:
         """Return models for a capability."""
-        return list(self.by_capability.get(capability, ()))
+        return self.by_capability.get(capability, ())
 
     def model_ids(self, capability: str) -> list[str]:
         """Return model IDs for a capability."""
@@ -106,15 +106,17 @@ def _capabilities(model: LemonadeModel) -> tuple[str, ...]:
             (
                 CAPABILITY_CONVERSATION,
                 CAPABILITY_AI_TASK,
-                CAPABILITY_TOOL_CALLING,
             )
         )
+
+    if "tool-calling" in model.labels:
+        capabilities.append(CAPABILITY_TOOL_CALLING)
 
     if CAPABILITY_VISION in model.labels:
         capabilities.append(CAPABILITY_VISION)
     if CAPABILITY_IMAGE in model.labels:
         capabilities.append(CAPABILITY_IMAGE)
-    if CAPABILITY_IMAGE_EDIT in model.labels or "image-edit" in model.labels:
+    if model.labels & {CAPABILITY_IMAGE_EDIT, "image-edit", "edit"}:
         capabilities.append(CAPABILITY_IMAGE_EDIT)
     if CAPABILITY_TTS in model.labels:
         capabilities.append(CAPABILITY_TTS)
