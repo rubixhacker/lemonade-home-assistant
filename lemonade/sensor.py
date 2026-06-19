@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -69,6 +69,7 @@ class LemonadeTotalModelCountSensor(LemonadeSensor):
     """Report the total parsed Lemonade model count."""
 
     _attr_translation_key = "model_count"
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, entry: LemonadeConfigEntry) -> None:
         """Initialize the model count sensor."""
@@ -82,6 +83,8 @@ class LemonadeTotalModelCountSensor(LemonadeSensor):
 
 class LemonadeCapabilityCountSensor(LemonadeSensor):
     """Report the model count for one Lemonade capability."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(
         self,

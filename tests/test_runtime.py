@@ -138,6 +138,7 @@ def _install_homeassistant_stubs() -> None:
 
     sensor_component = ModuleType("homeassistant.components.sensor")
     sensor_component.SensorEntity = type("SensorEntity", (), {})
+    sensor_component.SensorStateClass = SimpleNamespace(MEASUREMENT="measurement")
     sys.modules.setdefault("homeassistant.components.sensor", sensor_component)
     components.sensor = sensor_component
 
@@ -307,6 +308,7 @@ def _require_module(module_name: str) -> ModuleType:
         raise AssertionError(f"{module_name} should exist")
     return importlib.import_module(module_name)
 
+from homeassistant.components.sensor import SensorStateClass  # noqa: E402
 from homeassistant.const import (  # noqa: E402
     CONF_API_KEY,
     CONF_MODEL,
@@ -1001,11 +1003,34 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         coordinator.last_update_success = False
         self.assertEqual("offline", entities["server_status"].native_value)
         self.assertTrue(entities["server_status"].available)
+        self.assertIsNone(
+            getattr(entities["server_status"], "_attr_state_class", None)
+        )
         self.assertEqual(4, entities["model_count"].native_value)
+        self.assertEqual(
+            SensorStateClass.MEASUREMENT,
+            getattr(entities["model_count"], "_attr_state_class", None),
+        )
         self.assertEqual(2, entities["conversation_model_count"].native_value)
+        self.assertEqual(
+            SensorStateClass.MEASUREMENT,
+            getattr(entities["conversation_model_count"], "_attr_state_class", None),
+        )
         self.assertEqual(1, entities["image_model_count"].native_value)
+        self.assertEqual(
+            SensorStateClass.MEASUREMENT,
+            getattr(entities["image_model_count"], "_attr_state_class", None),
+        )
         self.assertEqual(1, entities["tts_model_count"].native_value)
+        self.assertEqual(
+            SensorStateClass.MEASUREMENT,
+            getattr(entities["tts_model_count"], "_attr_state_class", None),
+        )
         self.assertEqual(0, entities["stt_model_count"].native_value)
+        self.assertEqual(
+            SensorStateClass.MEASUREMENT,
+            getattr(entities["stt_model_count"], "_attr_state_class", None),
+        )
 
     async def test_select_platform_adds_default_model_selects_and_updates_options(self) -> None:
         select_module = _require_module("lemonade.select")
