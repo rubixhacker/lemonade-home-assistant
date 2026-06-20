@@ -9,7 +9,7 @@ chat_completion:
         text:
     model:
       name: Model
-      description: Optional conversation model ID. If omitted, the service uses the entry's default conversation model, then the first conversation-capable model advertised by Lemonade.
+      description: Optional conversation model ID. If omitted, the service uses the first conversation-capable model advertised by Lemonade.
       selector:
         text:
     prompt:

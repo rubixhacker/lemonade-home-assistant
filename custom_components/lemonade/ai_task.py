@@ -13,7 +13,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import (
     CAPABILITY_AI_TASK,
     CAPABILITY_IMAGE,
-    CONF_DEFAULT_AI_TASK_MODEL,
     CONF_DEFAULT_IMAGE_MODEL,
     DOMAIN,
     SUBENTRY_TYPE_AI_TASK,
@@ -94,7 +93,6 @@ class LemonadeAITaskEntity(ai_task.AITaskEntity):
             self.entry,
             CAPABILITY_AI_TASK,
             profile_model=self.profile.model,
-            default_option=CONF_DEFAULT_AI_TASK_MODEL,
         )
         if model is not None:
             return model

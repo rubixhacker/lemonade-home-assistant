@@ -49,7 +49,6 @@ from .const import (
     CAPABILITY_IMAGE,
     CAPABILITY_STT,
     CAPABILITY_TTS,
-    CONF_DEFAULT_CONVERSATION_MODEL,
     CONF_DEFAULT_IMAGE_MODEL,
     CONF_DEFAULT_STT_MODEL,
     CONF_DEFAULT_TTS_MODEL,
@@ -133,7 +132,7 @@ class DirectServiceRecipe(Generic[_RequestT, _ResponseT]):
 
     request_factory: Callable[[ServiceCall], _RequestT]
     capability: str
-    default_option: str
+    default_option: str | None
     model_label: str
     error_action: str
     invoke: Callable[[DirectServiceContext[_RequestT]], Awaitable[_ResponseT]]
@@ -163,7 +162,7 @@ def _resolve_service_model(
     entry: ConfigEntry,
     requested_model: Any,
     capability: str,
-    default_option: str,
+    default_option: str | None,
     model_label: str,
 ) -> str:
     """Resolve a direct service model from request, defaults, or catalog."""
@@ -323,7 +322,7 @@ CHAT_COMPLETION_RECIPE = DirectServiceRecipe[
 ](
     request_factory=ChatCompletionRequest.from_service_call,
     capability=CAPABILITY_CONVERSATION,
-    default_option=CONF_DEFAULT_CONVERSATION_MODEL,
+    default_option=None,
     model_label="conversation",
     error_action="Error completing chat with Lemonade",
     invoke=_invoke_chat_completion,

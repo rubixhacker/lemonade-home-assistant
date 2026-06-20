@@ -12,7 +12,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
     CAPABILITY_CONVERSATION,
-    CONF_DEFAULT_CONVERSATION_MODEL,
     DOMAIN,
     SUBENTRY_TYPE_CONVERSATION,
 )
@@ -33,12 +32,7 @@ async def async_setup_entry(
     entry: LemonadeConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Lemonade conversation entities."""
-    await async_add_profile_entity(
-        async_add_entities,
-        LemonadeConversationEntity(entry),
-        None,
-    )
+    """Set up Lemonade conversation profile entities."""
     for subentry in profile_subentries(entry, SUBENTRY_TYPE_CONVERSATION):
         entity = LemonadeConversationEntity(entry, subentry)
         await async_add_profile_entity(
@@ -52,26 +46,20 @@ class LemonadeConversationEntity(
     conversation.ConversationEntity,
     conversation.AbstractConversationAgent,
 ):
-    """Conversation agent backed by Lemonade Server."""
+    """Conversation agent backed by a Lemonade conversation profile."""
 
     _attr_supports_streaming = False
     _attr_name = None
     _attr_has_entity_name = True
     _attr_supported_features = 0
 
-    def __init__(self, entry: LemonadeConfigEntry, subentry: Any = None) -> None:
+    def __init__(self, entry: LemonadeConfigEntry, subentry: Any) -> None:
         """Initialize the conversation entity."""
         self.entry = entry
         self.subentry = subentry
-        subentry_id = getattr(subentry, "subentry_id", None)
-        entry_id = getattr(entry, "entry_id", None)
-        if subentry_id is not None:
-            self._attr_unique_id = subentry_id
-        elif entry_id:
-            self._attr_unique_id = f"{entry_id}_conversation"
-        else:
-            self._attr_unique_id = SUBENTRY_TYPE_CONVERSATION
+        self._attr_unique_id = getattr(subentry, "subentry_id")
 
+        entry_id = getattr(entry, "entry_id", None)
         if entry_id:
             self._attr_device_info = DeviceInfo(
                 identifiers={(DOMAIN, entry_id)},
@@ -117,7 +105,6 @@ class LemonadeConversationEntity(
             self.entry,
             CAPABILITY_CONVERSATION,
             profile_model=self.profile.model,
-            default_option=CONF_DEFAULT_CONVERSATION_MODEL,
         )
         if model is not None:
             return model

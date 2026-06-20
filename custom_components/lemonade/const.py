@@ -46,17 +46,7 @@ CAPABILITIES = (
     CAPABILITY_STT,
     CAPABILITY_EMBEDDINGS,
 )
-MODEL_OPTION_BY_CAPABILITY = {
-    CAPABILITY_CONVERSATION: CONF_DEFAULT_CONVERSATION_MODEL,
-    CAPABILITY_AI_TASK: CONF_DEFAULT_AI_TASK_MODEL,
-    CAPABILITY_IMAGE: CONF_DEFAULT_IMAGE_MODEL,
-    CAPABILITY_TTS: CONF_DEFAULT_TTS_MODEL,
-    CAPABILITY_STT: CONF_DEFAULT_STT_MODEL,
-}
-
 DEFAULT_MODEL_OPTION_NAMES = {
-    CONF_DEFAULT_CONVERSATION_MODEL: "Default conversation model",
-    CONF_DEFAULT_AI_TASK_MODEL: "Default AI task model",
     CONF_DEFAULT_IMAGE_MODEL: "Default image model",
     CONF_DEFAULT_TTS_MODEL: "Default text-to-speech model",
     CONF_DEFAULT_STT_MODEL: "Default speech-to-text model",
@@ -85,13 +75,9 @@ class CapabilityPresentation:
 CAPABILITY_PRESENTATIONS = (
     CapabilityPresentation(
         CAPABILITY_CONVERSATION,
-        default_option_key=CONF_DEFAULT_CONVERSATION_MODEL,
         model_count_translation_key="conversation_model_count",
     ),
-    CapabilityPresentation(
-        CAPABILITY_AI_TASK,
-        default_option_key=CONF_DEFAULT_AI_TASK_MODEL,
-    ),
+    CapabilityPresentation(CAPABILITY_AI_TASK),
     CapabilityPresentation(
         CAPABILITY_IMAGE,
         default_option_key=CONF_DEFAULT_IMAGE_MODEL,

@@ -30,13 +30,11 @@
     "step": {
       "init": {
         "title": "Lemonade Server options",
-        "description": "Configure Lemonade Server request settings and default models.",
+        "description": "Configure Lemonade Server request settings and media or speech default models.",
         "data": {
           "api_key": "API key",
           "timeout": "Request timeout (seconds)",
           "verify_ssl": "Verify SSL certificate",
-          "default_conversation_model": "Default conversation model",
-          "default_ai_task_model": "Default AI task model",
           "default_image_model": "Default image model",
           "default_tts_model": "Default text-to-speech model",
           "default_stt_model": "Default speech-to-text model"
@@ -134,12 +132,6 @@
       }
     },
     "select": {
-      "default_conversation_model": {
-        "name": "Default conversation model"
-      },
-      "default_ai_task_model": {
-        "name": "Default AI task model"
-      },
       "default_image_model": {
         "name": "Default image model"
       },

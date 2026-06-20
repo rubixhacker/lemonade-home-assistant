@@ -930,8 +930,6 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(
             (
-                (CAPABILITY_CONVERSATION, CONF_DEFAULT_CONVERSATION_MODEL),
-                (CAPABILITY_AI_TASK, CONF_DEFAULT_AI_TASK_MODEL),
                 (CAPABILITY_IMAGE, CONF_DEFAULT_IMAGE_MODEL),
                 (CAPABILITY_TTS, CONF_DEFAULT_TTS_MODEL),
                 (CAPABILITY_STT, CONF_DEFAULT_STT_MODEL),
@@ -1317,7 +1315,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             options={
                 CONF_TIMEOUT: 8.0,
                 CONF_VERIFY_SSL: False,
-                CONF_DEFAULT_CONVERSATION_MODEL: "chat-b",
+                CONF_DEFAULT_IMAGE_MODEL: "image-a",
             },
             runtime_data=SimpleNamespace(
                 coordinator=SimpleNamespace(
@@ -1343,13 +1341,10 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("secret", fields[CONF_API_KEY][0].description["suggested_value"])
         self.assertEqual(8.0, fields[CONF_TIMEOUT][0].default)
         self.assertFalse(fields[CONF_VERIFY_SSL][0].default)
-        self.assertEqual(
-            ["chat-a", "chat-b"],
-            fields[CONF_DEFAULT_CONVERSATION_MODEL][1].config.options,
-        )
-        self.assertEqual("chat-b", fields[CONF_DEFAULT_CONVERSATION_MODEL][0].default)
-        self.assertEqual(["task-a"], fields[CONF_DEFAULT_AI_TASK_MODEL][1].config.options)
+        self.assertNotIn(CONF_DEFAULT_CONVERSATION_MODEL, fields)
+        self.assertNotIn(CONF_DEFAULT_AI_TASK_MODEL, fields)
         self.assertEqual(["image-a"], fields[CONF_DEFAULT_IMAGE_MODEL][1].config.options)
+        self.assertEqual("image-a", fields[CONF_DEFAULT_IMAGE_MODEL][0].default)
         self.assertEqual(["tts-a"], fields[CONF_DEFAULT_TTS_MODEL][1].config.options)
         self.assertEqual(
             ["chat-a", "chat-b", "task-a", "image-a", "tts-a"],
@@ -1369,7 +1364,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         submitted = {
             CONF_TIMEOUT: 9.5,
             CONF_VERIFY_SSL: False,
-            CONF_DEFAULT_CONVERSATION_MODEL: "chat-a",
+            CONF_DEFAULT_IMAGE_MODEL: "image-a",
         }
 
         result = await LemonadeOptionsFlow(entry).async_step_init(submitted)
@@ -2303,13 +2298,9 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             llm_module.ChatTurnRequest,
         )
 
-    async def test_conversation_platform_adds_default_and_conversation_subentries(
-        self,
-    ) -> None:
+    async def test_conversation_platform_adds_only_conversation_subentries(self) -> None:
         conversation_module = _require_module("lemonade.conversation")
         entry = SimpleNamespace(
-            entry_id="entry-1",
-            title="Lemonade Server",
             subentries={
                 "conv-1": SimpleNamespace(
                     subentry_id="conv-1",
@@ -2330,26 +2321,14 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
         await conversation_module.async_setup_entry(FakeHass(), entry, add_entities)
 
-        self.assertEqual(2, len(calls))
-        self.assertEqual({}, calls[0][1])
-        default_entity = calls[0][0][0]
-        self.assertIsInstance(
-            default_entity, conversation_module.LemonadeConversationEntity
-        )
-        self.assertEqual("entry-1_conversation", default_entity._attr_unique_id)
-        self.assertIsNone(default_entity.subentry)
-        self.assertIsNone(default_entity._attr_name)
-        self.assertTrue(default_entity._attr_has_entity_name)
-        self.assertFalse(default_entity._attr_supports_streaming)
-        self.assertEqual({"config_subentry_id": "conv-1"}, calls[1][1])
-        profile_entity = calls[1][0][0]
-        self.assertIsInstance(
-            profile_entity, conversation_module.LemonadeConversationEntity
-        )
-        self.assertEqual("conv-1", profile_entity._attr_unique_id)
-        self.assertIsNone(profile_entity._attr_name)
-        self.assertTrue(profile_entity._attr_has_entity_name)
-        self.assertFalse(profile_entity._attr_supports_streaming)
+        self.assertEqual(1, len(calls))
+        self.assertEqual({"config_subentry_id": "conv-1"}, calls[0][1])
+        entity = calls[0][0][0]
+        self.assertIsInstance(entity, conversation_module.LemonadeConversationEntity)
+        self.assertEqual("conv-1", entity._attr_unique_id)
+        self.assertIsNone(entity._attr_name)
+        self.assertTrue(entity._attr_has_entity_name)
+        self.assertFalse(entity._attr_supports_streaming)
 
     async def test_ai_task_platform_adds_only_ai_task_subentries_and_features(self) -> None:
         from homeassistant.components import ai_task
@@ -2574,7 +2553,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         ai_task_module.async_generate_chat_log_data = fake_generate_chat_log_data
 
         entry = SimpleNamespace(
-            options={CONF_DEFAULT_AI_TASK_MODEL: "entry-task"},
+            options={},
             runtime_data=SimpleNamespace(
                 client=object(),
                 coordinator=SimpleNamespace(
@@ -2597,26 +2576,28 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, len(requests))
         self.assertEqual("ai_task.lemonade", requests[0]["entity_id"])
         self.assertIs(entry.runtime_data.client, requests[0]["client"])
-        self.assertEqual("entry-task", requests[0]["model"])
+        self.assertEqual("catalog-task", requests[0]["model"])
         self.assertEqual({"type": "json_object"}, requests[0]["structure"])
 
-    def test_ai_task_resolve_data_model_falls_back_to_default_then_catalog(self) -> None:
+    def test_ai_task_resolve_data_model_prefers_profile_then_catalog(self) -> None:
         ai_task_module = _require_module("lemonade.ai_task")
+        subentry = SimpleNamespace(subentry_id="task-1", data={})
         entry = SimpleNamespace(
-            options={CONF_DEFAULT_AI_TASK_MODEL: "entry-task"},
+            options={CONF_DEFAULT_AI_TASK_MODEL: "stale-entry-task"},
             runtime_data=SimpleNamespace(
                 coordinator=SimpleNamespace(
                     catalog=FakeCatalog({CAPABILITY_AI_TASK: ["catalog-task"]})
                 )
             ),
         )
-        entity = ai_task_module.LemonadeAITaskEntity(
-            entry, SimpleNamespace(subentry_id="task-1", data={})
-        )
+        entity = ai_task_module.LemonadeAITaskEntity(entry, subentry)
 
-        self.assertEqual("entry-task", entity._resolve_data_model())
+        self.assertEqual("catalog-task", entity._resolve_data_model())
 
-        entry.options = {}
+        subentry.data[CONF_MODEL] = "profile-task"
+        self.assertEqual("profile-task", entity._resolve_data_model())
+
+        subentry.data = {}
         self.assertEqual("catalog-task", entity._resolve_data_model())
 
     def test_ai_task_resolve_image_model_falls_back_to_catalog_model(self) -> None:
@@ -3095,73 +3076,6 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             result,
         )
 
-    async def test_default_conversation_entity_handles_message_with_entry_model(
-        self,
-    ) -> None:
-        conversation_module = _require_module("lemonade.conversation")
-
-        class Client:
-            def __init__(self) -> None:
-                self.models: list[str] = []
-
-            async def chat_completion(self, **kwargs: Any) -> dict[str, Any]:
-                self.models.append(kwargs["model"])
-                return {"choices": [{"message": {"content": "Hello"}}]}
-
-        class ChatLog:
-            def __init__(self) -> None:
-                self.content = []
-                self.llm_api = None
-                self.unresponded_tool_results: list[Any] = []
-                self.provided: list[tuple[Any, Any, Any, Any]] = []
-                self.deltas: list[dict[str, Any]] = []
-
-            async def async_provide_llm_data(self, *args: Any) -> None:
-                self.provided.append(args)
-
-            async def async_add_delta_content_stream(
-                self, agent_id: str, stream: Any
-            ) -> None:
-                async for delta in stream:
-                    self.deltas.append(delta)
-
-        client = Client()
-        entry = SimpleNamespace(
-            entry_id="entry-1",
-            title="Lemonade Server",
-            options={CONF_DEFAULT_CONVERSATION_MODEL: "entry-chat"},
-            runtime_data=SimpleNamespace(
-                client=client,
-                coordinator=SimpleNamespace(
-                    catalog=FakeCatalog({CAPABILITY_CONVERSATION: ["catalog-chat"]})
-                ),
-            ),
-        )
-        entity = conversation_module.LemonadeConversationEntity(entry)
-        entity.entity_id = "conversation.lemonade_server"
-        chat_log = ChatLog()
-        user_input = SimpleNamespace(
-            conversation_id="abc",
-            extra_system_prompt=None,
-            as_llm_context=lambda domain: {"domain": domain},
-        )
-
-        result = await entity._async_handle_message(user_input, chat_log)
-
-        self.assertEqual("entry-1_conversation", entity._attr_unique_id)
-        self.assertIsNone(entity.profile.model)
-        self.assertIsNone(entity.profile.hass_api)
-        self.assertIsNone(entity.profile.prompt)
-        self.assertEqual(["entry-chat"], client.models)
-        self.assertEqual(
-            [({"domain": DOMAIN}, None, None, None)],
-            chat_log.provided,
-        )
-        self.assertEqual(
-            {"conversation_id": "abc", "deltas": [{"content": "Hello"}]},
-            result,
-        )
-
     async def test_conversation_entity_errors_when_no_model_is_available(self) -> None:
         from homeassistant.exceptions import HomeAssistantError
 
@@ -3340,8 +3254,8 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         option_data = strings["options"]["step"]["init"]["data"]
         self.assertIn(CONF_VERIFY_SSL, strings["config"]["step"]["user"]["data"])
         self.assertIn(CONF_VERIFY_SSL, option_data)
-        self.assertIn(CONF_DEFAULT_CONVERSATION_MODEL, option_data)
-        self.assertIn(CONF_DEFAULT_AI_TASK_MODEL, option_data)
+        self.assertNotIn(CONF_DEFAULT_CONVERSATION_MODEL, option_data)
+        self.assertNotIn(CONF_DEFAULT_AI_TASK_MODEL, option_data)
         self.assertIn(CONF_DEFAULT_IMAGE_MODEL, option_data)
         self.assertIn(CONF_DEFAULT_TTS_MODEL, option_data)
         self.assertIn(CONF_DEFAULT_STT_MODEL, option_data)
@@ -3949,6 +3863,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                     "request-chat",
                     "entry-chat",
                     "catalog-chat",
+                    ["request-chat", "catalog-chat", "catalog-chat"],
                 ),
                 (
                     "image",
@@ -3958,6 +3873,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                     "request-image",
                     "entry-image",
                     "catalog-image",
+                    ["request-image", "entry-image", "catalog-image"],
                 ),
                 (
                     "tts",
@@ -3967,6 +3883,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                     "request-tts",
                     "entry-tts",
                     "catalog-tts",
+                    ["request-tts", "entry-tts", "catalog-tts"],
                 ),
                 (
                     "stt",
@@ -3976,10 +3893,20 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                     "request-stt",
                     "entry-stt",
                     "catalog-stt",
+                    ["request-stt", "entry-stt", "catalog-stt"],
                 ),
             )
 
-            for service_name, handler, base_data, default_option, request_model, entry_model, catalog_model in service_cases:
+            for (
+                service_name,
+                handler,
+                base_data,
+                default_option,
+                request_model,
+                entry_model,
+                _catalog_model,
+                expected_models,
+            ) in service_cases:
                 with self.subTest(service=service_name):
                     entry.options = {default_option: entry_model}
                     await handler(
@@ -3991,7 +3918,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                     await handler(hass, SimpleNamespace(data=base_data))
 
                     self.assertEqual(
-                        [request_model, entry_model, catalog_model],
+                        expected_models,
                         [
                             model
                             for call_service, model in client.calls[-3:]
@@ -5030,7 +4957,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
         entry = FakeEntry()
         entry.options = {
-            CONF_DEFAULT_CONVERSATION_MODEL: "chat-b",
+            CONF_DEFAULT_IMAGE_MODEL: "image-a",
         }
         entry.runtime_data = SimpleNamespace(coordinator=coordinator)
         added: list[Any] = []
@@ -5046,18 +4973,14 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             },
             set(entities),
         )
+        self.assertNotIn(CONF_DEFAULT_CONVERSATION_MODEL, entities)
+        self.assertNotIn(CONF_DEFAULT_AI_TASK_MODEL, entities)
+        self.assertEqual(["image-a"], entities[CONF_DEFAULT_IMAGE_MODEL].options)
+        self.assertEqual("image-a", entities[CONF_DEFAULT_IMAGE_MODEL].current_option)
         self.assertEqual(
-            ["chat-a", "chat-b"],
-            entities[CONF_DEFAULT_CONVERSATION_MODEL].options,
+            "Default image model",
+            entities[CONF_DEFAULT_IMAGE_MODEL]._attr_name,
         )
-        self.assertEqual(
-            "chat-b", entities[CONF_DEFAULT_CONVERSATION_MODEL].current_option
-        )
-        self.assertEqual(
-            "Default conversation model",
-            entities[CONF_DEFAULT_CONVERSATION_MODEL]._attr_name,
-        )
-        self.assertEqual("task-a", entities[CONF_DEFAULT_AI_TASK_MODEL].current_option)
         self.assertEqual(
             ["chat-a", "chat-b", "task-a", "image-a", "stt-a"],
             entities[CONF_DEFAULT_TTS_MODEL].options,
@@ -5065,7 +4988,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(entities[CONF_DEFAULT_TTS_MODEL].available)
         self.assertEqual("chat-a", entities[CONF_DEFAULT_TTS_MODEL].current_option)
 
-        await entities[CONF_DEFAULT_AI_TASK_MODEL].async_select_option("task-a")
+        await entities[CONF_DEFAULT_TTS_MODEL].async_select_option("chat-a")
 
         self.assertEqual(
             [
@@ -5073,8 +4996,8 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                     entry,
                     {
                         "options": {
-                            CONF_DEFAULT_CONVERSATION_MODEL: "chat-b",
-                            CONF_DEFAULT_AI_TASK_MODEL: "task-a",
+                            CONF_DEFAULT_IMAGE_MODEL: "image-a",
+                            CONF_DEFAULT_TTS_MODEL: "chat-a",
                         }
                     },
                 )
@@ -5101,8 +5024,6 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         select_strings = strings.get("entity", {}).get("select", {})
         self.assertEqual(
             {
-                CONF_DEFAULT_CONVERSATION_MODEL,
-                CONF_DEFAULT_AI_TASK_MODEL,
                 CONF_DEFAULT_IMAGE_MODEL,
                 CONF_DEFAULT_TTS_MODEL,
                 CONF_DEFAULT_STT_MODEL,
