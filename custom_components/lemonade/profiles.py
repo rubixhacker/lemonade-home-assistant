@@ -64,38 +64,80 @@ Profile = ConversationProfile | AITaskProfile | UnknownProfile
 
 
 @dataclass(frozen=True, slots=True)
+class ProfileModelPolicy:
+    """Model selection policy for a Lemonade profile setup."""
+
+    capability: str
+    include_all_models: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class ProfileFieldDefinition:
+    """Definition for a Lemonade profile setup field."""
+
+    key: str
+    selector_kind: str
+    required: bool = False
+    default: Any = None
+    prompt_policy: str = "none"
+    minimum: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class ProfileDefinition:
     """Definition for a Lemonade profile subentry type."""
 
     profile_type: str
     capability: str
-    supported_fields: tuple[str, ...]
+    fields: tuple[ProfileFieldDefinition, ...]
+    model_policy: ProfileModelPolicy
     llm_hass_api_field: str | None = None
+
+    @property
+    def supported_fields(self) -> tuple[str, ...]:
+        """Return supported profile field keys."""
+        return tuple(field.key for field in self.fields)
 
 
 CONVERSATION_PROFILE_DEFINITION = ProfileDefinition(
     profile_type=SUBENTRY_TYPE_CONVERSATION,
     capability=CAPABILITY_CONVERSATION,
-    supported_fields=(
-        CONF_NAME,
-        CONF_MODEL,
-        CONF_PROMPT,
-        CONF_LLM_HASS_API,
-        CONF_MAX_HISTORY,
-        CONF_KEEP_ALIVE,
+    fields=(
+        ProfileFieldDefinition(CONF_NAME, "string", required=True),
+        ProfileFieldDefinition(CONF_MODEL, "model"),
+        ProfileFieldDefinition(
+            CONF_PROMPT,
+            "template",
+            prompt_policy="default_instructions",
+        ),
+        ProfileFieldDefinition(CONF_LLM_HASS_API, "llm_api"),
+        ProfileFieldDefinition(
+            CONF_MAX_HISTORY,
+            "number",
+            default=DEFAULT_MAX_HISTORY,
+            minimum=0,
+        ),
+        ProfileFieldDefinition(CONF_KEEP_ALIVE, "number", minimum=-1),
     ),
+    model_policy=ProfileModelPolicy(CAPABILITY_CONVERSATION),
     llm_hass_api_field=CONF_LLM_HASS_API,
 )
 AI_TASK_PROFILE_DEFINITION = ProfileDefinition(
     profile_type=SUBENTRY_TYPE_AI_TASK,
     capability=CAPABILITY_AI_TASK,
-    supported_fields=(
-        CONF_NAME,
-        CONF_MODEL,
-        CONF_PROMPT,
-        CONF_MAX_HISTORY,
-        CONF_KEEP_ALIVE,
+    fields=(
+        ProfileFieldDefinition(CONF_NAME, "string", required=True),
+        ProfileFieldDefinition(CONF_MODEL, "model"),
+        ProfileFieldDefinition(CONF_PROMPT, "template"),
+        ProfileFieldDefinition(
+            CONF_MAX_HISTORY,
+            "number",
+            default=DEFAULT_MAX_HISTORY,
+            minimum=0,
+        ),
+        ProfileFieldDefinition(CONF_KEEP_ALIVE, "number", minimum=-1),
     ),
+    model_policy=ProfileModelPolicy(CAPABILITY_AI_TASK),
 )
 PROFILE_DEFINITIONS = (
     CONVERSATION_PROFILE_DEFINITION,

@@ -28,8 +28,12 @@ from .service_requests import (
     TranscribeAudioRequest,
     thaw_chat_messages,
 )
-from .transcription import transcribe_file
-from .voice import VoiceGenerationRequest, generate_voice, require_voice_model
+from .speech import (
+    SpeechSynthesisRequest,
+    require_speech_synthesis_model,
+    synthesize_speech,
+    transcribe_file,
+)
 from .const import (
     ATTR_FILENAME,
     ATTR_FILE_PATH,
@@ -302,9 +306,9 @@ async def _invoke_text_to_speech(
 ) -> dict[str, Any]:
     """Generate speech for a resolved direct service request."""
     request = context.request
-    result = await generate_voice(
+    result = await synthesize_speech(
         context.client,
-        VoiceGenerationRequest(
+        SpeechSynthesisRequest(
             text=request.text,
             model=context.model,
             voice=request.voice,
@@ -359,7 +363,9 @@ TEXT_TO_SPEECH_RECIPE = DirectServiceRecipe[
     model_label="TTS",
     error_action="Error generating speech with Lemonade",
     invoke=_invoke_text_to_speech,
-    resolve_model=lambda entry, request: require_voice_model(entry, request.model),
+    resolve_model=lambda entry, request: require_speech_synthesis_model(
+        entry, request.model
+    ),
 )
 
 

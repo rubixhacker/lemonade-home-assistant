@@ -1,37 +1,31 @@
-"""Parsed transcription response records for Lemonade."""
+"""Compatibility adapters for Lemonade speech transcription helpers."""
 
 from __future__ import annotations
 
 from collections.abc import AsyncIterable, Awaitable, Callable
-from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .speech import (
+    InvalidSpeechTranscription,
+    SpeechTranscription,
+    SpeechTranscriptionRequest as TranscriptionRequest,
+    SpeechTranscriptionResult as TranscriptionResult,
+    ValidSpeechTranscription,
+    file_transcription_request,
+    parse_speech_transcription_result as parse_transcription_result,
+    request_speech_transcription,
+    speech_transcription_outcome,
+    stream_transcription_request,
+)
 
 _INVALID_TEXT_ERROR = "Lemonade transcription response missing valid text"
 
 
 @dataclass(frozen=True)
-class TranscriptionResult:
-    """Validated transcription text returned by Lemonade."""
-
-    text: str
-
-
-@dataclass(frozen=True)
-class TranscriptionRequest:
-    """Prepared Lemonade transcription request payload."""
-
-    audio: bytes
-    filename: str
-    model: str
-    language: str | None
-
-
-@dataclass(frozen=True)
 class TranscriptionOutcome:
-    """Raw transcription response plus validated text when present."""
+    """Legacy transcription outcome shape preserved for public callers."""
 
     response: Any
     result: TranscriptionResult | None
@@ -56,66 +50,36 @@ class TranscriptionOutcome:
         raise TypeError(_INVALID_TEXT_ERROR)
 
 
-def parse_transcription_result(response: Any) -> TranscriptionResult:
-    """Parse a Lemonade transcription response into a validated result."""
-    if not isinstance(response, Mapping):
-        raise TypeError(_INVALID_TEXT_ERROR)
-
-    text = response["text"]
-    if not isinstance(text, str):
-        raise TypeError(_INVALID_TEXT_ERROR)
-    return TranscriptionResult(text)
-
-
-async def file_transcription_request(
-    file_path: Path,
-    *,
-    model: str,
-    language: str | None,
-    read_file_bytes: Callable[[Path], Awaitable[bytes]],
-) -> TranscriptionRequest:
-    """Build a transcription request by reading an audio file."""
-    if not file_path.is_file():
-        raise FileNotFoundError(file_path)
-
-    audio = await read_file_bytes(file_path)
-    return TranscriptionRequest(
-        audio=audio,
-        filename=file_path.name,
-        model=model,
-        language=language,
-    )
+def _legacy_outcome(outcome: SpeechTranscription) -> TranscriptionOutcome:
+    """Convert the deeper speech sum type into the legacy adapter record."""
+    if isinstance(outcome, ValidSpeechTranscription):
+        return TranscriptionOutcome(
+            response=outcome.response,
+            result=outcome.require_result(),
+        )
+    if isinstance(outcome, InvalidSpeechTranscription):
+        try:
+            outcome.require_result()
+        except Exception as err:
+            return TranscriptionOutcome(
+                response=outcome.response,
+                result=None,
+                error=err,
+            )
+    raise TypeError(_INVALID_TEXT_ERROR)
 
 
-async def stream_transcription_request(
-    stream: AsyncIterable[bytes],
-    *,
-    model: str,
-    language: str | None,
-    filename: str = "speech.wav",
-) -> TranscriptionRequest:
-    """Build a transcription request by buffering an audio stream."""
-    audio = b"".join([chunk async for chunk in stream])
-    return TranscriptionRequest(
-        audio=audio,
-        filename=filename,
-        model=model,
-        language=language,
-    )
+def transcription_outcome(response: Any) -> TranscriptionOutcome:
+    """Parse a transcription response into the legacy adapter outcome record."""
+    return _legacy_outcome(speech_transcription_outcome(response))
 
 
 async def request_transcription(
     client: Any,
     request: TranscriptionRequest,
 ) -> TranscriptionOutcome:
-    """Call Lemonade transcription and capture valid or invalid response shape."""
-    response = await client.transcribe_audio(
-        audio=request.audio,
-        filename=request.filename,
-        model=request.model,
-        language=request.language,
-    )
-    return transcription_outcome(response)
+    """Call Lemonade transcription and return the legacy adapter outcome."""
+    return _legacy_outcome(await request_speech_transcription(client, request))
 
 
 async def transcribe_file(
@@ -126,7 +90,7 @@ async def transcribe_file(
     language: str | None,
     read_file_bytes: Callable[[Path], Awaitable[bytes]],
 ) -> TranscriptionOutcome:
-    """Read an audio file, send it to Lemonade, and return the parsed outcome."""
+    """Read an audio file, send it to Lemonade, and return the legacy outcome."""
     request = await file_transcription_request(
         file_path,
         model=model,
@@ -144,7 +108,7 @@ async def transcribe_stream(
     language: str | None,
     filename: str = "speech.wav",
 ) -> TranscriptionOutcome:
-    """Buffer an audio stream, send it to Lemonade, and return the parsed outcome."""
+    """Buffer an audio stream, send it to Lemonade, and return the legacy outcome."""
     request = await stream_transcription_request(
         stream,
         model=model,
@@ -171,12 +135,3 @@ async def transcribe_stream_result(
         filename=filename,
     )
     return outcome.require_result()
-
-
-def transcription_outcome(response: Any) -> TranscriptionOutcome:
-    """Parse a transcription response into a reusable outcome record."""
-    try:
-        result = parse_transcription_result(response)
-    except (KeyError, TypeError) as err:
-        return TranscriptionOutcome(response=response, result=None, error=err)
-    return TranscriptionOutcome(response=response, result=result)

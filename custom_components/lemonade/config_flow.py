@@ -26,13 +26,12 @@ from .const import (
     CONF_MAX_HISTORY,
     CONF_TIMEOUT,
     CONF_VERIFY_SSL,
-    DEFAULT_MAX_HISTORY,
     DEFAULT_NAME,
     DEFAULT_TIMEOUT,
     DEFAULT_URL,
     DOMAIN,
     SUBENTRY_TYPE_CONVERSATION,
-    default_model_capability_presentations,
+    default_model_selector_definitions,
 )
 from .model_resolution import runtime_model_view
 from .profiles import (
@@ -95,6 +94,17 @@ def _default_instructions_prompt() -> str | None:
     """Return Home Assistant's default LLM instructions prompt, if available."""
     prompt = getattr(llm, "DEFAULT_INSTRUCTIONS_PROMPT", None)
     return prompt if isinstance(prompt, str) and prompt else None
+
+
+def _profile_model_ids(
+    config_entry: config_entries.ConfigEntry,
+    definition: ProfileDefinition,
+) -> list[str]:
+    """Return selectable model IDs for a profile definition."""
+    model_view = runtime_model_view(config_entry)
+    if definition.model_policy.include_all_models:
+        return model_view.all_model_ids
+    return model_view.model_ids(definition.model_policy.capability)
 
 
 DATA_SCHEMA = vol.Schema(
@@ -269,20 +279,15 @@ class LemonadeOptionsFlow(config_entries.OptionsFlow):
             ): cv.boolean,
         }
 
-        model_view = runtime_model_view(config_entry)
-        all_model_ids = model_view.all_model_ids
-
-        for presentation in default_model_capability_presentations():
-            option_key = presentation.default_option_key
-            if option_key is None:
-                continue
-            model_ids = model_view.model_ids(presentation.capability) or all_model_ids
+        for definition in default_model_selector_definitions():
+            option_key = definition.option_key
+            model_ids = definition.options(config_entry)
             if not model_ids:
                 continue
             schema[
                 vol.Optional(
                     option_key,
-                    default=_entry_current_value(config_entry, option_key),
+                    default=definition.current_option(config_entry, config_entry),
                 )
             ] = _model_select_selector(model_ids)
 
@@ -328,17 +333,20 @@ class LemonadeProfileSubentryFlow(config_entries.ConfigSubentryFlow):
     ) -> vol.Schema:
         """Return the schema for a Lemonade profile."""
 
-        def marker(key: str, required: bool = False) -> Any:
-            factory = vol.Required if required else vol.Optional
+        def marker(field: Any) -> Any:
+            key = field.key
+            factory = vol.Required if field.required else vol.Optional
             if key in profile_data:
                 return factory(key, default=profile_data[key])
-            if key == CONF_MAX_HISTORY:
-                return factory(key, default=DEFAULT_MAX_HISTORY)
+            if field.default is not None:
+                return factory(key, default=field.default)
             return factory(key)
 
-        def conversation_prompt_marker() -> Any:
+        def prompt_marker(field: Any) -> Any:
             if CONF_PROMPT in profile_data:
                 return vol.Optional(CONF_PROMPT, default=profile_data[CONF_PROMPT])
+            if field.prompt_policy != "default_instructions":
+                return vol.Optional(CONF_PROMPT)
             prompt = _default_instructions_prompt()
             if prompt is None:
                 return vol.Optional(CONF_PROMPT)
@@ -348,26 +356,21 @@ class LemonadeProfileSubentryFlow(config_entries.ConfigSubentryFlow):
             )
 
         schema: dict[Any, Any] = {}
-        for field in definition.supported_fields:
-            if field == CONF_NAME:
-                schema[marker(field, required=True)] = str
-            elif field == CONF_MODEL:
+        for field in definition.fields:
+            if field.selector_kind == "string":
+                schema[marker(field)] = str
+            elif field.selector_kind == "model":
                 schema[marker(field)] = _model_select_selector(model_ids)
-            elif field == CONF_PROMPT:
-                if definition.profile_type == SUBENTRY_TYPE_CONVERSATION:
-                    schema[conversation_prompt_marker()] = selector.TemplateSelector()
-                else:
-                    schema[marker(field)] = selector.TemplateSelector()
-            elif field == definition.llm_hass_api_field:
+            elif field.selector_kind == "template":
+                schema[prompt_marker(field)] = selector.TemplateSelector()
+            elif field.selector_kind == "llm_api":
                 schema[marker(field)] = selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=_llm_api_options(self.hass),
                     )
                 )
-            elif field == CONF_MAX_HISTORY:
-                schema[marker(field)] = _number_box_selector(minimum=0)
-            elif field == CONF_KEEP_ALIVE:
-                schema[marker(field)] = _number_box_selector(minimum=-1)
+            elif field.selector_kind == "number" and field.minimum is not None:
+                schema[marker(field)] = _number_box_selector(minimum=field.minimum)
 
         return vol.Schema(schema)
 
@@ -391,7 +394,7 @@ class LemonadeProfileSubentryFlow(config_entries.ConfigSubentryFlow):
         if definition is None:
             return self.async_abort(reason="unknown_profile_type")
 
-        model_ids = runtime_model_view(config_entry).all_model_ids
+        model_ids = _profile_model_ids(config_entry, definition)
         if not model_ids:
             return self.async_abort(reason="no_models")
 

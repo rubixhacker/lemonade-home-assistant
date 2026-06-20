@@ -543,6 +543,7 @@ class FakeConfigEntries:
         self.forwarded: list[tuple[Any, Any]] = []
         self.unloaded: list[tuple[Any, Any]] = []
         self.updated: list[tuple[Any, dict[str, Any]]] = []
+        self.reloaded: str | None = None
 
     async def async_forward_entry_setups(self, entry: Any, platforms: Any) -> None:
         self.forwarded.append((entry, platforms))
@@ -782,7 +783,26 @@ class ModelResolutionTest(unittest.TestCase):
         self,
     ) -> None:
         from lemonade.model_resolution import runtime_model_view
+        from lemonade.coordinator import LemonadeRuntimeState
 
+        runtime_state = LemonadeRuntimeState.from_server_payload(
+            {"status": "ok"},
+            {
+                "data": [
+                    {"id": "catalog-chat", "recipe": "llamacpp"},
+                    {
+                        "id": "catalog-task",
+                        "recipe": "llamacpp",
+                        "labels": ["ai_task"],
+                    },
+                    {
+                        "id": "catalog-image",
+                        "recipe": "stable-diffusion",
+                        "labels": ["image"],
+                    },
+                ]
+            },
+        )
         entry = SimpleNamespace(
             data={
                 CONF_DEFAULT_AI_TASK_MODEL: "data-task",
@@ -794,13 +814,8 @@ class ModelResolutionTest(unittest.TestCase):
             },
             runtime_data=SimpleNamespace(
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog(
-                        {
-                            CAPABILITY_CONVERSATION: ["catalog-chat"],
-                            CAPABILITY_AI_TASK: ["catalog-task"],
-                            CAPABILITY_IMAGE: ["catalog-image"],
-                        }
-                    )
+                    runtime_state=runtime_state,
+                    catalog=FakeCatalog({CAPABILITY_CONVERSATION: ["stale-chat"]}),
                 )
             ),
         )
@@ -854,11 +869,60 @@ class ModelResolutionTest(unittest.TestCase):
         self.assertEqual(1, view.model_count(CAPABILITY_IMAGE))
         self.assertTrue(view.has_models(CAPABILITY_IMAGE))
         self.assertEqual(3, view.total_model_count)
+        self.assertIs(runtime_state.model_view, view)
+
+    def test_entry_default_model_resolution_ignores_stale_fallback_option(
+        self,
+    ) -> None:
+        from lemonade.model_resolution import runtime_model_view
+
+        entry = SimpleNamespace(
+            options={CONF_DEFAULT_TTS_MODEL: "chat-a"},
+            data={},
+            runtime_data=SimpleNamespace(
+                coordinator=SimpleNamespace(
+                    catalog=FakeCatalog(
+                        {
+                            CAPABILITY_CONVERSATION: ["chat-a"],
+                            CAPABILITY_TTS: ["tts-a"],
+                        }
+                    )
+                )
+            ),
+        )
+
+        view = runtime_model_view(entry)
+
+        self.assertEqual(
+            "tts-a",
+            view.current_entry_model_option(
+                entry,
+                CAPABILITY_TTS,
+                CONF_DEFAULT_TTS_MODEL,
+            ),
+        )
+        self.assertEqual(
+            "tts-a",
+            view.resolve_entry_model(
+                entry,
+                CAPABILITY_TTS,
+                default_option=CONF_DEFAULT_TTS_MODEL,
+            ),
+        )
+        self.assertEqual(
+            "chat-a",
+            view.resolve_entry_model(
+                entry,
+                CAPABILITY_TTS,
+                explicit_model="chat-a",
+                default_option=CONF_DEFAULT_TTS_MODEL,
+            ),
+        )
 
     def test_coordinator_exposes_runtime_model_view(self) -> None:
         import asyncio
 
-        from lemonade.coordinator import LemonadeCoordinator
+        from lemonade.coordinator import LemonadeCoordinator, LemonadeRuntimeState
 
         class Client:
             async def health(self) -> dict[str, str]:
@@ -879,6 +943,9 @@ class ModelResolutionTest(unittest.TestCase):
         data = asyncio.run(coordinator._async_update_data())
         coordinator.data = data
 
+        self.assertIsInstance(data, LemonadeRuntimeState)
+        self.assertEqual({"status": "ok"}, data.health)
+        self.assertEqual("voice-model", data.raw_models["data"][0]["id"])
         self.assertEqual(["voice-model"], coordinator.model_view.model_ids(CAPABILITY_TTS))
         self.assertEqual(1, coordinator.model_view.model_count(CAPABILITY_TTS))
 
@@ -946,8 +1013,45 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(CONF_LLM_HASS_API, ai_task_definition.supported_fields)
         self.assertIsNone(profile_definition("unsupported"))
 
+        fields_by_key = {field.key: field for field in conversation_definition.fields}
+        self.assertEqual(
+            (
+                CONF_NAME,
+                CONF_MODEL,
+                CONF_PROMPT,
+                CONF_LLM_HASS_API,
+                CONF_MAX_HISTORY,
+                CONF_KEEP_ALIVE,
+            ),
+            tuple(fields_by_key),
+        )
+        self.assertTrue(fields_by_key[CONF_NAME].required)
+        self.assertEqual("model", fields_by_key[CONF_MODEL].selector_kind)
+        self.assertEqual("template", fields_by_key[CONF_PROMPT].selector_kind)
+        self.assertEqual(
+            "default_instructions",
+            fields_by_key[CONF_PROMPT].prompt_policy,
+        )
+        self.assertEqual("llm_api", fields_by_key[CONF_LLM_HASS_API].selector_kind)
+        self.assertEqual(DEFAULT_MAX_HISTORY, fields_by_key[CONF_MAX_HISTORY].default)
+        self.assertEqual(0, fields_by_key[CONF_MAX_HISTORY].minimum)
+        self.assertEqual(-1, fields_by_key[CONF_KEEP_ALIVE].minimum)
+        self.assertEqual(
+            CAPABILITY_CONVERSATION,
+            conversation_definition.model_policy.capability,
+        )
+        self.assertTrue(conversation_definition.model_policy.include_all_models)
+
+        ai_task_fields = {field.key: field for field in ai_task_definition.fields}
+        self.assertNotIn(CONF_LLM_HASS_API, ai_task_fields)
+        self.assertEqual("template", ai_task_fields[CONF_PROMPT].selector_kind)
+        self.assertEqual("none", ai_task_fields[CONF_PROMPT].prompt_policy)
+        self.assertEqual(CAPABILITY_AI_TASK, ai_task_definition.model_policy.capability)
+        self.assertTrue(ai_task_definition.model_policy.include_all_models)
+
     def test_capability_presentation_metadata_groups_callers(self) -> None:
         from lemonade.const import (
+            DEFAULT_MODEL_SELECTOR_DEFINITIONS,
             default_model_capability_presentations,
             model_count_capability_presentations,
             repair_issue_capabilities,
@@ -964,6 +1068,22 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
                 (record.capability, record.default_option_key)
                 for record in default_records
             ),
+        )
+        self.assertEqual(
+            (
+                (CAPABILITY_TTS, CONF_DEFAULT_TTS_MODEL),
+                (CAPABILITY_STT, CONF_DEFAULT_STT_MODEL),
+            ),
+            tuple(
+                (definition.capability, definition.option_key)
+                for definition in DEFAULT_MODEL_SELECTOR_DEFINITIONS
+            ),
+        )
+        self.assertTrue(
+            all(
+                definition.degraded_policy == "fallback_to_all_models"
+                for definition in DEFAULT_MODEL_SELECTOR_DEFINITIONS
+            )
         )
         self.assertEqual(
             (
@@ -1401,6 +1521,33 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             ["chat-a", "chat-b", "task-a", "image-a", "tts-a"],
             fields[CONF_DEFAULT_STT_MODEL][1].config.options,
         )
+
+    async def test_options_flow_ignores_stale_fallback_default_model(
+        self,
+    ) -> None:
+        from lemonade.config_flow import LemonadeOptionsFlow
+
+        entry = SimpleNamespace(
+            data={CONF_TIMEOUT: 12.0, CONF_VERIFY_SSL: True},
+            options={CONF_DEFAULT_TTS_MODEL: "chat-a"},
+            runtime_data=SimpleNamespace(
+                coordinator=SimpleNamespace(
+                    catalog=FakeCatalog(
+                        {
+                            CAPABILITY_CONVERSATION: ["chat-a"],
+                            CAPABILITY_TTS: ["tts-a"],
+                        }
+                    )
+                )
+            ),
+        )
+
+        result = await LemonadeOptionsFlow(entry).async_step_init()
+
+        self.assertEqual("form", result["type"])
+        fields = _schema_fields(result["data_schema"])
+        self.assertEqual(["tts-a"], fields[CONF_DEFAULT_TTS_MODEL][1].config.options)
+        self.assertEqual("tts-a", fields[CONF_DEFAULT_TTS_MODEL][0].default)
 
     async def test_options_flow_creates_entry_with_submitted_options(self) -> None:
         from lemonade.config_flow import LemonadeOptionsFlow
@@ -2621,7 +2768,10 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             entry,
             SimpleNamespace(
                 subentry_id="task-1",
-                data={CONF_MODEL: "profile-image"},
+                data={
+                    CONF_MODEL: "profile-image",
+                    CONF_PROMPT: "Use watercolor style",
+                },
             ),
         )
 
@@ -2636,8 +2786,23 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("image/png", result.mime_type)
         self.assertEqual("profile-image", result.model)
         self.assertEqual(
-            [{"prompt": "Draw a lemon", "model": "profile-image"}],
+            [
+                {
+                    "prompt": "Use watercolor style\n\nDraw a lemon",
+                    "model": "profile-image",
+                }
+            ],
             client.calls,
+        )
+        self.assertIsInstance(
+            entity._image_generation(SimpleNamespace(instructions="Draw a lemon")),
+            ai_task_module.ImageGeneration,
+        )
+        self.assertEqual(
+            "Use watercolor style\n\nDraw a lemon",
+            entity._image_generation(
+                SimpleNamespace(instructions="Draw a lemon")
+            ).prompt,
         )
 
     async def test_ai_task_generate_image_decodes_object_data_url_and_uses_catalog_model(self) -> None:
@@ -2694,6 +2859,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_ai_task_generate_data_uses_chat_log_data_interface(self) -> None:
         from homeassistant.components import ai_task
+        from homeassistant.components.conversation import SystemContent
 
         ai_task_module = _require_module("lemonade.ai_task")
         requests: list[dict[str, Any]] = []
@@ -2721,13 +2887,17 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             ),
         )
         entity = ai_task_module.LemonadeAITaskEntity(
-            entry, SimpleNamespace(subentry_id="task-1", data={})
+            entry,
+            SimpleNamespace(
+                subentry_id="task-1",
+                data={CONF_PROMPT: "Return only valid JSON"},
+            ),
         )
         entity.entity_id = "ai_task.lemonade"
 
         result = await entity._async_generate_data(
             SimpleNamespace(structure={"type": "json_object"}),
-            SimpleNamespace(conversation_id="conversation-1"),
+            SimpleNamespace(conversation_id="conversation-1", content=[]),
         )
 
         self.assertIsInstance(result, ai_task.GenDataTaskResult)
@@ -2737,6 +2907,77 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertIs(entry.runtime_data.client, requests[0]["client"])
         self.assertEqual("catalog-task", requests[0]["model"])
         self.assertEqual({"type": "json_object"}, requests[0]["structure"])
+        self.assertIsInstance(requests[0]["chat_log"].content[0], SystemContent)
+        self.assertEqual(
+            "Return only valid JSON",
+            requests[0]["chat_log"].content[0].content,
+        )
+        invocation = entity._data_generation(
+            SimpleNamespace(structure={"type": "json_object"}),
+            SimpleNamespace(conversation_id="conversation-1", content=[]),
+        )
+        self.assertIsInstance(invocation, ai_task_module.DataGeneration)
+        self.assertEqual("catalog-task", invocation.model)
+        self.assertEqual("Return only valid JSON", invocation.prompt)
+
+    def test_ai_task_prompted_chat_log_keeps_underlying_content_dynamic(self) -> None:
+        from homeassistant.components.conversation import AssistantContent, SystemContent
+
+        ai_task_module = _require_module("lemonade.ai_task")
+
+        chat_log = SimpleNamespace(content=[])
+        prompted = ai_task_module._PromptedChatLog(chat_log, "Return JSON")
+
+        chat_log.content.append(AssistantContent("first response"))
+
+        self.assertIsInstance(prompted.content[0], SystemContent)
+        self.assertEqual("Return JSON", prompted.content[0].content)
+        self.assertEqual("first response", prompted.content[1].content)
+
+    def test_ai_task_data_generation_uses_one_profile_snapshot(self) -> None:
+        ai_task_module = _require_module("lemonade.ai_task")
+
+        calls = 0
+        original_parse_profile = ai_task_module.parse_profile
+
+        def fake_parse_profile(subentry: Any, profile_type: str | None = None) -> Any:
+            nonlocal calls
+            calls += 1
+            return ai_task_module.AITaskProfile(
+                id="task-1",
+                profile_type=SUBENTRY_TYPE_AI_TASK,
+                model="profile-task",
+                prompt="Return JSON",
+                max_history=4,
+                keep_alive=-1,
+            )
+
+        self.addCleanup(setattr, ai_task_module, "parse_profile", original_parse_profile)
+        ai_task_module.parse_profile = fake_parse_profile
+
+        entry = SimpleNamespace(
+            options={},
+            runtime_data=SimpleNamespace(
+                coordinator=SimpleNamespace(
+                    catalog=FakeCatalog({CAPABILITY_AI_TASK: ["catalog-task"]})
+                )
+            ),
+        )
+        entity = ai_task_module.LemonadeAITaskEntity(
+            entry,
+            SimpleNamespace(subentry_id="task-1", data={}),
+        )
+
+        invocation = entity._data_generation(
+            SimpleNamespace(structure={"type": "json_object"}),
+            SimpleNamespace(content=[]),
+        )
+
+        self.assertEqual(1, calls)
+        self.assertEqual("profile-task", invocation.model)
+        self.assertEqual("Return JSON", invocation.prompt)
+        self.assertEqual(4, invocation.max_history)
+        self.assertEqual(-1, invocation.keep_alive)
 
     def test_ai_task_resolve_data_model_prefers_profile_then_catalog(self) -> None:
         ai_task_module = _require_module("lemonade.ai_task")
@@ -3357,7 +3598,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
 
     async def test_coordinator_refreshes_health_models_and_catalog(self) -> None:
-        from lemonade.coordinator import LemonadeCoordinator
+        from lemonade.coordinator import LemonadeCoordinator, LemonadeRuntimeState
 
         class Client:
             async def health(self) -> dict[str, Any]:
@@ -3375,9 +3616,10 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         data = await coordinator._async_update_data()
         coordinator.data = data
 
-        self.assertEqual({"status": "ok"}, data["health"])
-        self.assertEqual("voice-model", data["models"]["data"][0]["id"])
-        self.assertEqual(["voice-model"], data["catalog"].model_ids(CAPABILITY_TTS))
+        self.assertIsInstance(data, LemonadeRuntimeState)
+        self.assertEqual({"status": "ok"}, data.health)
+        self.assertEqual("voice-model", data.raw_models["data"][0]["id"])
+        self.assertEqual(["voice-model"], data.catalog.model_ids(CAPABILITY_TTS))
         self.assertEqual({"status": "ok"}, coordinator.health)
         self.assertEqual(["voice-model"], coordinator.catalog.model_ids(CAPABILITY_TTS))
         self.assertEqual("ok", coordinator.server_status)
@@ -3719,6 +3961,128 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             valid_client.kwargs,
         )
 
+    def test_transcription_adapter_preserves_legacy_outcome_shape(self) -> None:
+        from lemonade.transcription import (
+            TranscriptionOutcome,
+            TranscriptionResult,
+            transcription_outcome,
+        )
+
+        result = TranscriptionResult("legacy text")
+        legacy_valid = TranscriptionOutcome(
+            response={"text": "legacy text"},
+            result=result,
+        )
+        parse_error = TypeError("bad text")
+        legacy_invalid = TranscriptionOutcome(
+            response={"text": None},
+            result=None,
+            error=parse_error,
+        )
+        parsed_invalid = transcription_outcome({"text": None})
+
+        self.assertIs(legacy_valid.result, result)
+        self.assertIsNone(legacy_valid.error)
+        self.assertEqual("legacy text", legacy_valid.text)
+        self.assertTrue(legacy_valid.is_valid)
+        self.assertIs(legacy_valid.require_result(), result)
+        self.assertIsNone(legacy_invalid.result)
+        self.assertIs(legacy_invalid.error, parse_error)
+        self.assertIsNone(legacy_invalid.text)
+        self.assertFalse(legacy_invalid.is_valid)
+        with self.assertRaises(TypeError) as raised:
+            legacy_invalid.require_result()
+        self.assertIs(parse_error, raised.exception)
+        self.assertTrue(hasattr(parsed_invalid, "result"))
+        self.assertTrue(hasattr(parsed_invalid, "error"))
+        self.assertIsNone(parsed_invalid.result)
+        self.assertIsNotNone(parsed_invalid.error)
+
+    async def test_speech_transcription_outcome_is_sum_type_without_nullable_cluster(self) -> None:
+        from lemonade.speech import (
+            InvalidSpeechTranscription,
+            ValidSpeechTranscription,
+            speech_transcription_outcome,
+        )
+
+        valid = speech_transcription_outcome({"text": "turn on lights"})
+        invalid = speech_transcription_outcome({"text": None})
+
+        self.assertIsInstance(valid, ValidSpeechTranscription)
+        self.assertEqual("turn on lights", valid.text)
+        self.assertTrue(valid.is_valid)
+        self.assertIsInstance(invalid, InvalidSpeechTranscription)
+        self.assertIsNone(invalid.text)
+        self.assertFalse(invalid.is_valid)
+        self.assertFalse(hasattr(invalid, "result"))
+        self.assertFalse(hasattr(invalid, "error"))
+        with self.assertRaisesRegex(
+            TypeError,
+            "Lemonade transcription response missing valid text",
+        ):
+            invalid.require_result()
+
+    async def test_speech_transcribes_entry_stream_with_resolved_model_and_typed_invalid_outcome(self) -> None:
+        from lemonade.speech import (
+            InvalidSpeechTranscription,
+            ValidSpeechTranscription,
+            transcribe_entry_stream,
+        )
+
+        class Client:
+            def __init__(self) -> None:
+                self.calls: list[dict[str, Any]] = []
+
+            async def transcribe_audio(self, **kwargs: Any) -> dict[str, Any]:
+                self.calls.append(kwargs)
+                if len(self.calls) == 1:
+                    return {"text": "stream text"}
+                return {"text": None}
+
+        async def audio_stream() -> Any:
+            yield b"stream"
+
+        client = Client()
+        entry = _service_entry(
+            client,
+            {CAPABILITY_STT: ["catalog-stt", "entry-stt"]},
+            {CONF_DEFAULT_STT_MODEL: "entry-stt"},
+        )
+
+        valid = await transcribe_entry_stream(
+            entry,
+            audio_stream(),
+            language="en",
+        )
+        invalid = await transcribe_entry_stream(
+            entry,
+            audio_stream(),
+            explicit_model="request-stt",
+            language=None,
+        )
+
+        self.assertIsInstance(valid, ValidSpeechTranscription)
+        self.assertEqual("stream text", valid.require_result().text)
+        self.assertIsInstance(invalid, InvalidSpeechTranscription)
+        self.assertIsNone(invalid.text)
+        self.assertEqual(
+            [
+                {
+                    "audio": b"stream",
+                    "filename": "speech.wav",
+                    "model": "entry-stt",
+                    "language": "en",
+                },
+                {
+                    "audio": b"stream",
+                    "filename": "speech.wav",
+                    "model": "request-stt",
+                    "language": None,
+                },
+            ],
+            client.calls,
+        )
+
     async def test_voice_generation_resolves_model_generates_audio_and_metadata(self) -> None:
         import aiohttp
 
@@ -3743,7 +4107,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         client = Client()
         entry = _service_entry(
             client,
-            {CAPABILITY_TTS: ["catalog-tts"]},
+            {CAPABILITY_TTS: ["catalog-tts", "entry-tts"]},
             {CONF_DEFAULT_TTS_MODEL: "entry-tts"},
         )
 
@@ -4046,8 +4410,8 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             {
                 CAPABILITY_CONVERSATION: ["catalog-chat"],
                 CAPABILITY_IMAGE: ["catalog-image"],
-                CAPABILITY_TTS: ["catalog-tts"],
-                CAPABILITY_STT: ["catalog-stt"],
+                CAPABILITY_TTS: ["catalog-tts", "entry-tts"],
+                CAPABILITY_STT: ["catalog-stt", "entry-stt"],
             },
         )
         hass = FakeServiceHass(entry)
@@ -4867,7 +5231,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         entry.runtime_data = SimpleNamespace(
             client=client,
             coordinator=SimpleNamespace(
-                catalog=FakeCatalog({CAPABILITY_TTS: ["catalog-tts"]})
+                catalog=FakeCatalog({CAPABILITY_TTS: ["catalog-tts", "entry-tts"]})
             ),
         )
         entity = tts_module.LemonadeTTSEntity(entry)
@@ -4901,7 +5265,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
         client = Client()
         coordinator = SimpleNamespace(
-            catalog=FakeCatalog({CAPABILITY_STT: ["catalog-stt"]}),
+            catalog=FakeCatalog({CAPABILITY_STT: ["catalog-stt", "entry-stt"]}),
             last_update_success=True,
         )
         entry = FakeEntry()
@@ -5101,31 +5465,31 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             ),
         )
         entity = stt_module.LemonadeSTTEntity(entry)
-        original_transcribe_stream_result = stt_module.transcribe_stream_result
+        original_transcribe_entry_stream = stt_module.transcribe_entry_stream
 
-        async def transcribe_stream_result(client: Any, stream: Any, **kwargs: Any) -> Any:
+        async def transcribe_entry_stream(entry: Any, stream: Any, **kwargs: Any) -> Any:
             audio = b"".join([chunk async for chunk in stream])
             request_calls.append(
                 {
-                    "client": client,
+                    "entry": entry,
                     "audio": audio,
-                    "model": kwargs["model"],
+                    "model": kwargs["explicit_model"],
                     "language": kwargs["language"],
                 }
             )
             raise TypeError("Lemonade transcription response missing valid text")
 
-        stt_module.transcribe_stream_result = transcribe_stream_result
+        stt_module.transcribe_entry_stream = transcribe_entry_stream
         try:
             with self.assertLogs(stt_module._LOGGER.name, level="ERROR") as logs:
                 result = await entity.async_process_audio_stream(
                     SimpleNamespace(language="en"), audio_stream()
                 )
         finally:
-            stt_module.transcribe_stream_result = original_transcribe_stream_result
+            stt_module.transcribe_entry_stream = original_transcribe_entry_stream
 
         self.assertEqual(1, len(request_calls))
-        self.assertIsInstance(request_calls[0]["client"], Client)
+        self.assertIs(request_calls[0]["entry"], entry)
         self.assertEqual(b"audio", request_calls[0]["audio"])
         self.assertEqual("catalog-stt", request_calls[0]["model"])
         self.assertEqual("en", request_calls[0]["language"])
@@ -5176,6 +5540,19 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertTrue(entities[CONF_DEFAULT_TTS_MODEL].available)
         self.assertEqual("chat-a", entities[CONF_DEFAULT_TTS_MODEL].current_option)
+        self.assertIsNotNone(entities[CONF_DEFAULT_TTS_MODEL].selector_definition)
+        self.assertEqual(
+            "chat-a",
+            entities[CONF_DEFAULT_TTS_MODEL].selector_definition.current_option(
+                entry,
+                coordinator,
+            ),
+        )
+
+        with self.assertRaises(ValueError):
+            await entities[CONF_DEFAULT_TTS_MODEL].async_select_option("not-a-model")
+        self.assertEqual([], hass.config_entries.updated)
+        self.assertIsNone(hass.config_entries.reloaded)
 
         await entities[CONF_DEFAULT_TTS_MODEL].async_select_option("chat-a")
 

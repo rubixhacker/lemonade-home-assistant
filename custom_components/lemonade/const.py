@@ -74,6 +74,45 @@ class CapabilityPresentation:
     repair_issue: bool = False
 
 
+@dataclass(frozen=True, slots=True)
+class DefaultModelSelectorDefinition:
+    """Policy for a Server Entry default Model Selector."""
+
+    capability: str
+    option_key: str
+    name: str
+    degraded_policy: str = "fallback_to_all_models"
+
+    def options(self, source: object) -> list[str]:
+        """Return selectable model IDs for this selector."""
+        from .model_resolution import runtime_model_view
+
+        model_view = runtime_model_view(source)
+        capability_options = model_view.model_ids(self.capability)
+        if capability_options or self.degraded_policy != "fallback_to_all_models":
+            return capability_options
+        return model_view.all_model_ids
+
+    def current_option(self, entry: object, source: object) -> str | None:
+        """Return the configured valid option or the first selectable model."""
+        from .model_resolution import runtime_model_view
+
+        options = self.options(source)
+        configured = runtime_model_view(source).entry_default_model(
+            entry,
+            self.option_key,
+        )
+        if configured in options:
+            return configured
+        return options[0] if options else None
+
+    def validate_option(self, option: str, source: object) -> str:
+        """Return a valid selectable option or raise."""
+        if option not in self.options(source):
+            raise ValueError(f"Unknown Lemonade model option: {option}")
+        return option
+
+
 CAPABILITY_PRESENTATIONS = (
     CapabilityPresentation(
         CAPABILITY_CONVERSATION,
@@ -99,6 +138,19 @@ CAPABILITY_PRESENTATIONS = (
     ),
 )
 
+DEFAULT_MODEL_SELECTOR_DEFINITIONS = (
+    DefaultModelSelectorDefinition(
+        CAPABILITY_TTS,
+        CONF_DEFAULT_TTS_MODEL,
+        DEFAULT_MODEL_OPTION_NAMES[CONF_DEFAULT_TTS_MODEL],
+    ),
+    DefaultModelSelectorDefinition(
+        CAPABILITY_STT,
+        CONF_DEFAULT_STT_MODEL,
+        DEFAULT_MODEL_OPTION_NAMES[CONF_DEFAULT_STT_MODEL],
+    ),
+)
+
 
 def default_model_capability_presentations() -> Iterable[CapabilityPresentation]:
     """Iterate capabilities configurable as default model options."""
@@ -107,6 +159,11 @@ def default_model_capability_presentations() -> Iterable[CapabilityPresentation]
         for presentation in CAPABILITY_PRESENTATIONS
         if presentation.default_option_key is not None
     )
+
+
+def default_model_selector_definitions() -> Iterable[DefaultModelSelectorDefinition]:
+    """Iterate Server Entry default Model Selector definitions."""
+    return DEFAULT_MODEL_SELECTOR_DEFINITIONS
 
 
 def model_count_capability_presentations() -> Iterable[CapabilityPresentation]:

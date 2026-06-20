@@ -10,11 +10,9 @@ from homeassistant.components import stt
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CAPABILITY_STT, CONF_DEFAULT_STT_MODEL
 from .data import LemonadeConfigEntry
 from .errors import LEMONADE_CLIENT_EXCEPTIONS
-from .model_resolution import resolve_entry_model
-from .transcription import transcribe_stream_result
+from .speech import resolve_speech_transcription_model, transcribe_entry_stream
 
 _LOGGER = logging.getLogger(__name__)
 _STT_TRANSCRIPTION_EXCEPTIONS = LEMONADE_CLIENT_EXCEPTIONS
@@ -77,11 +75,7 @@ class LemonadeSTTEntity(stt.SpeechToTextEntity):
 
     def _resolve_model(self) -> str | None:
         """Return the configured or first catalog STT model."""
-        return resolve_entry_model(
-            self.entry,
-            CAPABILITY_STT,
-            default_option=CONF_DEFAULT_STT_MODEL,
-        )
+        return resolve_speech_transcription_model(self.entry)
 
     @property
     def available(self) -> bool:
@@ -100,12 +94,13 @@ class LemonadeSTTEntity(stt.SpeechToTextEntity):
             return _error_result()
 
         try:
-            result = await transcribe_stream_result(
-                self.entry.runtime_data.client,
+            outcome = await transcribe_entry_stream(
+                self.entry,
                 stream,
-                model=model,
+                explicit_model=model,
                 language=getattr(metadata, "language", None),
             )
+            result = outcome.require_result()
         except _STT_TRANSCRIPTION_EXCEPTIONS as err:
             _LOGGER.error("Error transcribing audio with Lemonade: %s", err)
             return _error_result()

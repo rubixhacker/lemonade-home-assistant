@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from .const import DEFAULT_MODEL_SELECTOR_DEFINITIONS
 from .models import Capability, ModelId, parse_models_response
 
 
@@ -94,6 +95,13 @@ def _entry_default_model(entry: Any, option_key: str | None) -> str | None:
     return None
 
 
+def _is_default_model_selector_option(option_key: str | None) -> bool:
+    """Return true when an option key is backed by Model Selector policy."""
+    return option_key in {
+        definition.option_key for definition in DEFAULT_MODEL_SELECTOR_DEFINITIONS
+    }
+
+
 @dataclass(frozen=True, slots=True)
 class RuntimeModelView:
     """Runtime model and selection view for a Lemonade config entry."""
@@ -134,6 +142,25 @@ class RuntimeModelView:
         """Return a configured entry default model from options or data."""
         return _entry_default_model(entry, option_key)
 
+    def valid_entry_default_model(
+        self,
+        entry: Any,
+        capability: Capability | str,
+        option_key: str | None,
+    ) -> str | None:
+        """Return the configured entry default when valid for runtime resolution."""
+        configured = self.entry_default_model(entry, option_key)
+        if configured is None:
+            return None
+
+        if not _is_default_model_selector_option(option_key):
+            return configured
+
+        capability_options = self.model_ids(capability)
+        if capability_options and configured not in capability_options:
+            return None
+        return configured
+
     def resolve_model(
         self,
         capability: Capability | str,
@@ -162,7 +189,11 @@ class RuntimeModelView:
             capability,
             explicit_model=explicit_model,
             profile_model=profile_model,
-            default_model=self.entry_default_model(entry, default_option),
+            default_model=self.valid_entry_default_model(
+                entry,
+                capability,
+                default_option,
+            ),
         )
 
     def current_entry_model_option(
@@ -189,6 +220,12 @@ def runtime_model_view(source: Any) -> RuntimeModelView:
     runtime_data = getattr(source, "runtime_data", None)
     if runtime_data is not None:
         return runtime_model_view(getattr(runtime_data, "coordinator", None))
+
+    runtime_state = getattr(source, "runtime_state", None)
+    if runtime_state is not None:
+        state_view = getattr(runtime_state, "model_view", None)
+        if isinstance(state_view, RuntimeModelView):
+            return state_view
 
     view = getattr(source, "model_view", None)
     if isinstance(view, RuntimeModelView):

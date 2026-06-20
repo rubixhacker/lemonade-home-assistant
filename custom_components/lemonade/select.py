@@ -7,12 +7,11 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
-    DEFAULT_MODEL_OPTION_NAMES,
-    default_model_capability_presentations,
+    DefaultModelSelectorDefinition,
+    default_model_selector_definitions,
 )
 from .data import LemonadeConfigEntry
 from .entity import LemonadeEntity
-from .model_resolution import runtime_model_view
 
 
 async def async_setup_entry(
@@ -25,11 +24,9 @@ async def async_setup_entry(
         [
             LemonadeDefaultModelSelect(
                 entry,
-                presentation.capability,
-                presentation.default_option_key,
+                definition,
             )
-            for presentation in default_model_capability_presentations()
-            if presentation.default_option_key is not None
+            for definition in default_model_selector_definitions()
         ]
     )
 
@@ -40,29 +37,25 @@ class LemonadeDefaultModelSelect(LemonadeEntity, SelectEntity):
     def __init__(
         self,
         entry: LemonadeConfigEntry,
-        capability: str,
-        option_key: str,
+        selector_definition: DefaultModelSelectorDefinition,
     ) -> None:
         """Initialize the default model select."""
-        super().__init__(entry, option_key)
-        self._capability = capability
-        self._option_key = option_key
-        self._attr_name = DEFAULT_MODEL_OPTION_NAMES.get(option_key, option_key)
-        self._attr_translation_key = option_key
+        super().__init__(entry, selector_definition.option_key)
+        self.selector_definition = selector_definition
+        self._attr_name = selector_definition.name
+        self._attr_translation_key = selector_definition.option_key
 
     @property
     def options(self) -> list[str]:
         """Return available model IDs for the capability."""
-        model_view = runtime_model_view(self.coordinator)
-        return model_view.model_ids(self._capability) or model_view.all_model_ids
+        return self.selector_definition.options(self.coordinator)
 
     @property
     def current_option(self) -> str | None:
         """Return the configured model or the first available model."""
-        return runtime_model_view(self.coordinator).current_entry_model_option(
+        return self.selector_definition.current_option(
             self.entry,
-            self._capability,
-            self._option_key,
+            self.coordinator,
         )
 
     @property
@@ -72,8 +65,9 @@ class LemonadeDefaultModelSelect(LemonadeEntity, SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         """Update the configured default model and reload the entry."""
+        option = self.selector_definition.validate_option(option, self.coordinator)
         self.hass.config_entries.async_update_entry(
             self.entry,
-            options={**self.entry.options, self._option_key: option},
+            options={**self.entry.options, self.selector_definition.option_key: option},
         )
         await self.hass.config_entries.async_reload(self.entry.entry_id)
