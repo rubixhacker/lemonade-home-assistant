@@ -16,7 +16,6 @@ DEFAULT_SCAN_INTERVAL_SECONDS = 60
 CONF_TIMEOUT = "timeout"
 CONF_VERIFY_SSL = "verify_ssl"
 CONF_ENTRY_ID = "entry_id"
-CONF_DEFAULT_MODEL = "default_model"
 CONF_DEFAULT_CONVERSATION_MODEL = "default_conversation_model"
 CONF_DEFAULT_AI_TASK_MODEL = "default_ai_task_model"
 CONF_DEFAULT_IMAGE_MODEL = "default_image_model"
@@ -56,7 +55,6 @@ MODEL_OPTION_BY_CAPABILITY = {
 }
 
 DEFAULT_MODEL_OPTION_NAMES = {
-    CONF_DEFAULT_MODEL: "Default model",
     CONF_DEFAULT_CONVERSATION_MODEL: "Default conversation model",
     CONF_DEFAULT_AI_TASK_MODEL: "Default AI task model",
     CONF_DEFAULT_IMAGE_MODEL: "Default image model",

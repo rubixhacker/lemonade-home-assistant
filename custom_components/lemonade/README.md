@@ -46,7 +46,7 @@ Leave **Verify SSL certificate** enabled for public CA certificates such as Let'
 
 ## Assist and AI task profiles
 
-During setup, the integration queries Lemonade and shows **Default model** as a dropdown populated from `/v1/models`. Set **Default model** to use one omni model across Lemonade features, then set any per-capability default only when that feature should use a different model. Conversation agents and AI task entities are added as profiles on the Lemonade integration entry:
+The integration creates per-capability default model controls for conversation, AI task, image, text-to-speech, and speech-to-text models. Conversation agents and AI task entities are added as profiles on the Lemonade integration entry:
 
 1. Go to **Settings → Devices & services → Lemonade Server**.
 2. In the entry details, use the **Add service** area or one of the `+` buttons.

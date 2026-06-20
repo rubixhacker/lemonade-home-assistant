@@ -7,7 +7,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
-    CONF_DEFAULT_MODEL,
     DEFAULT_MODEL_OPTION_NAMES,
     default_model_capability_presentations,
 )
@@ -23,8 +22,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up Lemonade Server model selects."""
     async_add_entities(
-        [LemonadeDefaultModelSelect(entry, None, CONF_DEFAULT_MODEL)]
-        + [
+        [
             LemonadeDefaultModelSelect(
                 entry,
                 presentation.capability,
@@ -42,7 +40,7 @@ class LemonadeDefaultModelSelect(LemonadeEntity, SelectEntity):
     def __init__(
         self,
         entry: LemonadeConfigEntry,
-        capability: str | None,
+        capability: str,
         option_key: str,
     ) -> None:
         """Initialize the default model select."""
@@ -56,20 +54,11 @@ class LemonadeDefaultModelSelect(LemonadeEntity, SelectEntity):
     def options(self) -> list[str]:
         """Return available model IDs for the capability."""
         model_view = runtime_model_view(self.coordinator)
-        if self._capability is None:
-            return model_view.all_model_ids
         return model_view.model_ids(self._capability) or model_view.all_model_ids
 
     @property
     def current_option(self) -> str | None:
         """Return the configured model or the first available model."""
-        if self._capability is None:
-            model_view = runtime_model_view(self.coordinator)
-            configured = model_view.entry_default_model(self.entry, self._option_key)
-            options = self.options
-            if configured in options:
-                return configured
-            return options[0] if options else None
         return runtime_model_view(self.coordinator).current_entry_model_option(
             self.entry,
             self._capability,

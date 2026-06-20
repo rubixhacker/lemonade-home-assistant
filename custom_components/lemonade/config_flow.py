@@ -22,7 +22,6 @@ except ImportError:  # pragma: no cover - older Home Assistant compatibility
 
 from .api import LemonadeAuthError, LemonadeClient, LemonadeError
 from .const import (
-    CONF_DEFAULT_MODEL,
     CONF_TIMEOUT,
     CONF_VERIFY_SSL,
     DEFAULT_NAME,
@@ -32,7 +31,6 @@ from .const import (
     default_model_capability_presentations,
 )
 from .model_resolution import runtime_model_view
-from .models import parse_models_response
 from .profiles import (
     ProfileDefinition,
     profile_definition,
@@ -86,26 +84,14 @@ DATA_SCHEMA = vol.Schema(
 )
 
 
-def _default_model_schema(model_ids: list[str]) -> vol.Schema:
-    """Return the default model selection schema."""
-    return vol.Schema(
-        {
-            vol.Required(
-                CONF_DEFAULT_MODEL,
-                default=model_ids[0],
-            ): _model_select_selector(model_ids)
-        }
-    )
-
-
-async def _async_fetch_model_ids(
+async def _async_validate_connection(
     hass: HomeAssistant,
     url: str,
     api_key: str | None,
     timeout: float,
     verify_ssl: bool,
-) -> tuple[dict[str, str], list[str]]:
-    """Validate that Lemonade Server is reachable and return model IDs."""
+) -> dict[str, str]:
+    """Validate that Lemonade Server is reachable."""
     errors: dict[str, str] = {}
     client = LemonadeClient(
         async_get_clientsession(hass),
@@ -117,9 +103,6 @@ async def _async_fetch_model_ids(
 
     try:
         await client.health()
-        model_ids = parse_models_response(await client.models()).all_model_ids
-        if not model_ids:
-            errors["base"] = "no_models"
     except LemonadeAuthError:
         errors["base"] = "invalid_auth"
     except (TimeoutError, aiohttp.ClientError) as err:
@@ -131,20 +114,14 @@ async def _async_fetch_model_ids(
     except Exception:  # noqa: BLE001 - surface unexpected config-flow failures in logs
         _LOGGER.exception("Unexpected Lemonade Server validation failure for %s", url)
         errors["base"] = "unknown"
-    else:
-        return errors, model_ids
 
-    return errors, []
+    return errors
 
 
 class LemonadeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Lemonade Server."""
 
     VERSION = 1
-
-    _pending_data: dict[str, Any]
-    _pending_title: str
-    _model_ids: list[str]
 
     @staticmethod
     def async_get_options_flow(
@@ -187,7 +164,7 @@ class LemonadeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if not errors:
             await self.async_set_unique_id(url)
             self._abort_if_unique_id_configured()
-            errors, model_ids = await _async_fetch_model_ids(
+            errors = await _async_validate_connection(
                 self.hass,
                 url,
                 api_key,
@@ -202,38 +179,16 @@ class LemonadeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors=errors,
             )
 
-        self._pending_data = {
+        data: dict[str, Any] = {
             CONF_URL: url,
             CONF_TIMEOUT: timeout,
             CONF_VERIFY_SSL: verify_ssl,
         }
         if api_key:
-            self._pending_data[CONF_API_KEY] = api_key
-        self._pending_title = user_input.get(CONF_NAME, DEFAULT_NAME)
-        self._model_ids = model_ids
+            data[CONF_API_KEY] = api_key
 
-        return self.async_show_form(
-            step_id="model",
-            data_schema=_default_model_schema(model_ids),
-        )
-
-    async def async_step_model(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Handle default model selection after querying Lemonade."""
-        model_ids = getattr(self, "_model_ids", [])
-        if not model_ids:
-            return self.async_abort(reason="no_models")
-        if user_input is None:
-            return self.async_show_form(
-                step_id="model",
-                data_schema=_default_model_schema(model_ids),
-            )
-
-        data = dict(self._pending_data)
-        data[CONF_DEFAULT_MODEL] = user_input[CONF_DEFAULT_MODEL]
         return self.async_create_entry(
-            title=self._pending_title,
+            title=user_input.get(CONF_NAME, DEFAULT_NAME),
             data=data,
         )
 
@@ -292,13 +247,6 @@ class LemonadeOptionsFlow(config_entries.OptionsFlow):
 
         model_view = runtime_model_view(config_entry)
         all_model_ids = model_view.all_model_ids
-        if all_model_ids:
-            schema[
-                vol.Optional(
-                    CONF_DEFAULT_MODEL,
-                    default=_entry_current_value(config_entry, CONF_DEFAULT_MODEL),
-                )
-            ] = _model_select_selector(all_model_ids)
 
         for presentation in default_model_capability_presentations():
             option_key = presentation.default_option_key

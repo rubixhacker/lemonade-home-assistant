@@ -6,7 +6,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from .const import CONF_DEFAULT_MODEL
 from .models import Capability, ModelId, parse_models_response
 
 
@@ -163,8 +162,7 @@ class RuntimeModelView:
             capability,
             explicit_model=explicit_model,
             profile_model=profile_model,
-            default_model=self.entry_default_model(entry, default_option)
-            or self.entry_default_model(entry, CONF_DEFAULT_MODEL),
+            default_model=self.entry_default_model(entry, default_option),
         )
 
     def current_entry_model_option(
@@ -180,9 +178,6 @@ class RuntimeModelView:
         configured = self.entry_default_model(entry, option_key)
         if configured in options:
             return configured
-        global_default = self.entry_default_model(entry, CONF_DEFAULT_MODEL)
-        if global_default in options:
-            return global_default
         return options[0] if options else None
 
 

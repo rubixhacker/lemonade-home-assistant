@@ -11,20 +11,12 @@
           "timeout": "Request timeout (seconds)",
           "verify_ssl": "Verify SSL certificate"
         }
-      },
-      "model": {
-        "title": "Default model",
-        "description": "Choose the default Lemonade model to use across features. You can override this per capability later.",
-        "data": {
-          "default_model": "Default model"
-        }
       }
     },
     "error": {
       "cannot_connect": "Failed to connect to Lemonade Server.",
       "invalid_auth": "Invalid authentication.",
       "invalid_url": "Invalid URL.",
-      "no_models": "No Lemonade models are available.",
       "unknown": "Unexpected error. Check the Home Assistant logs."
     },
     "abort": {
@@ -43,7 +35,6 @@
           "api_key": "API key",
           "timeout": "Request timeout (seconds)",
           "verify_ssl": "Verify SSL certificate",
-          "default_model": "Default model",
           "default_conversation_model": "Default conversation model",
           "default_ai_task_model": "Default AI task model",
           "default_image_model": "Default image model",
@@ -56,6 +47,10 @@
   "config_subentries": {
     "conversation": {
       "title": "Conversation profile",
+      "initiate_flow": {
+        "user": "Add conversation profile",
+        "reconfigure": "Reconfigure conversation profile"
+      },
       "step": {
         "user": {
           "title": "Add conversation profile",
@@ -86,6 +81,10 @@
     },
     "ai_task_data": {
       "title": "AI task profile",
+      "initiate_flow": {
+        "user": "Add AI task profile",
+        "reconfigure": "Reconfigure AI task profile"
+      },
       "step": {
         "user": {
           "title": "Add AI task profile",
@@ -135,9 +134,6 @@
       }
     },
     "select": {
-      "default_model": {
-        "name": "Default model"
-      },
       "default_conversation_model": {
         "name": "Default conversation model"
       },
