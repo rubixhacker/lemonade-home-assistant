@@ -57,7 +57,13 @@
             "name": "Profile name",
             "model": "Model",
             "prompt": "Prompt",
-            "llm_hass_api": "Home Assistant LLM APIs"
+            "llm_hass_api": "Home Assistant LLM APIs",
+            "max_history": "Max history messages",
+            "keep_alive": "Keep alive"
+          },
+          "data_description": {
+            "max_history": "Maximum number of non-system chat history messages to send to Lemonade each turn. 0 sends all history.",
+            "keep_alive": "Duration in seconds for Lemonade to keep the model active. Leave blank for the Lemonade server default. -1 = indefinite, 0 = never."
           }
         },
         "reconfigure": {
@@ -67,7 +73,13 @@
             "name": "Profile name",
             "model": "Model",
             "prompt": "Prompt",
-            "llm_hass_api": "Home Assistant LLM APIs"
+            "llm_hass_api": "Home Assistant LLM APIs",
+            "max_history": "Max history messages",
+            "keep_alive": "Keep alive"
+          },
+          "data_description": {
+            "max_history": "Maximum number of non-system chat history messages to send to Lemonade each turn. 0 sends all history.",
+            "keep_alive": "Duration in seconds for Lemonade to keep the model active. Leave blank for the Lemonade server default. -1 = indefinite, 0 = never."
           }
         }
       },
@@ -90,7 +102,13 @@
           "data": {
             "name": "Profile name",
             "model": "Model",
-            "prompt": "Prompt"
+            "prompt": "Prompt",
+            "max_history": "Max history messages",
+            "keep_alive": "Keep alive"
+          },
+          "data_description": {
+            "max_history": "Maximum number of non-system chat history messages to send to Lemonade each turn. 0 sends all history.",
+            "keep_alive": "Duration in seconds for Lemonade to keep the model active. Leave blank for the Lemonade server default. -1 = indefinite, 0 = never."
           }
         },
         "reconfigure": {
@@ -99,7 +117,13 @@
           "data": {
             "name": "Profile name",
             "model": "Model",
-            "prompt": "Prompt"
+            "prompt": "Prompt",
+            "max_history": "Max history messages",
+            "keep_alive": "Keep alive"
+          },
+          "data_description": {
+            "max_history": "Maximum number of non-system chat history messages to send to Lemonade each turn. 0 sends all history.",
+            "keep_alive": "Duration in seconds for Lemonade to keep the model active. Leave blank for the Lemonade server default. -1 = indefinite, 0 = never."
           }
         }
       },

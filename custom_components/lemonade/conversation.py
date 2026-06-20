@@ -24,6 +24,7 @@ from .profiles import (
     async_add_profile_entity,
     parse_profile,
     profile_subentries,
+    profile_title,
 )
 
 
@@ -59,11 +60,10 @@ class LemonadeConversationEntity(
         self.subentry = subentry
         self._attr_unique_id = getattr(subentry, "subentry_id")
 
-        entry_id = getattr(entry, "entry_id", None)
-        if entry_id:
+        if self._attr_unique_id:
             self._attr_device_info = DeviceInfo(
-                identifiers={(DOMAIN, entry_id)},
-                name=getattr(entry, "title", None),
+                identifiers={(DOMAIN, self._attr_unique_id)},
+                name=profile_title(subentry, getattr(entry, "title", None)),
                 manufacturer="Lemonade Server",
                 entry_type=DeviceEntryType.SERVICE,
             )
@@ -128,6 +128,8 @@ class LemonadeConversationEntity(
                     client=self.entry.runtime_data.client,
                     model=model,
                     chat_log=chat_log,
+                    max_history=self.profile.max_history,
+                    keep_alive=self.profile.keep_alive,
                 )
             except LEMONADE_CLIENT_EXCEPTIONS as err:
                 raise lemonade_home_assistant_error(

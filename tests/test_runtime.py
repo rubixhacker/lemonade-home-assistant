@@ -104,6 +104,26 @@ class _SelectSelector:
         self.config = config
 
 
+class _NumberSelectorConfig:
+    def __init__(
+        self,
+        *,
+        min: int | None = None,
+        max: int | None = None,
+        step: int | None = None,
+        mode: str | None = None,
+    ) -> None:
+        self.min = min
+        self.max = max
+        self.step = step
+        self.mode = mode
+
+
+class _NumberSelector:
+    def __init__(self, config: _NumberSelectorConfig) -> None:
+        self.config = config
+
+
 class _TemplateSelector:
     pass
 
@@ -403,6 +423,9 @@ def _install_homeassistant_stubs() -> None:
     selector = ModuleType("homeassistant.helpers.selector")
     selector.SelectSelector = _SelectSelector
     selector.SelectSelectorConfig = _SelectSelectorConfig
+    selector.NumberSelector = _NumberSelector
+    selector.NumberSelectorConfig = _NumberSelectorConfig
+    selector.NumberSelectorMode = SimpleNamespace(BOX="box")
     selector.TemplateSelector = _TemplateSelector
     sys.modules.setdefault("homeassistant.helpers.selector", selector)
 
@@ -499,9 +522,12 @@ from lemonade.const import (  # noqa: E402
     CONF_DEFAULT_IMAGE_MODEL,
     CONF_DEFAULT_STT_MODEL,
     CONF_DEFAULT_TTS_MODEL,
+    CONF_KEEP_ALIVE,
     CONF_LLM_HASS_API,
+    CONF_MAX_HISTORY,
     CONF_TIMEOUT,
     CONF_VERIFY_SSL,
+    DEFAULT_MAX_HISTORY,
     DEFAULT_SCAN_INTERVAL_SECONDS,
     DOMAIN,
     PLATFORMS,
@@ -974,6 +1000,8 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
                     CONF_MODEL: "chat-a",
                     CONF_PROMPT: "Be helpful",
                     CONF_LLM_HASS_API: "assist",
+                    CONF_MAX_HISTORY: 4,
+                    CONF_KEEP_ALIVE: -1,
                 }
             ),
         )
@@ -1003,6 +1031,8 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("chat-a", conversation_profile.model)
         self.assertEqual("Be helpful", conversation_profile.prompt)
         self.assertEqual("assist", conversation_profile.hass_api)
+        self.assertEqual(4, conversation_profile.max_history)
+        self.assertEqual(-1, conversation_profile.keep_alive)
         with self.assertRaises(FrozenInstanceError):
             conversation_profile.model = "chat-b"  # type: ignore[misc]
 
@@ -1011,6 +1041,8 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(SUBENTRY_TYPE_AI_TASK, ai_task_profile.profile_type)
         self.assertEqual("task-a", ai_task_profile.model)
         self.assertEqual("Return JSON", ai_task_profile.prompt)
+        self.assertEqual(DEFAULT_MAX_HISTORY, ai_task_profile.max_history)
+        self.assertIsNone(ai_task_profile.keep_alive)
         with self.assertRaises(FrozenInstanceError):
             ai_task_profile.prompt = "Changed"  # type: ignore[misc]
 
@@ -1259,6 +1291,13 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertIs(fields[CONF_NAME][1], str)
         self.assertEqual(["chat-a", "chat-b"], fields[CONF_MODEL][1].config.options)
         self.assertIsInstance(fields[CONF_PROMPT][1], _TemplateSelector)
+        self.assertEqual(DEFAULT_MAX_HISTORY, fields[CONF_MAX_HISTORY][0].default)
+        self.assertIsInstance(fields[CONF_MAX_HISTORY][1], _NumberSelector)
+        self.assertEqual(0, fields[CONF_MAX_HISTORY][1].config.min)
+        self.assertEqual("box", fields[CONF_MAX_HISTORY][1].config.mode)
+        self.assertIsInstance(fields[CONF_KEEP_ALIVE][1], _NumberSelector)
+        self.assertIsNone(fields[CONF_KEEP_ALIVE][0].default)
+        self.assertEqual(-1, fields[CONF_KEEP_ALIVE][1].config.min)
         self.assertEqual(
             [{"value": "assist", "label": "Assist"}],
             fields[CONF_LLM_HASS_API][1].config.options,
@@ -1274,6 +1313,8 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 CONF_MODEL: "chat-b",
                 CONF_PROMPT: "Old prompt",
                 CONF_LLM_HASS_API: "assist",
+                CONF_MAX_HISTORY: 6,
+                CONF_KEEP_ALIVE: 60,
             }
         )
         entry = SimpleNamespace(
@@ -1296,8 +1337,14 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("chat-b", fields[CONF_MODEL][0].default)
         self.assertEqual("Old prompt", fields[CONF_PROMPT][0].default)
         self.assertEqual("assist", fields[CONF_LLM_HASS_API][0].default)
+        self.assertEqual(6, fields[CONF_MAX_HISTORY][0].default)
+        self.assertEqual(60, fields[CONF_KEEP_ALIVE][0].default)
 
-        submitted = {CONF_NAME: "New profile", CONF_MODEL: "chat-a"}
+        submitted = {
+            CONF_NAME: "New profile",
+            CONF_MODEL: "chat-a",
+            CONF_MAX_HISTORY: 2,
+        }
         result = await flow.async_step_reconfigure(submitted)
 
         self.assertEqual("abort", result["type"])
@@ -1535,6 +1582,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 messages=[{"role": "user", "content": "Hi"}],
                 tools=tools,
                 response_format=response_format,
+                keep_alive=300,
             )
         except TypeError as err:
             self.fail(f"chat_completion should accept tools and response_format: {err}")
@@ -1542,6 +1590,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         payload = session.requests[-1][2]["json"]
         self.assertEqual(tools, payload["tools"])
         self.assertEqual(response_format, payload["response_format"])
+        self.assertEqual(300, payload["keep_alive"])
 
     async def test_chat_completion_omits_tool_payload_when_absent(self) -> None:
         session = FakeSession({"choices": []})
@@ -1554,6 +1603,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         payload = session.requests[-1][2]["json"]
         self.assertNotIn("tools", payload)
         self.assertNotIn("response_format", payload)
+        self.assertNotIn("keep_alive", payload)
 
     async def test_api_requests_use_default_ssl_verification(self) -> None:
         session = FakeHttpSession(FakeHttpResponse(status=200, payload={"ok": True}))
@@ -2011,6 +2061,85 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             ),
         )
 
+    def test_llm_limits_chat_history_and_passes_keep_alive(self) -> None:
+        from homeassistant.components.conversation import (
+            AssistantContent,
+            SystemContent,
+            ToolResultContent,
+            UserContent,
+        )
+
+        llm_module = _require_module("lemonade.llm")
+        chat_log = SimpleNamespace(
+            content=[
+                SystemContent("You are helpful"),
+                UserContent("Old question"),
+                AssistantContent("Old answer"),
+                UserContent("Turn on the kitchen"),
+                AssistantContent(
+                    None,
+                    [
+                        {
+                            "id": "call-1",
+                            "type": "function",
+                            "function": {
+                                "name": "HassTurnOn",
+                                "arguments": "{}",
+                            },
+                        }
+                    ],
+                ),
+                ToolResultContent(
+                    {"ok": True},
+                    tool_call_id="call-1",
+                    tool_name="HassTurnOn",
+                ),
+            ],
+            llm_api=None,
+        )
+
+        limited_payload = llm_module.build_chat_turn_payload(
+            "chat-model",
+            chat_log,
+            max_history=1,
+            keep_alive=300,
+        ).to_chat_completion_kwargs()
+        unlimited_payload = llm_module.build_chat_turn_payload(
+            "chat-model",
+            chat_log,
+            max_history=0,
+        ).to_chat_completion_kwargs()
+
+        self.assertEqual(300, limited_payload["keep_alive"])
+        self.assertEqual(
+            [
+                {"role": "system", "content": "You are helpful"},
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call-1",
+                            "type": "function",
+                            "function": {
+                                "name": "HassTurnOn",
+                                "arguments": "{}",
+                            },
+                        }
+                    ],
+                },
+                {
+                    "role": "tool",
+                    "content": '{"ok": true}',
+                    "tool_call_id": "call-1",
+                    "name": "HassTurnOn",
+                },
+            ],
+            limited_payload["messages"],
+        )
+        self.assertEqual(6, len(unlimited_payload["messages"]))
+        self.assertNotIn("keep_alive", unlimited_payload)
+
     def test_llm_converts_schema_structure_to_response_format(self) -> None:
         import voluptuous as vol
 
@@ -2305,6 +2434,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 "conv-1": SimpleNamespace(
                     subentry_id="conv-1",
                     subentry_type=SUBENTRY_TYPE_CONVERSATION,
+                    title="Glados 2.0",
                     data={},
                 ),
                 "task-1": SimpleNamespace(
@@ -2329,6 +2459,15 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(entity._attr_name)
         self.assertTrue(entity._attr_has_entity_name)
         self.assertFalse(entity._attr_supports_streaming)
+        self.assertEqual(
+            {
+                "identifiers": {(DOMAIN, "conv-1")},
+                "name": "Glados 2.0",
+                "manufacturer": "Lemonade Server",
+                "entry_type": "service",
+            },
+            dict(entity._attr_device_info),
+        )
 
     async def test_ai_task_platform_adds_only_ai_task_subentries_and_features(self) -> None:
         from homeassistant.components import ai_task
@@ -2351,6 +2490,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 "task-1": SimpleNamespace(
                     subentry_id="task-1",
                     subentry_type=SUBENTRY_TYPE_AI_TASK,
+                    title="Automation writer",
                     data={},
                 ),
             },
@@ -2369,6 +2509,15 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("task-1", entity._attr_unique_id)
         self.assertIsNone(entity._attr_name)
         self.assertTrue(entity._attr_has_entity_name)
+        self.assertEqual(
+            {
+                "identifiers": {(DOMAIN, "task-1")},
+                "name": "Automation writer",
+                "manufacturer": "Lemonade Server",
+                "entry_type": "service",
+            },
+            dict(entity._attr_device_info),
+        )
         self.assertEqual(
             ai_task.AITaskEntityFeature.GENERATE_DATA
             | ai_task.AITaskEntityFeature.SUPPORT_ATTACHMENTS
@@ -2994,14 +3143,19 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         class Client:
             def __init__(self) -> None:
                 self.models: list[str] = []
+                self.calls: list[dict[str, Any]] = []
 
             async def chat_completion(self, **kwargs: Any) -> dict[str, Any]:
                 self.models.append(kwargs["model"])
+                self.calls.append(kwargs)
                 return {"choices": [{"message": {"content": "Hello"}}]}
 
         class ChatLog:
             def __init__(self) -> None:
-                self.content = []
+                self.content = [
+                    conversation.UserContent("Old question"),
+                    conversation.UserContent("Current question"),
+                ]
                 self.llm_api = None
                 self.unresponded_tool_results: list[Any] = []
                 self.provided: list[tuple[Any, Any, Any, Any]] = []
@@ -3042,6 +3196,8 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 CONF_MODEL: "profile-chat",
                 CONF_LLM_HASS_API: "assist",
                 CONF_PROMPT: "Be helpful",
+                CONF_MAX_HISTORY: 1,
+                CONF_KEEP_ALIVE: 120,
             }
         )
         self.assertEqual("profile-chat", entity.profile.model)
@@ -3067,6 +3223,11 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([(entry, entity)], entity.hass.set_agents)
         self.assertEqual([entry], entity.hass.unset_agents)
         self.assertEqual(["profile-chat"], client.models)
+        self.assertEqual(120, client.calls[0]["keep_alive"])
+        self.assertEqual(
+            [{"role": "user", "content": "Current question"}],
+            client.calls[0]["messages"],
+        )
         self.assertEqual(
             [({"domain": DOMAIN}, "assist", "Be helpful", "extra")],
             chat_log.provided,
@@ -3271,8 +3432,14 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             "Add AI task profile",
             subentries[SUBENTRY_TYPE_AI_TASK]["initiate_flow"]["user"],
         )
-        self.assertIn(CONF_LLM_HASS_API, subentries[SUBENTRY_TYPE_CONVERSATION]["step"]["user"]["data"])
-        self.assertNotIn(CONF_LLM_HASS_API, subentries[SUBENTRY_TYPE_AI_TASK]["step"]["user"]["data"])
+        conversation_data = subentries[SUBENTRY_TYPE_CONVERSATION]["step"]["user"]["data"]
+        ai_task_data = subentries[SUBENTRY_TYPE_AI_TASK]["step"]["user"]["data"]
+        self.assertIn(CONF_LLM_HASS_API, conversation_data)
+        self.assertIn(CONF_MAX_HISTORY, conversation_data)
+        self.assertIn(CONF_KEEP_ALIVE, conversation_data)
+        self.assertNotIn(CONF_LLM_HASS_API, ai_task_data)
+        self.assertIn(CONF_MAX_HISTORY, ai_task_data)
+        self.assertIn(CONF_KEEP_ALIVE, ai_task_data)
         self.assertEqual(
             "The Lemonade Server entry is not loaded.",
             strings["config"]["abort"]["entry_not_loaded"],
@@ -4421,7 +4588,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([], ir.CREATED)
 
 
-    def test_entity_base_sets_unique_id_and_service_device_info(self) -> None:
+    def test_entity_base_sets_unique_id_without_service_device_info(self) -> None:
         entity_module = _require_module("lemonade.entity")
         hass = FakeHass()
         coordinator = SimpleNamespace(
@@ -4439,15 +4606,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertIs(entity.entry, entry)
         self.assertTrue(entity._attr_has_entity_name)
         self.assertEqual("entry-1_server_status", entity._attr_unique_id)
-        self.assertEqual(
-            {
-                "identifiers": {(DOMAIN, entry.entry_id)},
-                "name": "Kitchen Lemonade",
-                "manufacturer": "Lemonade Server",
-                "entry_type": "service",
-            },
-            dict(entity._attr_device_info),
-        )
+        self.assertIsNone(getattr(entity, "_attr_device_info", None))
 
     async def test_sensor_platform_adds_status_and_model_count_entities(self) -> None:
         sensor_module = _require_module("lemonade.sensor")
@@ -4571,18 +4730,10 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, len(added))
         entity = added[0]
         self.assertIsInstance(entity, tts_module.LemonadeTTSEntity)
-        self.assertEqual("Text-to-speech", entity._attr_name)
-        self.assertTrue(entity._attr_has_entity_name)
+        self.assertEqual("Lemonade Server text-to-speech", entity._attr_name)
+        self.assertFalse(entity._attr_has_entity_name)
         self.assertEqual("entry-1_tts", entity._attr_unique_id)
-        self.assertEqual(
-            {
-                "identifiers": {(DOMAIN, "entry-1")},
-                "name": "Lemonade Server",
-                "manufacturer": "Lemonade Server",
-                "entry_type": "service",
-            },
-            dict(entity._attr_device_info),
-        )
+        self.assertIsNone(getattr(entity, "_attr_device_info", None))
         self.assertEqual("en", entity._attr_default_language)
         self.assertEqual(["en"], entity._attr_supported_languages)
         self.assertEqual(
@@ -4728,18 +4879,10 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, len(added))
         entity = added[0]
         self.assertIsInstance(entity, stt_module.LemonadeSTTEntity)
-        self.assertEqual("Speech-to-text", entity._attr_name)
-        self.assertTrue(entity._attr_has_entity_name)
+        self.assertEqual("Lemonade Server speech-to-text", entity._attr_name)
+        self.assertFalse(entity._attr_has_entity_name)
         self.assertEqual("entry-1_stt", entity._attr_unique_id)
-        self.assertEqual(
-            {
-                "identifiers": {(DOMAIN, "entry-1")},
-                "name": "Lemonade Server",
-                "manufacturer": "Lemonade Server",
-                "entry_type": "service",
-            },
-            dict(entity._attr_device_info),
-        )
+        self.assertIsNone(getattr(entity, "_attr_device_info", None))
         self.assertEqual(["en"], entity.supported_languages)
         self.assertEqual([stt.AudioFormats.WAV], entity.supported_formats)
         self.assertEqual([stt.AudioCodecs.PCM], entity.supported_codecs)

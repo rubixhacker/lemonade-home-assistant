@@ -6,10 +6,8 @@ from typing import Any
 
 from homeassistant.components.tts import TextToSpeechEntity
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
 from .data import LemonadeConfigEntry
 from .voice import audio_extension, generate_entry_voice, resolve_voice_model
 
@@ -31,8 +29,8 @@ def _audio_extension(content_type: str | None, response_format: Any) -> str:
 class LemonadeTTSEntity(TextToSpeechEntity):
     """Text-to-speech entity backed by Lemonade Server."""
 
-    _attr_name = "Text-to-speech"
-    _attr_has_entity_name = True
+    _attr_name = "Lemonade Server text-to-speech"
+    _attr_has_entity_name = False
     _attr_default_language = "en"
     _attr_supported_languages = ["en"]
     _attr_supported_options = ["voice", "model", "response_format"]
@@ -41,12 +39,6 @@ class LemonadeTTSEntity(TextToSpeechEntity):
         """Initialize the Lemonade text-to-speech entity."""
         self.entry = entry
         self._attr_unique_id = f"{entry.entry_id}_tts"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name=entry.title,
-            manufacturer="Lemonade Server",
-            entry_type=DeviceEntryType.SERVICE,
-        )
 
     def _resolve_model(self, options: dict[str, Any] | None = None) -> str | None:
         """Return the requested, configured, or first catalog TTS model."""

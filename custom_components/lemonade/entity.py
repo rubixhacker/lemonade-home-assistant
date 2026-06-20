@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
 from .coordinator import LemonadeCoordinator
 from .data import LemonadeConfigEntry
 
@@ -20,9 +18,3 @@ class LemonadeEntity(CoordinatorEntity[LemonadeCoordinator]):
         super().__init__(entry.runtime_data.coordinator)
         self.entry = entry
         self._attr_unique_id = f"{entry.entry_id}_{key}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name=entry.title,
-            manufacturer="Lemonade Server",
-            entry_type=DeviceEntryType.SERVICE,
-        )

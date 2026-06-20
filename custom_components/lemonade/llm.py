@@ -97,6 +97,8 @@ class ChatTurnRequest:
     model: str
     chat_log: Any
     structure: Any | None = None
+    max_history: int | None = None
+    keep_alive: int | None = None
 
 
 @dataclass(frozen=True)
@@ -107,6 +109,7 @@ class ChatTurnPayload:
     messages: tuple[Mapping[str, Any], ...]
     tools: tuple[Mapping[str, Any], ...] | None = None
     response_format: Mapping[str, Any] | None = None
+    keep_alive: int | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "messages", _deep_freeze(self.messages))
@@ -125,6 +128,8 @@ class ChatTurnPayload:
             payload["tools"] = _jsonable_value(self.tools)
         if self.response_format is not None:
             payload["response_format"] = _jsonable_value(self.response_format)
+        if self.keep_alive is not None:
+            payload["keep_alive"] = self.keep_alive
         return payload
 
 
@@ -529,9 +534,44 @@ def _format_llm_api_tools(llm_api: Any | None) -> list[dict[str, Any]] | None:
     return [format_tool(tool, custom_serializer) for tool in _iter_llm_tools(llm_api)]
 
 
-def _chat_log_messages(chat_log: Any) -> list[dict[str, Any]]:
+def _chat_log_message_records(chat_log: Any) -> list[Message]:
+    """Return normalized message records for the current chat log content."""
+    return [
+        _content_to_message_record(content)
+        for content in getattr(chat_log, "content", [])
+    ]
+
+
+def _trim_message_records(
+    records: list[Message],
+    max_history: int | None,
+) -> list[Message]:
+    """Return message records limited to the requested non-system history."""
+    if max_history is None or max_history < 1:
+        return records
+
+    system_records = [record for record in records if record.role == "system"]
+    history_records = [record for record in records if record.role != "system"]
+    if len(history_records) <= max_history:
+        return records
+
+    start = len(history_records) - max_history
+    retained = history_records[start:]
+
+    while retained and retained[0].role == "tool" and start > 0:
+        start -= 1
+        retained = history_records[start:]
+
+    return [*system_records, *retained]
+
+
+def _chat_log_messages(
+    chat_log: Any,
+    max_history: int | None = None,
+) -> list[dict[str, Any]]:
     """Return OpenAI messages for the current chat log content."""
-    return [content_to_message(content) for content in getattr(chat_log, "content", [])]
+    records = _trim_message_records(_chat_log_message_records(chat_log), max_history)
+    return [_message_record_to_openai(record) for record in records]
 
 
 def _response_format_from_structure(structure: Any) -> Mapping[str, Any]:
@@ -551,6 +591,8 @@ def build_chat_turn_payload(
     model: str,
     chat_log: Any,
     structure: Any | None = None,
+    max_history: int | None = None,
+    keep_alive: int | None = None,
 ) -> ChatTurnPayload:
     """Return a normalized payload record for a chat log turn."""
     tools = _format_llm_api_tools(getattr(chat_log, "llm_api", None))
@@ -559,9 +601,10 @@ def build_chat_turn_payload(
     )
     return ChatTurnPayload(
         model=model,
-        messages=tuple(_chat_log_messages(chat_log)),
+        messages=tuple(_chat_log_messages(chat_log, max_history)),
         tools=tuple(tools) if tools is not None else None,
         response_format=response_format,
+        keep_alive=keep_alive,
     )
 
 
@@ -569,12 +612,16 @@ def _build_chat_completion_payload(
     model: str,
     chat_log: Any,
     structure: Any | None = None,
+    max_history: int | None = None,
+    keep_alive: int | None = None,
 ) -> dict[str, Any]:
     """Return the OpenAI chat completion payload for a chat log turn."""
     return build_chat_turn_payload(
         model,
         chat_log,
         structure,
+        max_history,
+        keep_alive,
     ).to_chat_completion_kwargs()
 
 
@@ -628,6 +675,8 @@ async def async_execute_chat_turn(request: ChatTurnRequest) -> ChatTurnOutcome:
             request.model,
             request.chat_log,
             request.structure,
+            request.max_history,
+            request.keep_alive,
         )
         response = await request.client.chat_completion(
             **payload.to_chat_completion_kwargs()
@@ -657,6 +706,8 @@ async def async_execute_chat_log_turn(
     model: str,
     chat_log: Any,
     structure: Any | None = None,
+    max_history: int | None = None,
+    keep_alive: int | None = None,
 ) -> ChatTurnOutcome:
     """Execute one Lemonade chat log turn, including any required tool loop."""
     return await async_execute_chat_turn(
@@ -666,6 +717,8 @@ async def async_execute_chat_log_turn(
             model=model,
             chat_log=chat_log,
             structure=structure,
+            max_history=max_history,
+            keep_alive=keep_alive,
         )
     )
 
@@ -677,6 +730,8 @@ async def async_generate_chat_log_data(
     model: str,
     chat_log: Any,
     structure: Any | None = None,
+    max_history: int | None = None,
+    keep_alive: int | None = None,
 ) -> Any:
     """Execute a Lemonade chat log turn and return parsed task data."""
     outcome = await async_execute_chat_log_turn(
@@ -685,6 +740,8 @@ async def async_generate_chat_log_data(
         model=model,
         chat_log=chat_log,
         structure=structure,
+        max_history=max_history,
+        keep_alive=keep_alive,
     )
     return chat_turn_data(outcome, structure)
 
@@ -695,6 +752,8 @@ async def async_handle_chat_log(
     model: str,
     chat_log: Any,
     structure: Any | None = None,
+    max_history: int | None = None,
+    keep_alive: int | None = None,
 ) -> None:
     """Run Lemonade chat completion turns until tool results are answered."""
     await async_execute_chat_log_turn(
@@ -703,4 +762,6 @@ async def async_handle_chat_log(
         model=model,
         chat_log=chat_log,
         structure=structure,
+        max_history=max_history,
+        keep_alive=keep_alive,
     )

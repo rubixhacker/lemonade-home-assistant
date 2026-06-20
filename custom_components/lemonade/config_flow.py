@@ -22,8 +22,11 @@ except ImportError:  # pragma: no cover - older Home Assistant compatibility
 
 from .api import LemonadeAuthError, LemonadeClient, LemonadeError
 from .const import (
+    CONF_KEEP_ALIVE,
+    CONF_MAX_HISTORY,
     CONF_TIMEOUT,
     CONF_VERIFY_SSL,
+    DEFAULT_MAX_HISTORY,
     DEFAULT_NAME,
     DEFAULT_TIMEOUT,
     DEFAULT_URL,
@@ -71,6 +74,20 @@ def _llm_api_options(hass: HomeAssistant) -> list[Any]:
             continue
         options.append({"value": api_id, "label": getattr(api, "name", api_id)})
     return options
+
+
+def _number_box_selector(
+    *,
+    minimum: int,
+) -> selector.NumberSelector:
+    """Return a number box selector."""
+    return selector.NumberSelector(
+        selector.NumberSelectorConfig(
+            min=minimum,
+            step=1,
+            mode=selector.NumberSelectorMode.BOX,
+        )
+    )
 
 
 DATA_SCHEMA = vol.Schema(
@@ -308,6 +325,8 @@ class LemonadeProfileSubentryFlow(config_entries.ConfigSubentryFlow):
             factory = vol.Required if required else vol.Optional
             if key in profile_data:
                 return factory(key, default=profile_data[key])
+            if key == CONF_MAX_HISTORY:
+                return factory(key, default=DEFAULT_MAX_HISTORY)
             return factory(key)
 
         schema: dict[Any, Any] = {}
@@ -324,6 +343,10 @@ class LemonadeProfileSubentryFlow(config_entries.ConfigSubentryFlow):
                         options=_llm_api_options(self.hass),
                     )
                 )
+            elif field == CONF_MAX_HISTORY:
+                schema[marker(field)] = _number_box_selector(minimum=0)
+            elif field == CONF_KEEP_ALIVE:
+                schema[marker(field)] = _number_box_selector(minimum=-1)
 
         return vol.Schema(schema)
 

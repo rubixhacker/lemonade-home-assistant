@@ -17,7 +17,10 @@ except ImportError:  # pragma: no cover - older Home Assistant compatibility
 from .const import (
     CAPABILITY_AI_TASK,
     CAPABILITY_CONVERSATION,
+    CONF_KEEP_ALIVE,
     CONF_LLM_HASS_API,
+    CONF_MAX_HISTORY,
+    DEFAULT_MAX_HISTORY,
     SUBENTRY_TYPE_AI_TASK,
     SUBENTRY_TYPE_CONVERSATION,
 )
@@ -32,6 +35,8 @@ class ConversationProfile:
     model: Any = None
     prompt: Any = None
     hass_api: Any = None
+    max_history: int = DEFAULT_MAX_HISTORY
+    keep_alive: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +47,8 @@ class AITaskProfile:
     profile_type: str
     model: Any = None
     prompt: Any = None
+    max_history: int = DEFAULT_MAX_HISTORY
+    keep_alive: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,13 +76,26 @@ class ProfileDefinition:
 CONVERSATION_PROFILE_DEFINITION = ProfileDefinition(
     profile_type=SUBENTRY_TYPE_CONVERSATION,
     capability=CAPABILITY_CONVERSATION,
-    supported_fields=(CONF_NAME, CONF_MODEL, CONF_PROMPT, CONF_LLM_HASS_API),
+    supported_fields=(
+        CONF_NAME,
+        CONF_MODEL,
+        CONF_PROMPT,
+        CONF_LLM_HASS_API,
+        CONF_MAX_HISTORY,
+        CONF_KEEP_ALIVE,
+    ),
     llm_hass_api_field=CONF_LLM_HASS_API,
 )
 AI_TASK_PROFILE_DEFINITION = ProfileDefinition(
     profile_type=SUBENTRY_TYPE_AI_TASK,
     capability=CAPABILITY_AI_TASK,
-    supported_fields=(CONF_NAME, CONF_MODEL, CONF_PROMPT),
+    supported_fields=(
+        CONF_NAME,
+        CONF_MODEL,
+        CONF_PROMPT,
+        CONF_MAX_HISTORY,
+        CONF_KEEP_ALIVE,
+    ),
 )
 PROFILE_DEFINITIONS = (
     CONVERSATION_PROFILE_DEFINITION,
@@ -110,6 +130,38 @@ def profile_data(subentry: Any) -> dict[str, Any]:
     return {}
 
 
+def profile_title(subentry: Any, fallback: str | None = None) -> str | None:
+    """Return the user-facing title for a profile subentry."""
+    return (
+        getattr(subentry, "title", None)
+        or profile_data(subentry).get(CONF_NAME)
+        or fallback
+    )
+
+
+def _int_profile_option(
+    data: Mapping[str, Any],
+    key: str,
+    default: int | None = None,
+) -> int | None:
+    """Return an optional integer profile option."""
+    value = data.get(key, default)
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _max_history_option(data: Mapping[str, Any]) -> int:
+    """Return the profile history limit."""
+    value = _int_profile_option(data, CONF_MAX_HISTORY, DEFAULT_MAX_HISTORY)
+    if value is None:
+        return DEFAULT_MAX_HISTORY
+    return max(0, value)
+
+
 def parse_profile(subentry: Any, profile_type: str | None = None) -> Profile:
     """Parse a Home Assistant profile subentry into a typed profile record."""
     data = profile_data(subentry)
@@ -123,6 +175,8 @@ def parse_profile(subentry: Any, profile_type: str | None = None) -> Profile:
             model=data.get(CONF_MODEL),
             prompt=data.get(CONF_PROMPT),
             hass_api=data.get(definition.llm_hass_api_field),
+            max_history=_max_history_option(data),
+            keep_alive=_int_profile_option(data, CONF_KEEP_ALIVE),
         )
     if definition == AI_TASK_PROFILE_DEFINITION:
         return AITaskProfile(
@@ -130,6 +184,8 @@ def parse_profile(subentry: Any, profile_type: str | None = None) -> Profile:
             profile_type=definition.profile_type,
             model=data.get(CONF_MODEL),
             prompt=data.get(CONF_PROMPT),
+            max_history=_max_history_option(data),
+            keep_alive=_int_profile_option(data, CONF_KEEP_ALIVE),
         )
     return UnknownProfile(
         id=profile_id,

@@ -22,6 +22,9 @@ CONF_DEFAULT_IMAGE_MODEL = "default_image_model"
 CONF_DEFAULT_TTS_MODEL = "default_tts_model"
 CONF_DEFAULT_STT_MODEL = "default_stt_model"
 CONF_LLM_HASS_API = "llm_hass_api"
+CONF_MAX_HISTORY = "max_history"
+CONF_KEEP_ALIVE = "keep_alive"
+DEFAULT_MAX_HISTORY = 20
 
 SUBENTRY_TYPE_CONVERSATION = "conversation"
 SUBENTRY_TYPE_AI_TASK = "ai_task_data"

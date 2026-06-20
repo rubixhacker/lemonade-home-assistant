@@ -8,10 +8,9 @@ from typing import Any
 
 from homeassistant.components import stt
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CAPABILITY_STT, CONF_DEFAULT_STT_MODEL, DOMAIN
+from .const import CAPABILITY_STT, CONF_DEFAULT_STT_MODEL
 from .data import LemonadeConfigEntry
 from .errors import LEMONADE_CLIENT_EXCEPTIONS
 from .model_resolution import resolve_entry_model
@@ -38,19 +37,13 @@ def _error_result() -> stt.SpeechResult:
 class LemonadeSTTEntity(stt.SpeechToTextEntity):
     """Speech-to-text entity backed by Lemonade Server."""
 
-    _attr_name = "Speech-to-text"
-    _attr_has_entity_name = True
+    _attr_name = "Lemonade Server speech-to-text"
+    _attr_has_entity_name = False
 
     def __init__(self, entry: LemonadeConfigEntry) -> None:
         """Initialize the Lemonade speech-to-text entity."""
         self.entry = entry
         self._attr_unique_id = f"{entry.entry_id}_stt"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name=entry.title,
-            manufacturer="Lemonade Server",
-            entry_type=DeviceEntryType.SERVICE,
-        )
 
     @property
     def supported_languages(self) -> list[str]:
