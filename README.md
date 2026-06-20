@@ -67,7 +67,7 @@ Then restart Home Assistant and add the integration from the UI.
 After installing the integration, create profiles for Assist and AI suggestions:
 
 1. Open **Settings -> Devices & services -> Lemonade Server**.
-2. Set any image, text-to-speech, or speech-to-text default model selectors you want to override.
+2. Set any text-to-speech or speech-to-text default model selectors you want to override.
 3. Use **Add service** or the `+` buttons in the entry details.
 4. Add a **Conversation profile** for Assist or voice pipelines.
 5. Add an **AI task profile** for AI suggestions.
@@ -77,7 +77,7 @@ See [custom_components/lemonade/README.md](custom_components/lemonade/README.md)
 ## Features
 
 - Sensors for server status and model counts.
-- Select entities for default image, TTS, and STT models.
+- Select entities for default TTS and STT models.
 - Conversation profile subentries for Assist and voice pipelines.
 - AI task profile entities with data and image generation support.
 - TTS provider support.

@@ -101,6 +101,11 @@ class LemonadeAITaskEntity(ai_task.AITaskEntity):
 
     def _resolve_image_model(self) -> str:
         """Return the configured image generation model."""
+        model_view = runtime_model_view(self.entry)
+        profile_model = self.profile.model
+        if profile_model in model_view.model_ids(CAPABILITY_IMAGE):
+            return profile_model
+
         model = resolve_entry_model(
             self.entry,
             CAPABILITY_IMAGE,

@@ -394,6 +394,7 @@ def _install_homeassistant_stubs() -> None:
     sys.modules.setdefault("homeassistant.helpers.aiohttp_client", aiohttp_client)
 
     llm = ModuleType("homeassistant.helpers.llm")
+    llm.DEFAULT_INSTRUCTIONS_PROMPT = "Default Home Assistant instructions"
 
     class ToolInput:
         def __init__(
@@ -956,7 +957,6 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(
             (
-                (CAPABILITY_IMAGE, CONF_DEFAULT_IMAGE_MODEL),
                 (CAPABILITY_TTS, CONF_DEFAULT_TTS_MODEL),
                 (CAPABILITY_STT, CONF_DEFAULT_STT_MODEL),
             ),
@@ -1244,6 +1244,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("form", result["type"])
         fields = _schema_fields(result["data_schema"])
         self.assertEqual(["chat-a", "task-a"], fields[CONF_MODEL][1].config.options)
+        self.assertIsNone(fields[CONF_PROMPT][0].description)
         self.assertNotIn(CONF_LLM_HASS_API, fields)
 
     async def test_conversation_profile_subentry_flow_uses_all_models(self) -> None:
@@ -1291,6 +1292,11 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertIs(fields[CONF_NAME][1], str)
         self.assertEqual(["chat-a", "chat-b"], fields[CONF_MODEL][1].config.options)
         self.assertIsInstance(fields[CONF_PROMPT][1], _TemplateSelector)
+        self.assertEqual(
+            "Default Home Assistant instructions",
+            fields[CONF_PROMPT][0].description["suggested_value"],
+        )
+        self.assertIsNone(fields[CONF_PROMPT][0].default)
         self.assertEqual(DEFAULT_MAX_HISTORY, fields[CONF_MAX_HISTORY][0].default)
         self.assertIsInstance(fields[CONF_MAX_HISTORY][1], _NumberSelector)
         self.assertEqual(0, fields[CONF_MAX_HISTORY][1].config.min)
@@ -1362,7 +1368,6 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             options={
                 CONF_TIMEOUT: 8.0,
                 CONF_VERIFY_SSL: False,
-                CONF_DEFAULT_IMAGE_MODEL: "image-a",
             },
             runtime_data=SimpleNamespace(
                 coordinator=SimpleNamespace(
@@ -1390,8 +1395,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(fields[CONF_VERIFY_SSL][0].default)
         self.assertNotIn(CONF_DEFAULT_CONVERSATION_MODEL, fields)
         self.assertNotIn(CONF_DEFAULT_AI_TASK_MODEL, fields)
-        self.assertEqual(["image-a"], fields[CONF_DEFAULT_IMAGE_MODEL][1].config.options)
-        self.assertEqual("image-a", fields[CONF_DEFAULT_IMAGE_MODEL][0].default)
+        self.assertNotIn(CONF_DEFAULT_IMAGE_MODEL, fields)
         self.assertEqual(["tts-a"], fields[CONF_DEFAULT_TTS_MODEL][1].config.options)
         self.assertEqual(
             ["chat-a", "chat-b", "task-a", "image-a", "tts-a"],
@@ -2588,7 +2592,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             {"type": "json_object"}, client.calls[0]["response_format"]
         )
 
-    async def test_ai_task_generate_image_decodes_response_and_uses_default_image_model(self) -> None:
+    async def test_ai_task_generate_image_decodes_response_and_uses_profile_image_model(self) -> None:
         from homeassistant.components import ai_task
 
         ai_task_module = _require_module("lemonade.ai_task")
@@ -2607,12 +2611,18 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             runtime_data=SimpleNamespace(
                 client=client,
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog({CAPABILITY_IMAGE: ["catalog-image"]})
+                    catalog=FakeCatalog(
+                        {CAPABILITY_IMAGE: ["profile-image", "catalog-image"]}
+                    )
                 ),
             ),
         )
         entity = ai_task_module.LemonadeAITaskEntity(
-            entry, SimpleNamespace(subentry_id="task-1", data={})
+            entry,
+            SimpleNamespace(
+                subentry_id="task-1",
+                data={CONF_MODEL: "profile-image"},
+            ),
         )
 
         result = await entity._async_generate_image(
@@ -2624,9 +2634,9 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(b"image-bytes", result.image_data)
         self.assertEqual("conversation-1", result.conversation_id)
         self.assertEqual("image/png", result.mime_type)
-        self.assertEqual("entry-image", result.model)
+        self.assertEqual("profile-image", result.model)
         self.assertEqual(
-            [{"prompt": "Draw a lemon", "model": "entry-image"}],
+            [{"prompt": "Draw a lemon", "model": "profile-image"}],
             client.calls,
         )
 
@@ -2761,6 +2771,31 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
         entity = ai_task_module.LemonadeAITaskEntity(
             entry, SimpleNamespace(subentry_id="task-1", data={})
+        )
+
+        self.assertEqual("catalog-image", entity._resolve_image_model())
+
+    def test_ai_task_resolve_image_model_ignores_non_image_profile_model(self) -> None:
+        ai_task_module = _require_module("lemonade.ai_task")
+        entry = SimpleNamespace(
+            options={},
+            runtime_data=SimpleNamespace(
+                coordinator=SimpleNamespace(
+                    catalog=FakeCatalog(
+                        {
+                            CAPABILITY_AI_TASK: ["vision-task"],
+                            CAPABILITY_IMAGE: ["catalog-image"],
+                        }
+                    )
+                )
+            ),
+        )
+        entity = ai_task_module.LemonadeAITaskEntity(
+            entry,
+            SimpleNamespace(
+                subentry_id="task-1",
+                data={CONF_MODEL: "vision-task"},
+            ),
         )
 
         self.assertEqual("catalog-image", entity._resolve_image_model())
@@ -3417,7 +3452,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn(CONF_VERIFY_SSL, option_data)
         self.assertNotIn(CONF_DEFAULT_CONVERSATION_MODEL, option_data)
         self.assertNotIn(CONF_DEFAULT_AI_TASK_MODEL, option_data)
-        self.assertIn(CONF_DEFAULT_IMAGE_MODEL, option_data)
+        self.assertNotIn(CONF_DEFAULT_IMAGE_MODEL, option_data)
         self.assertIn(CONF_DEFAULT_TTS_MODEL, option_data)
         self.assertIn(CONF_DEFAULT_STT_MODEL, option_data)
 
@@ -5117,9 +5152,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             ),
         )
         entry = FakeEntry()
-        entry.options = {
-            CONF_DEFAULT_IMAGE_MODEL: "image-a",
-        }
+        entry.options = {}
         entry.runtime_data = SimpleNamespace(coordinator=coordinator)
         added: list[Any] = []
 
@@ -5136,12 +5169,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertNotIn(CONF_DEFAULT_CONVERSATION_MODEL, entities)
         self.assertNotIn(CONF_DEFAULT_AI_TASK_MODEL, entities)
-        self.assertEqual(["image-a"], entities[CONF_DEFAULT_IMAGE_MODEL].options)
-        self.assertEqual("image-a", entities[CONF_DEFAULT_IMAGE_MODEL].current_option)
-        self.assertEqual(
-            "Default image model",
-            entities[CONF_DEFAULT_IMAGE_MODEL]._attr_name,
-        )
+        self.assertNotIn(CONF_DEFAULT_IMAGE_MODEL, entities)
         self.assertEqual(
             ["chat-a", "chat-b", "task-a", "image-a", "stt-a"],
             entities[CONF_DEFAULT_TTS_MODEL].options,
@@ -5157,7 +5185,6 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                     entry,
                     {
                         "options": {
-                            CONF_DEFAULT_IMAGE_MODEL: "image-a",
                             CONF_DEFAULT_TTS_MODEL: "chat-a",
                         }
                     },
@@ -5185,7 +5212,6 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         select_strings = strings.get("entity", {}).get("select", {})
         self.assertEqual(
             {
-                CONF_DEFAULT_IMAGE_MODEL,
                 CONF_DEFAULT_TTS_MODEL,
                 CONF_DEFAULT_STT_MODEL,
             },

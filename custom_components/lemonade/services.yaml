@@ -57,7 +57,7 @@ generate_image:
         text:
     model:
       name: Model
-      description: Optional image model ID. If omitted, the service uses the entry's default image model, then the first image-capable model advertised by Lemonade.
+      description: Optional image model ID. If omitted, the service uses any legacy configured image default, then the first image-capable model advertised by Lemonade.
       selector:
         text:
     prompt:

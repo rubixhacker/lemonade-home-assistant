@@ -50,7 +50,6 @@ CAPABILITIES = (
     CAPABILITY_EMBEDDINGS,
 )
 DEFAULT_MODEL_OPTION_NAMES = {
-    CONF_DEFAULT_IMAGE_MODEL: "Default image model",
     CONF_DEFAULT_TTS_MODEL: "Default text-to-speech model",
     CONF_DEFAULT_STT_MODEL: "Default speech-to-text model",
 }
@@ -83,7 +82,6 @@ CAPABILITY_PRESENTATIONS = (
     CapabilityPresentation(CAPABILITY_AI_TASK),
     CapabilityPresentation(
         CAPABILITY_IMAGE,
-        default_option_key=CONF_DEFAULT_IMAGE_MODEL,
         model_count_translation_key="image_model_count",
         repair_issue=True,
     ),

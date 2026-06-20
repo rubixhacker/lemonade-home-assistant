@@ -46,10 +46,10 @@ Leave **Verify SSL certificate** enabled for public CA certificates such as Let'
 
 ## Assist and AI task profiles
 
-The integration creates default model controls for image generation, text-to-speech, and speech-to-text. Conversation and AI task models are configured on explicit profiles:
+The integration creates default model controls for text-to-speech and speech-to-text. Conversation, AI task, and image-capable task models are configured on explicit profiles:
 
 1. Go to **Settings → Devices & services → Lemonade Server**.
-2. Set any image, text-to-speech, or speech-to-text default model selectors you want to override.
+2. Set any text-to-speech or speech-to-text default model selectors you want to override.
 3. In the entry details, use the **Add service** area or one of the `+` buttons.
 4. Choose **Conversation profile** to create an Assist or voice pipeline assistant.
 5. Choose **AI task profile** to create an AI suggestions entity.
@@ -63,7 +63,7 @@ Select a Lemonade conversation profile from your Assist pipeline or voice assist
 The integration exposes native platforms for:
 
 - Sensors for server status and model counts.
-- Select entities for default image, TTS, and STT models.
+- Select entities for default TTS and STT models.
 - Conversation profile subentries for Assist and voice pipelines.
 - AI task profile entities with data and image generation support.
 - TTS provider support.
@@ -82,7 +82,7 @@ The integration registers these direct services:
 - `lemonade.transcribe_audio`
 - `lemonade.text_to_speech`
 
-Direct service model resolution uses the explicit `model` in the service call first, then the configured default model for that capability, then the first compatible model advertised by Lemonade.
+Direct service model resolution uses the explicit `model` in the service call first, then any configured default model for that capability, then the first compatible model advertised by Lemonade.
 
 Service calls support response data. For `text_to_speech`, audio is returned as base64.
 

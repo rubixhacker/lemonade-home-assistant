@@ -31,6 +31,7 @@ from .const import (
     DEFAULT_TIMEOUT,
     DEFAULT_URL,
     DOMAIN,
+    SUBENTRY_TYPE_CONVERSATION,
     default_model_capability_presentations,
 )
 from .model_resolution import runtime_model_view
@@ -88,6 +89,12 @@ def _number_box_selector(
             mode=selector.NumberSelectorMode.BOX,
         )
     )
+
+
+def _default_instructions_prompt() -> str | None:
+    """Return Home Assistant's default LLM instructions prompt, if available."""
+    prompt = getattr(llm, "DEFAULT_INSTRUCTIONS_PROMPT", None)
+    return prompt if isinstance(prompt, str) and prompt else None
 
 
 DATA_SCHEMA = vol.Schema(
@@ -329,6 +336,17 @@ class LemonadeProfileSubentryFlow(config_entries.ConfigSubentryFlow):
                 return factory(key, default=DEFAULT_MAX_HISTORY)
             return factory(key)
 
+        def conversation_prompt_marker() -> Any:
+            if CONF_PROMPT in profile_data:
+                return vol.Optional(CONF_PROMPT, default=profile_data[CONF_PROMPT])
+            prompt = _default_instructions_prompt()
+            if prompt is None:
+                return vol.Optional(CONF_PROMPT)
+            return vol.Optional(
+                CONF_PROMPT,
+                description={"suggested_value": prompt},
+            )
+
         schema: dict[Any, Any] = {}
         for field in definition.supported_fields:
             if field == CONF_NAME:
@@ -336,7 +354,10 @@ class LemonadeProfileSubentryFlow(config_entries.ConfigSubentryFlow):
             elif field == CONF_MODEL:
                 schema[marker(field)] = _model_select_selector(model_ids)
             elif field == CONF_PROMPT:
-                schema[marker(field)] = selector.TemplateSelector()
+                if definition.profile_type == SUBENTRY_TYPE_CONVERSATION:
+                    schema[conversation_prompt_marker()] = selector.TemplateSelector()
+                else:
+                    schema[marker(field)] = selector.TemplateSelector()
             elif field == definition.llm_hass_api_field:
                 schema[marker(field)] = selector.SelectSelector(
                     selector.SelectSelectorConfig(
