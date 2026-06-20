@@ -2303,9 +2303,13 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             llm_module.ChatTurnRequest,
         )
 
-    async def test_conversation_platform_adds_only_conversation_subentries(self) -> None:
+    async def test_conversation_platform_adds_default_and_conversation_subentries(
+        self,
+    ) -> None:
         conversation_module = _require_module("lemonade.conversation")
         entry = SimpleNamespace(
+            entry_id="entry-1",
+            title="Lemonade Server",
             subentries={
                 "conv-1": SimpleNamespace(
                     subentry_id="conv-1",
@@ -2326,14 +2330,26 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
         await conversation_module.async_setup_entry(FakeHass(), entry, add_entities)
 
-        self.assertEqual(1, len(calls))
-        self.assertEqual({"config_subentry_id": "conv-1"}, calls[0][1])
-        entity = calls[0][0][0]
-        self.assertIsInstance(entity, conversation_module.LemonadeConversationEntity)
-        self.assertEqual("conv-1", entity._attr_unique_id)
-        self.assertIsNone(entity._attr_name)
-        self.assertTrue(entity._attr_has_entity_name)
-        self.assertFalse(entity._attr_supports_streaming)
+        self.assertEqual(2, len(calls))
+        self.assertEqual({}, calls[0][1])
+        default_entity = calls[0][0][0]
+        self.assertIsInstance(
+            default_entity, conversation_module.LemonadeConversationEntity
+        )
+        self.assertEqual("entry-1_conversation", default_entity._attr_unique_id)
+        self.assertIsNone(default_entity.subentry)
+        self.assertIsNone(default_entity._attr_name)
+        self.assertTrue(default_entity._attr_has_entity_name)
+        self.assertFalse(default_entity._attr_supports_streaming)
+        self.assertEqual({"config_subentry_id": "conv-1"}, calls[1][1])
+        profile_entity = calls[1][0][0]
+        self.assertIsInstance(
+            profile_entity, conversation_module.LemonadeConversationEntity
+        )
+        self.assertEqual("conv-1", profile_entity._attr_unique_id)
+        self.assertIsNone(profile_entity._attr_name)
+        self.assertTrue(profile_entity._attr_has_entity_name)
+        self.assertFalse(profile_entity._attr_supports_streaming)
 
     async def test_ai_task_platform_adds_only_ai_task_subentries_and_features(self) -> None:
         from homeassistant.components import ai_task
@@ -3072,6 +3088,73 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(["profile-chat"], client.models)
         self.assertEqual(
             [({"domain": DOMAIN}, "assist", "Be helpful", "extra")],
+            chat_log.provided,
+        )
+        self.assertEqual(
+            {"conversation_id": "abc", "deltas": [{"content": "Hello"}]},
+            result,
+        )
+
+    async def test_default_conversation_entity_handles_message_with_entry_model(
+        self,
+    ) -> None:
+        conversation_module = _require_module("lemonade.conversation")
+
+        class Client:
+            def __init__(self) -> None:
+                self.models: list[str] = []
+
+            async def chat_completion(self, **kwargs: Any) -> dict[str, Any]:
+                self.models.append(kwargs["model"])
+                return {"choices": [{"message": {"content": "Hello"}}]}
+
+        class ChatLog:
+            def __init__(self) -> None:
+                self.content = []
+                self.llm_api = None
+                self.unresponded_tool_results: list[Any] = []
+                self.provided: list[tuple[Any, Any, Any, Any]] = []
+                self.deltas: list[dict[str, Any]] = []
+
+            async def async_provide_llm_data(self, *args: Any) -> None:
+                self.provided.append(args)
+
+            async def async_add_delta_content_stream(
+                self, agent_id: str, stream: Any
+            ) -> None:
+                async for delta in stream:
+                    self.deltas.append(delta)
+
+        client = Client()
+        entry = SimpleNamespace(
+            entry_id="entry-1",
+            title="Lemonade Server",
+            options={CONF_DEFAULT_CONVERSATION_MODEL: "entry-chat"},
+            runtime_data=SimpleNamespace(
+                client=client,
+                coordinator=SimpleNamespace(
+                    catalog=FakeCatalog({CAPABILITY_CONVERSATION: ["catalog-chat"]})
+                ),
+            ),
+        )
+        entity = conversation_module.LemonadeConversationEntity(entry)
+        entity.entity_id = "conversation.lemonade_server"
+        chat_log = ChatLog()
+        user_input = SimpleNamespace(
+            conversation_id="abc",
+            extra_system_prompt=None,
+            as_llm_context=lambda domain: {"domain": domain},
+        )
+
+        result = await entity._async_handle_message(user_input, chat_log)
+
+        self.assertEqual("entry-1_conversation", entity._attr_unique_id)
+        self.assertIsNone(entity.profile.model)
+        self.assertIsNone(entity.profile.hass_api)
+        self.assertIsNone(entity.profile.prompt)
+        self.assertEqual(["entry-chat"], client.models)
+        self.assertEqual(
+            [({"domain": DOMAIN}, None, None, None)],
             chat_log.provided,
         )
         self.assertEqual(

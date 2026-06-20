@@ -46,16 +46,17 @@ Leave **Verify SSL certificate** enabled for public CA certificates such as Let'
 
 ## Assist and AI task profiles
 
-The integration creates per-capability default model controls for conversation, AI task, image, text-to-speech, and speech-to-text models. Conversation agents and AI task entities are added as profiles on the Lemonade integration entry:
+The integration creates per-capability default model controls for conversation, AI task, image, text-to-speech, and speech-to-text models. It also exposes a default conversation agent for Assist as soon as the integration is loaded. Profiles add named model and prompt overrides:
 
 1. Go to **Settings → Devices & services → Lemonade Server**.
-2. In the entry details, use the **Add service** area or one of the `+` buttons.
-3. Choose **Conversation profile** to create an Assist conversation agent.
-4. Choose **AI task profile** to create an AI task entity.
-5. Pick a profile name, model, and optional prompt.
-6. For conversation profiles, select any Home Assistant LLM APIs the profile may use when controlling Home Assistant.
+2. Set the **Default conversation model** selector if Lemonade does not advertise a conversation-capable model.
+3. In the entry details, use the **Add service** area or one of the `+` buttons.
+4. Choose **Conversation profile** to create a custom Assist conversation agent.
+5. Choose **AI task profile** to create an AI task entity.
+6. Pick a profile name, model, and optional prompt.
+7. For conversation profiles, select any Home Assistant LLM APIs the profile may use when controlling Home Assistant.
 
-After creating a conversation profile, select it from your Assist pipeline or voice assistant settings as the conversation agent. After creating an AI task profile, use Home Assistant automations, scripts, or service calls that target AI task entities.
+Select the default Lemonade conversation agent or a custom conversation profile from your Assist pipeline or voice assistant settings. After creating an AI task profile, use Home Assistant automations, scripts, or service calls that target AI task entities.
 
 ## Native Home Assistant platforms
 
@@ -63,7 +64,7 @@ The integration exposes native platforms for:
 
 - Sensors for server status and model counts.
 - Select entities for default conversation, AI task, image, TTS, and STT models.
-- Conversation agents through conversation profile subentries.
+- A default conversation agent plus conversation profile subentries.
 - AI task profile entities with data and image generation support.
 - TTS provider support.
 - STT provider support.

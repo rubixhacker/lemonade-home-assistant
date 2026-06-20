@@ -64,12 +64,12 @@ Then restart Home Assistant and add the integration from the UI.
 
 ## Assist and AI tasks
 
-After installing the integration, create a profile before using Lemonade with Assist or AI tasks:
+After installing the integration, Lemonade exposes a default conversation agent for Assist. Create profiles when you want named model/prompt overrides or AI task entities:
 
 1. Open **Settings -> Devices & services -> Lemonade Server**.
-2. Set any per-capability default model selectors you want to override.
+2. Set the **Default conversation model** selector if Lemonade does not advertise a conversation-capable model.
 3. Use **Add service** or the `+` buttons in the entry details.
-4. Add a **Conversation profile** for Assist.
+4. Add a **Conversation profile** for a custom Assist prompt or Home Assistant control access.
 5. Add an **AI task profile** for AI task entities.
 
 See [custom_components/lemonade/README.md](custom_components/lemonade/README.md) for setup details and reverse-proxy notes.
@@ -78,7 +78,7 @@ See [custom_components/lemonade/README.md](custom_components/lemonade/README.md)
 
 - Sensors for server status and model counts.
 - Select entities for default conversation, AI task, image, TTS, and STT models.
-- Conversation agents through conversation profile subentries.
+- A default conversation agent plus conversation profile subentries.
 - AI task profile entities with data and image generation support.
 - TTS provider support.
 - STT provider support.
