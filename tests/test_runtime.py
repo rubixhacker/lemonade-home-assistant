@@ -4571,9 +4571,18 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, len(added))
         entity = added[0]
         self.assertIsInstance(entity, tts_module.LemonadeTTSEntity)
-        self.assertIsNone(entity._attr_name)
+        self.assertEqual("Text-to-speech", entity._attr_name)
         self.assertTrue(entity._attr_has_entity_name)
         self.assertEqual("entry-1_tts", entity._attr_unique_id)
+        self.assertEqual(
+            {
+                "identifiers": {(DOMAIN, "entry-1")},
+                "name": "Lemonade Server",
+                "manufacturer": "Lemonade Server",
+                "entry_type": "service",
+            },
+            dict(entity._attr_device_info),
+        )
         self.assertEqual("en", entity._attr_default_language)
         self.assertEqual(["en"], entity._attr_supported_languages)
         self.assertEqual(
@@ -4719,9 +4728,18 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, len(added))
         entity = added[0]
         self.assertIsInstance(entity, stt_module.LemonadeSTTEntity)
-        self.assertIsNone(entity._attr_name)
+        self.assertEqual("Speech-to-text", entity._attr_name)
         self.assertTrue(entity._attr_has_entity_name)
         self.assertEqual("entry-1_stt", entity._attr_unique_id)
+        self.assertEqual(
+            {
+                "identifiers": {(DOMAIN, "entry-1")},
+                "name": "Lemonade Server",
+                "manufacturer": "Lemonade Server",
+                "entry_type": "service",
+            },
+            dict(entity._attr_device_info),
+        )
         self.assertEqual(["en"], entity.supported_languages)
         self.assertEqual([stt.AudioFormats.WAV], entity.supported_formats)
         self.assertEqual([stt.AudioCodecs.PCM], entity.supported_codecs)

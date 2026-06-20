@@ -71,6 +71,8 @@ The integration exposes native platforms for:
 
 STT requires a Lemonade model whose labels include stt, transcription, or speech-to-text. The sample model list provided by the user had no STT-capable model, so STT will show unavailable until Lemonade advertises one.
 
+If the voice assistant text-to-speech picker shows both a Lemonade Server entry and an older `lemonade-*` engine, remove the older legacy TTS provider or custom component from Home Assistant. The Lemonade Server integration exposes its current TTS support as the Lemonade Server text-to-speech entity.
+
 ## Services
 
 The integration registers these direct services:
