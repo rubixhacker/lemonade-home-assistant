@@ -279,6 +279,7 @@ async def _invoke_generate_image(
             prompt=request.prompt,
             model=context.model,
             size=request.size,
+            decode_response=request.save,
         ),
     )
 

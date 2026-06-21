@@ -53,6 +53,7 @@ class ImageGenerationRequest:
     prompt: str
     model: str
     size: str | None = None
+    decode_response: bool = True
 
     def client_kwargs(self) -> dict[str, Any]:
         """Return Lemonade client arguments without empty optional values."""
@@ -121,7 +122,9 @@ async def generate_image(
     response = await client.generate_image(**request.client_kwargs())
     return ImageGenerationResult(
         response=response,
-        image_result=decode_image_result(response),
+        image_result=(
+            decode_image_result(response) if request.decode_response else None
+        ),
     )
 
 

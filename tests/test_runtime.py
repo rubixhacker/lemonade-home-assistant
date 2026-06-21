@@ -4965,6 +4965,34 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 (root / "media" / "lemonade" / "lemon.png").read_bytes(),
             )
 
+    async def test_generate_image_service_without_save_preserves_raw_response_without_decode(
+        self,
+    ) -> None:
+        from lemonade.const import ATTR_PROMPT, CAPABILITY_IMAGE
+        from lemonade.services import _async_generate_image
+
+        class ExplodingImageValue:
+            @property
+            def b64_json(self) -> str:
+                raise AssertionError("non-save service should not decode image bytes")
+
+        response = SimpleNamespace(data=[ExplodingImageValue()])
+
+        class Client:
+            async def generate_image(self, **kwargs: Any) -> Any:
+                return response
+
+        entry = _service_entry(Client(), {CAPABILITY_IMAGE: ["catalog-image"]})
+        hass = FakeServiceHass(entry)
+
+        result = await _async_generate_image(
+            hass,
+            SimpleNamespace(data={ATTR_PROMPT: "Draw a lemon"}),
+        )
+
+        self.assertIs(response, result["response"])
+        self.assertEqual({"response": response}, result)
+
     async def test_generate_image_service_uses_image_generation_module_for_save(
         self,
     ) -> None:
