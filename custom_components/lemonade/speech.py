@@ -73,6 +73,30 @@ class SpeechTranscriptionRequest:
 
 
 @dataclass(frozen=True)
+class SpeechTranscriptionSuccess:
+    """Valid transcription text for speech-to-text adapters."""
+
+    result: SpeechTranscriptionResult
+
+    @property
+    def text(self) -> str:
+        """Return validated transcription text."""
+        return self.result.text
+
+
+@dataclass(frozen=True)
+class SpeechTranscriptionFailure:
+    """Transcription failure retained for adapter logging."""
+
+    error: Exception
+
+
+SpeechTranscriptionAdapterResult = (
+    SpeechTranscriptionSuccess | SpeechTranscriptionFailure
+)
+
+
+@dataclass(frozen=True)
 class SpeechTranscription:
     """Typed Lemonade transcription outcome."""
 
@@ -279,9 +303,14 @@ async def file_transcription_request(
 ) -> SpeechTranscriptionRequest:
     """Build a transcription request by reading an audio file."""
     if not file_path.is_file():
-        raise FileNotFoundError(file_path)
+        raise HomeAssistantError(f"Audio file not found: {file_path}")
 
-    audio = await read_file_bytes(file_path)
+    try:
+        audio = await read_file_bytes(file_path)
+    except FileNotFoundError as err:
+        raise HomeAssistantError(f"Audio file not found: {file_path}") from err
+    except OSError as err:
+        raise HomeAssistantError(f"Could not read audio file: {err}") from err
     return SpeechTranscriptionRequest(
         audio=audio,
         filename=file_path.name,
@@ -392,3 +421,27 @@ async def transcribe_entry_stream(
         language=language,
         filename=filename,
     )
+
+
+async def transcribe_entry_stream_result(
+    entry: Any,
+    stream: AsyncIterable[bytes],
+    *,
+    explicit_model: Any = None,
+    language: str | None,
+    filename: str = "speech.wav",
+) -> SpeechTranscriptionAdapterResult:
+    """Resolve a config entry model and return a typed adapter result."""
+    try:
+        outcome = await transcribe_entry_stream(
+            entry,
+            stream,
+            explicit_model=explicit_model,
+            language=language,
+            filename=filename,
+        )
+        return SpeechTranscriptionSuccess(outcome.require_result())
+    except LEMONADE_CLIENT_EXCEPTIONS as err:
+        return SpeechTranscriptionFailure(err)
+    except (KeyError, TypeError) as err:
+        return SpeechTranscriptionFailure(err)

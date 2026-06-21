@@ -4391,8 +4391,11 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
     async def test_speech_transcribes_entry_stream_with_resolved_model_and_typed_invalid_outcome(self) -> None:
         from lemonade.speech import (
             InvalidSpeechTranscription,
+            SpeechTranscriptionFailure,
+            SpeechTranscriptionSuccess,
             ValidSpeechTranscription,
             transcribe_entry_stream,
+            transcribe_entry_stream_result,
         )
 
         class Client:
@@ -4426,11 +4429,23 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             explicit_model="request-stt",
             language=None,
         )
+        failure = await transcribe_entry_stream_result(
+            entry,
+            audio_stream(),
+            explicit_model="request-stt",
+            language=None,
+        )
 
         self.assertIsInstance(valid, ValidSpeechTranscription)
         self.assertEqual("stream text", valid.require_result().text)
         self.assertIsInstance(invalid, InvalidSpeechTranscription)
         self.assertIsNone(invalid.text)
+        self.assertIsInstance(failure, SpeechTranscriptionFailure)
+        with self.assertRaisesRegex(
+            TypeError,
+            "Lemonade transcription response missing valid text",
+        ):
+            raise failure.error
         self.assertEqual(
             [
                 {
@@ -4445,8 +4460,74 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                     "model": "request-stt",
                     "language": None,
                 },
+                {
+                    "audio": b"stream",
+                    "filename": "speech.wav",
+                    "model": "request-stt",
+                    "language": None,
+                },
             ],
             client.calls,
+        )
+
+        class ValidClient:
+            async def transcribe_audio(self, **kwargs: Any) -> dict[str, Any]:
+                return {"text": "stream text"}
+
+        success_entry = _service_entry(
+            ValidClient(),
+            {CAPABILITY_STT: ["catalog-stt"]},
+        )
+        success = await transcribe_entry_stream_result(
+            success_entry,
+            audio_stream(),
+            language="en",
+        )
+        self.assertIsInstance(success, SpeechTranscriptionSuccess)
+        self.assertEqual("stream text", success.text)
+
+    async def test_speech_transcribe_file_translates_file_read_errors_for_home_assistant(self) -> None:
+        import tempfile
+
+        from homeassistant.exceptions import HomeAssistantError
+        from lemonade.speech import transcribe_file
+
+        class Client:
+            async def transcribe_audio(self, **kwargs: Any) -> dict[str, Any]:
+                raise AssertionError("Client should not be called when file read fails")
+
+        async def unreadable_file(_: Path) -> bytes:
+            raise OSError("permission denied")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_file = Path(tmpdir) / "speech.wav"
+            missing_file = Path(tmpdir) / "missing.wav"
+            audio_file.write_bytes(b"speech")
+
+            with self.assertRaises(HomeAssistantError) as read_error:
+                await transcribe_file(
+                    Client(),
+                    audio_file,
+                    model="stt-model",
+                    language=None,
+                    read_file_bytes=unreadable_file,
+                )
+            with self.assertRaises(HomeAssistantError) as missing_error:
+                await transcribe_file(
+                    Client(),
+                    missing_file,
+                    model="stt-model",
+                    language=None,
+                    read_file_bytes=unreadable_file,
+                )
+
+        self.assertEqual(
+            "Could not read audio file: permission denied",
+            str(read_error.exception),
+        )
+        self.assertEqual(
+            f"Audio file not found: {missing_file}",
+            str(missing_error.exception),
         )
 
     async def test_voice_generation_resolves_model_generates_audio_and_metadata(self) -> None:
@@ -5910,7 +5991,10 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stt.SpeechResultState.ERROR, result.result)
 
     async def test_stt_uses_shared_transcription_helper_for_transcription_text(self) -> None:
+        import inspect
+
         from homeassistant.components import stt
+        from lemonade.speech import SpeechTranscriptionFailure
 
         stt_module = _require_module("lemonade.stt")
 
@@ -5932,9 +6016,13 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             ),
         )
         entity = stt_module.LemonadeSTTEntity(entry)
-        original_transcribe_entry_stream = stt_module.transcribe_entry_stream
+        original_transcribe_entry_stream_result = (
+            stt_module.transcribe_entry_stream_result
+        )
 
-        async def transcribe_entry_stream(entry: Any, stream: Any, **kwargs: Any) -> Any:
+        async def transcribe_entry_stream_result(
+            entry: Any, stream: Any, **kwargs: Any
+        ) -> Any:
             audio = b"".join([chunk async for chunk in stream])
             request_calls.append(
                 {
@@ -5944,16 +6032,20 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                     "language": kwargs["language"],
                 }
             )
-            raise TypeError("Lemonade transcription response missing valid text")
+            return SpeechTranscriptionFailure(
+                TypeError("Lemonade transcription response missing valid text")
+            )
 
-        stt_module.transcribe_entry_stream = transcribe_entry_stream
+        stt_module.transcribe_entry_stream_result = transcribe_entry_stream_result
         try:
             with self.assertLogs(stt_module._LOGGER.name, level="ERROR") as logs:
                 result = await entity.async_process_audio_stream(
                     SimpleNamespace(language="en"), audio_stream()
                 )
         finally:
-            stt_module.transcribe_entry_stream = original_transcribe_entry_stream
+            stt_module.transcribe_entry_stream_result = (
+                original_transcribe_entry_stream_result
+            )
 
         self.assertEqual(1, len(request_calls))
         self.assertIs(request_calls[0]["entry"], entry)
@@ -5963,6 +6055,9 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Error transcribing audio with Lemonade", logs.output[0])
         self.assertIsNone(result.text)
         self.assertEqual(stt.SpeechResultState.ERROR, result.result)
+        source = inspect.getsource(entity.async_process_audio_stream)
+        self.assertNotIn("KeyError", source)
+        self.assertNotIn("TypeError", source)
 
     async def test_select_platform_adds_default_model_selects_and_updates_options(self) -> None:
         from lemonade.const import default_model_capability_presentations

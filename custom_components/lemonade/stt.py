@@ -11,11 +11,13 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .data import LemonadeConfigEntry
-from .errors import LEMONADE_CLIENT_EXCEPTIONS
-from .speech import resolve_speech_transcription_model, transcribe_entry_stream
+from .speech import (
+    SpeechTranscriptionFailure,
+    resolve_speech_transcription_model,
+    transcribe_entry_stream_result,
+)
 
 _LOGGER = logging.getLogger(__name__)
-_STT_TRANSCRIPTION_EXCEPTIONS = LEMONADE_CLIENT_EXCEPTIONS
 
 
 async def async_setup_entry(
@@ -93,19 +95,14 @@ class LemonadeSTTEntity(stt.SpeechToTextEntity):
             _LOGGER.warning("No Lemonade STT model is available")
             return _error_result()
 
-        try:
-            outcome = await transcribe_entry_stream(
-                self.entry,
-                stream,
-                explicit_model=model,
-                language=getattr(metadata, "language", None),
-            )
-            result = outcome.require_result()
-        except _STT_TRANSCRIPTION_EXCEPTIONS as err:
-            _LOGGER.error("Error transcribing audio with Lemonade: %s", err)
-            return _error_result()
-        except (KeyError, TypeError) as err:
-            _LOGGER.error("Error transcribing audio with Lemonade: %s", err)
+        result = await transcribe_entry_stream_result(
+            self.entry,
+            stream,
+            explicit_model=model,
+            language=getattr(metadata, "language", None),
+        )
+        if isinstance(result, SpeechTranscriptionFailure):
+            _LOGGER.error("Error transcribing audio with Lemonade: %s", result.error)
             return _error_result()
 
         return stt.SpeechResult(result.text, stt.SpeechResultState.SUCCESS)

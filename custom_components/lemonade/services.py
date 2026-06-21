@@ -218,10 +218,6 @@ def _client_error(err: Exception, action: str) -> HomeAssistantError:
     return lemonade_home_assistant_error(err, action)
 
 
-class _AudioFileReadError(Exception):
-    """Wrap OSError raised while reading a local audio file."""
-
-
 async def _execute_direct_service(
     hass: HomeAssistant,
     call: ServiceCall,
@@ -291,23 +287,15 @@ async def _invoke_transcribe_audio(
     request = context.request
 
     async def read_file_bytes(file_path: Path) -> bytes:
-        try:
-            return await context.hass.async_add_executor_job(file_path.read_bytes)
-        except OSError as err:
-            raise _AudioFileReadError(str(err)) from err
+        return await context.hass.async_add_executor_job(file_path.read_bytes)
 
-    try:
-        return await transcribe_file(
-            context.client,
-            request.file_path,
-            model=context.model,
-            language=request.language,
-            read_file_bytes=read_file_bytes,
-        )
-    except FileNotFoundError as err:
-        raise HomeAssistantError(f"Audio file not found: {request.file_path}") from err
-    except _AudioFileReadError as err:
-        raise HomeAssistantError(f"Could not read audio file: {err}") from err
+    return await transcribe_file(
+        context.client,
+        request.file_path,
+        model=context.model,
+        language=request.language,
+        read_file_bytes=read_file_bytes,
+    )
 
 
 async def _invoke_text_to_speech(

@@ -9,7 +9,11 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .data import LemonadeConfigEntry
-from .voice import audio_extension, generate_entry_voice, resolve_voice_model
+from .speech import (
+    audio_extension,
+    resolve_speech_synthesis_model,
+    synthesize_entry_speech,
+)
 
 
 async def async_setup_entry(
@@ -42,7 +46,7 @@ class LemonadeTTSEntity(TextToSpeechEntity):
 
     def _resolve_model(self, options: dict[str, Any] | None = None) -> str | None:
         """Return the requested, configured, or first catalog TTS model."""
-        return resolve_voice_model(self.entry, (options or {}).get("model"))
+        return resolve_speech_synthesis_model(self.entry, (options or {}).get("model"))
 
     @property
     def available(self) -> bool:
@@ -57,7 +61,7 @@ class LemonadeTTSEntity(TextToSpeechEntity):
     ) -> tuple[str, bytes]:
         """Generate speech audio with Lemonade Server."""
         options = options or {}
-        result = await generate_entry_voice(
+        result = await synthesize_entry_speech(
             self.entry,
             text=message,
             explicit_model=options.get("model"),
