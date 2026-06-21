@@ -3044,24 +3044,23 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_ai_task_generate_data_uses_chat_log_data_interface(self) -> None:
-        from homeassistant.components import ai_task
         from homeassistant.components.conversation import SystemContent
 
-        ai_task_module = _require_module("lemonade.ai_task")
+        profile_chat_module = _require_module("lemonade.profile_chat")
         requests: list[dict[str, Any]] = []
 
         async def fake_generate_chat_log_data(**kwargs: Any) -> Any:
             requests.append(kwargs)
             return {"ok": True}
 
-        original_generate = ai_task_module.async_generate_chat_log_data
+        original_generate = profile_chat_module.async_generate_chat_log_data
         self.addCleanup(
             setattr,
-            ai_task_module,
+            profile_chat_module,
             "async_generate_chat_log_data",
             original_generate,
         )
-        ai_task_module.async_generate_chat_log_data = fake_generate_chat_log_data
+        profile_chat_module.async_generate_chat_log_data = fake_generate_chat_log_data
 
         entry = SimpleNamespace(
             options={},
@@ -3072,56 +3071,68 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
         )
-        entity = ai_task_module.LemonadeAITaskEntity(
-            entry,
-            SimpleNamespace(
-                subentry_id="task-1",
-                data={CONF_PROMPT: "Return only valid JSON"},
-            ),
-        )
-        entity.entity_id = "ai_task.lemonade"
-
-        result = await entity._async_generate_data(
-            SimpleNamespace(structure={"type": "json_object"}),
-            SimpleNamespace(conversation_id="conversation-1", content=[]),
+        profile = profile_chat_module.AITaskProfile(
+            id="task-1",
+            profile_type=SUBENTRY_TYPE_AI_TASK,
+            prompt="Return only valid JSON",
+            max_history=3,
+            keep_alive=120,
         )
 
-        self.assertIsInstance(result, ai_task.GenDataTaskResult)
-        self.assertEqual({"ok": True}, result.data)
+        result = await profile_chat_module.async_generate_ai_task_profile_data(
+            entry=entry,
+            profile=profile,
+            entity_id="ai_task.lemonade",
+            task=SimpleNamespace(structure={"type": "json_object"}),
+            chat_log=SimpleNamespace(conversation_id="conversation-1", content=[]),
+        )
+
+        self.assertEqual({"ok": True}, result)
         self.assertEqual(1, len(requests))
         self.assertEqual("ai_task.lemonade", requests[0]["entity_id"])
         self.assertIs(entry.runtime_data.client, requests[0]["client"])
         self.assertEqual("catalog-task", requests[0]["model"])
         self.assertEqual({"type": "json_object"}, requests[0]["structure"])
+        self.assertEqual(3, requests[0]["max_history"])
+        self.assertEqual(120, requests[0]["keep_alive"])
         self.assertIsInstance(requests[0]["chat_log"].content[0], SystemContent)
         self.assertEqual(
             "Return only valid JSON",
             requests[0]["chat_log"].content[0].content,
         )
-        invocation = entity._data_generation(
-            SimpleNamespace(structure={"type": "json_object"}),
-            SimpleNamespace(conversation_id="conversation-1", content=[]),
+        invocation = profile_chat_module.ai_task_profile_data_turn(
+            entry=entry,
+            profile=profile,
+            entity_id="ai_task.lemonade",
+            task=SimpleNamespace(structure={"type": "json_object"}),
+            chat_log=SimpleNamespace(conversation_id="conversation-1", content=[]),
         )
-        self.assertIsInstance(invocation, ai_task_module.DataGeneration)
+        self.assertIsInstance(invocation, profile_chat_module.ProfileChatTurn)
         self.assertEqual("catalog-task", invocation.model)
         self.assertEqual("Return only valid JSON", invocation.prompt)
 
-    def test_ai_task_prompted_chat_log_keeps_underlying_content_dynamic(self) -> None:
-        from homeassistant.components.conversation import AssistantContent, SystemContent
+    async def test_ai_task_entity_data_adapter_uses_one_profile_snapshot(self) -> None:
+        from homeassistant.components import ai_task
 
         ai_task_module = _require_module("lemonade.ai_task")
+        requests: list[dict[str, Any]] = []
 
-        chat_log = SimpleNamespace(content=[])
-        prompted = ai_task_module._PromptedChatLog(chat_log, "Return JSON")
+        async def fake_generate_profile_data(**kwargs: Any) -> Any:
+            requests.append(kwargs)
+            return {"ok": True}
 
-        chat_log.content.append(AssistantContent("first response"))
-
-        self.assertIsInstance(prompted.content[0], SystemContent)
-        self.assertEqual("Return JSON", prompted.content[0].content)
-        self.assertEqual("first response", prompted.content[1].content)
-
-    def test_ai_task_data_generation_uses_one_profile_snapshot(self) -> None:
-        ai_task_module = _require_module("lemonade.ai_task")
+        original_generate = (
+            ai_task_module.profile_chat.async_generate_ai_task_profile_data
+        )
+        self.addCleanup(
+            setattr,
+            ai_task_module.profile_chat,
+            "async_generate_ai_task_profile_data",
+            original_generate,
+        )
+        ai_task_module.profile_chat.async_generate_ai_task_profile_data = (
+            fake_generate_profile_data
+        )
 
         calls = 0
         original_parse_profile = ai_task_module.parse_ai_task_profile
@@ -3146,33 +3157,42 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
         ai_task_module.parse_ai_task_profile = fake_parse_profile
 
-        entry = SimpleNamespace(
-            options={},
-            runtime_data=SimpleNamespace(
-                coordinator=SimpleNamespace(
-                    catalog=FakeCatalog({CAPABILITY_AI_TASK: ["catalog-task"]})
-                )
-            ),
-        )
+        entry = SimpleNamespace(runtime_data=SimpleNamespace(client=object()))
         entity = ai_task_module.LemonadeAITaskEntity(
             entry,
             SimpleNamespace(subentry_id="task-1", data={}),
         )
 
-        invocation = entity._data_generation(
+        result = await entity._async_generate_data(
             SimpleNamespace(structure={"type": "json_object"}),
-            SimpleNamespace(content=[]),
+            SimpleNamespace(conversation_id="conversation-1", content=[]),
         )
 
+        self.assertIsInstance(result, ai_task.GenDataTaskResult)
+        self.assertEqual({"ok": True}, result.data)
         self.assertEqual(1, calls)
-        self.assertEqual("profile-task", invocation.model)
-        self.assertEqual("Return JSON", invocation.prompt)
-        self.assertEqual(4, invocation.max_history)
-        self.assertEqual(-1, invocation.keep_alive)
+        self.assertEqual(1, len(requests))
+        self.assertEqual("profile-task", requests[0]["profile"].model)
+        self.assertEqual("Return JSON", requests[0]["profile"].prompt)
+        self.assertEqual(4, requests[0]["profile"].max_history)
+        self.assertEqual(-1, requests[0]["profile"].keep_alive)
+
+    def test_ai_task_prompted_chat_log_keeps_underlying_content_dynamic(self) -> None:
+        from homeassistant.components.conversation import AssistantContent, SystemContent
+
+        profile_chat_module = _require_module("lemonade.profile_chat")
+
+        chat_log = SimpleNamespace(content=[])
+        prompted = profile_chat_module.ProfilePromptedChatLog(chat_log, "Return JSON")
+
+        chat_log.content.append(AssistantContent("first response"))
+
+        self.assertIsInstance(prompted.content[0], SystemContent)
+        self.assertEqual("Return JSON", prompted.content[0].content)
+        self.assertEqual("first response", prompted.content[1].content)
 
     def test_ai_task_resolve_data_model_prefers_profile_then_catalog(self) -> None:
-        ai_task_module = _require_module("lemonade.ai_task")
-        subentry = SimpleNamespace(subentry_id="task-1", data={})
+        profile_chat_module = _require_module("lemonade.profile_chat")
         entry = SimpleNamespace(
             options={CONF_DEFAULT_AI_TASK_MODEL: "stale-entry-task"},
             runtime_data=SimpleNamespace(
@@ -3181,15 +3201,34 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 )
             ),
         )
-        entity = ai_task_module.LemonadeAITaskEntity(entry, subentry)
+        profile = profile_chat_module.AITaskProfile(
+            id="task-1",
+            profile_type=SUBENTRY_TYPE_AI_TASK,
+        )
 
-        self.assertEqual("catalog-task", entity._resolve_data_model())
+        self.assertEqual(
+            "catalog-task",
+            profile_chat_module.resolve_ai_task_profile_model(entry, profile),
+        )
 
-        subentry.data[CONF_MODEL] = "profile-task"
-        self.assertEqual("profile-task", entity._resolve_data_model())
+        profile = profile_chat_module.AITaskProfile(
+            id="task-1",
+            profile_type=SUBENTRY_TYPE_AI_TASK,
+            model="profile-task",
+        )
+        self.assertEqual(
+            "profile-task",
+            profile_chat_module.resolve_ai_task_profile_model(entry, profile),
+        )
 
-        subentry.data = {}
-        self.assertEqual("catalog-task", entity._resolve_data_model())
+        profile = profile_chat_module.AITaskProfile(
+            id="task-1",
+            profile_type=SUBENTRY_TYPE_AI_TASK,
+        )
+        self.assertEqual(
+            "catalog-task",
+            profile_chat_module.resolve_ai_task_profile_model(entry, profile),
+        )
 
     def test_ai_task_resolve_image_model_falls_back_to_catalog_model(self) -> None:
         ai_task_module = _require_module("lemonade.ai_task")
@@ -3752,10 +3791,10 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             extra_system_prompt=None,
             as_llm_context=lambda domain: {"domain": domain},
         )
-        original_execute = conversation_module.async_execute_chat_log_turn
+        original_execute = conversation_module.profile_chat.async_execute_chat_log_turn
         self.addCleanup(
             setattr,
-            conversation_module,
+            conversation_module.profile_chat,
             "async_execute_chat_log_turn",
             original_execute,
         )
@@ -3771,7 +3810,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 async def raise_error(*args: Any, **kwargs: Any) -> None:
                     raise error
 
-                conversation_module.async_execute_chat_log_turn = raise_error
+                conversation_module.profile_chat.async_execute_chat_log_turn = raise_error
 
                 try:
                     await entity._async_handle_message(user_input, ChatLog())

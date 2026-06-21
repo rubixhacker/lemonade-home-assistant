@@ -6,19 +6,15 @@ from typing import Any
 
 from homeassistant.components import conversation
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
-    CAPABILITY_CONVERSATION,
     DOMAIN,
     SUBENTRY_TYPE_CONVERSATION,
 )
 from .data import LemonadeConfigEntry
-from .errors import LEMONADE_CLIENT_EXCEPTIONS, lemonade_home_assistant_error
-from .llm import async_execute_chat_log_turn
-from .model_resolution import resolve_entry_model
+from . import profile_chat
 from .profiles import (
     ConversationProfile,
     async_add_profile_entity,
@@ -97,44 +93,16 @@ class LemonadeConversationEntity(
         if hasattr(result, "__await__"):
             await result
 
-    def _resolve_model(self) -> str:
-        """Return the model configured for this conversation profile."""
-        model = resolve_entry_model(
-            self.entry,
-            CAPABILITY_CONVERSATION,
-            profile_model=self.profile.model,
-        )
-        if model is not None:
-            return model
-
-        raise HomeAssistantError("No Lemonade conversation model is available")
-
     async def _async_handle_message(self, user_input: Any, chat_log: Any) -> Any:
         """Process a conversation message using Lemonade."""
         try:
-            model = self._resolve_model()
-            await chat_log.async_provide_llm_data(
-                user_input.as_llm_context(DOMAIN),
-                self.profile.hass_api,
-                self.profile.prompt,
-                user_input.extra_system_prompt,
+            await profile_chat.async_execute_conversation_profile_turn(
+                entry=self.entry,
+                profile=self.profile,
+                entity_id=getattr(self, "entity_id", None) or self._attr_unique_id,
+                user_input=user_input,
+                chat_log=chat_log,
             )
-            try:
-                await async_execute_chat_log_turn(
-                    entity_id=getattr(self, "entity_id", None)
-                    or self._attr_unique_id,
-                    client=self.entry.runtime_data.client,
-                    model=model,
-                    chat_log=chat_log,
-                    max_history=self.profile.max_history,
-                    keep_alive=self.profile.keep_alive,
-                )
-            except LEMONADE_CLIENT_EXCEPTIONS as err:
-                raise lemonade_home_assistant_error(
-                    err,
-                    "Error talking to Lemonade Server",
-                    timeout_message=None,
-                ) from err
             return conversation.async_get_result_from_chat_log(user_input, chat_log)
         except conversation.ConverseError as err:
             return err.as_conversation_result()
