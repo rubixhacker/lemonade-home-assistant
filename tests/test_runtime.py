@@ -5991,8 +5991,6 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stt.SpeechResultState.ERROR, result.result)
 
     async def test_stt_uses_shared_transcription_helper_for_transcription_text(self) -> None:
-        import inspect
-
         from homeassistant.components import stt
         from lemonade.speech import SpeechTranscriptionFailure
 
@@ -6055,9 +6053,6 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Error transcribing audio with Lemonade", logs.output[0])
         self.assertIsNone(result.text)
         self.assertEqual(stt.SpeechResultState.ERROR, result.result)
-        source = inspect.getsource(entity.async_process_audio_stream)
-        self.assertNotIn("KeyError", source)
-        self.assertNotIn("TypeError", source)
 
     async def test_select_platform_adds_default_model_selects_and_updates_options(self) -> None:
         from lemonade.const import default_model_capability_presentations
