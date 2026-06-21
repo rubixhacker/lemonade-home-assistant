@@ -33,7 +33,7 @@ from .model_resolution import resolve_entry_model
 from .profiles import (
     AITaskProfile,
     async_add_profile_entity,
-    parse_profile,
+    parse_ai_task_profile,
     profile_subentries,
     profile_title,
 )
@@ -137,9 +137,7 @@ class LemonadeAITaskEntity(ai_task.AITaskEntity):
     @property
     def profile(self) -> AITaskProfile:
         """Return the current parsed AI task profile."""
-        profile = parse_profile(self.subentry, SUBENTRY_TYPE_AI_TASK)
-        assert isinstance(profile, AITaskProfile)
-        return profile
+        return parse_ai_task_profile(self.subentry)
 
     def _resolve_data_model(self, profile: AITaskProfile | None = None) -> str:
         """Return the model configured for this AI task profile."""
@@ -175,12 +173,7 @@ class LemonadeAITaskEntity(ai_task.AITaskEntity):
     def _profile_prompt(self, profile: AITaskProfile | None = None) -> str | None:
         """Return the configured AI task profile prompt."""
         profile = profile or self.profile
-        prompt = profile.prompt
-        if isinstance(prompt, str):
-            prompt = prompt.strip()
-            if prompt:
-                return prompt
-        return None
+        return profile.prompt
 
     def _chat_log_with_profile_prompt(
         self,

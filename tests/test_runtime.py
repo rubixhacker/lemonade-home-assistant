@@ -954,6 +954,9 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
 
     def test_profile_runtime_filters_profiles_and_maps_capabilities(self) -> None:
         from lemonade.profiles import (
+            ProfileFieldSelectorKind,
+            ProfileKind,
+            ProfilePromptPolicy,
             profile_definition,
             profile_definitions,
             profile_capability,
@@ -997,6 +1000,10 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
             (SUBENTRY_TYPE_CONVERSATION, SUBENTRY_TYPE_AI_TASK),
             tuple(definition.profile_type for definition in profile_definitions()),
         )
+        self.assertEqual(
+            (ProfileKind.CONVERSATION, ProfileKind.AI_TASK),
+            tuple(definition.profile_type for definition in profile_definitions()),
+        )
         conversation_definition = profile_definition(SUBENTRY_TYPE_CONVERSATION)
         self.assertIsNotNone(conversation_definition)
         assert conversation_definition is not None
@@ -1027,9 +1034,21 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertTrue(fields_by_key[CONF_NAME].required)
         self.assertEqual("model", fields_by_key[CONF_MODEL].selector_kind)
+        self.assertIs(
+            ProfileFieldSelectorKind.MODEL,
+            fields_by_key[CONF_MODEL].selector_kind,
+        )
         self.assertEqual("template", fields_by_key[CONF_PROMPT].selector_kind)
+        self.assertIs(
+            ProfileFieldSelectorKind.TEMPLATE,
+            fields_by_key[CONF_PROMPT].selector_kind,
+        )
         self.assertEqual(
             "default_instructions",
+            fields_by_key[CONF_PROMPT].prompt_policy,
+        )
+        self.assertIs(
+            ProfilePromptPolicy.DEFAULT_INSTRUCTIONS,
             fields_by_key[CONF_PROMPT].prompt_policy,
         )
         self.assertEqual("llm_api", fields_by_key[CONF_LLM_HASS_API].selector_kind)
@@ -1046,6 +1065,10 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(CONF_LLM_HASS_API, ai_task_fields)
         self.assertEqual("template", ai_task_fields[CONF_PROMPT].selector_kind)
         self.assertEqual("none", ai_task_fields[CONF_PROMPT].prompt_policy)
+        self.assertIs(
+            ProfilePromptPolicy.NONE,
+            ai_task_fields[CONF_PROMPT].prompt_policy,
+        )
         self.assertEqual(CAPABILITY_AI_TASK, ai_task_definition.model_policy.capability)
         self.assertTrue(ai_task_definition.model_policy.include_all_models)
 
@@ -1138,6 +1161,9 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
         from lemonade.profiles import (
             AITaskProfile,
             ConversationProfile,
+            ProfileFieldSelectorKind,
+            ProfileKind,
+            ProfilePromptPolicy,
             UnknownProfile,
             parse_profile,
         )
@@ -1178,6 +1204,7 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(conversation_profile, ConversationProfile)
         self.assertEqual("conv-1", conversation_profile.id)
         self.assertEqual(SUBENTRY_TYPE_CONVERSATION, conversation_profile.profile_type)
+        self.assertIs(ProfileKind.CONVERSATION, conversation_profile.profile_type)
         self.assertEqual("chat-a", conversation_profile.model)
         self.assertEqual("Be helpful", conversation_profile.prompt)
         self.assertEqual("assist", conversation_profile.hass_api)
@@ -1189,6 +1216,7 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(ai_task_profile, AITaskProfile)
         self.assertEqual("task-1", ai_task_profile.id)
         self.assertEqual(SUBENTRY_TYPE_AI_TASK, ai_task_profile.profile_type)
+        self.assertIs(ProfileKind.AI_TASK, ai_task_profile.profile_type)
         self.assertEqual("task-a", ai_task_profile.model)
         self.assertEqual("Return JSON", ai_task_profile.prompt)
         self.assertEqual(DEFAULT_MAX_HISTORY, ai_task_profile.max_history)
@@ -1203,6 +1231,92 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("other-1", unknown_profile.id)
         self.assertEqual("unsupported", unknown_profile.profile_type)
         self.assertEqual({CONF_MODEL: "other-model"}, dict(unknown_profile.data))
+
+        self.assertIsInstance(ProfileKind.CONVERSATION, str)
+        self.assertEqual(SUBENTRY_TYPE_CONVERSATION, ProfileKind.CONVERSATION)
+        self.assertEqual("model", ProfileFieldSelectorKind.MODEL)
+        self.assertEqual(
+            "default_instructions",
+            ProfilePromptPolicy.DEFAULT_INSTRUCTIONS,
+        )
+        with self.assertRaises(ValueError):
+            ProfileKind("unsupported")
+
+    def test_parse_profile_normalizes_profile_boundary_values(self) -> None:
+        from lemonade.profiles import (
+            parse_ai_task_profile,
+            parse_conversation_profile,
+        )
+
+        conversation_profile = parse_conversation_profile(
+            SimpleNamespace(
+                subentry_id=" conv-1 ",
+                data={
+                    CONF_MODEL: " chat-a ",
+                    CONF_PROMPT: "  Be helpful  ",
+                    CONF_LLM_HASS_API: " assist ",
+                    CONF_MAX_HISTORY: "0",
+                    CONF_KEEP_ALIVE: "0",
+                },
+            )
+        )
+
+        self.assertEqual("conv-1", conversation_profile.id)
+        self.assertEqual("chat-a", conversation_profile.model)
+        self.assertEqual("Be helpful", conversation_profile.prompt)
+        self.assertEqual("assist", conversation_profile.hass_api)
+        self.assertEqual(0, conversation_profile.max_history)
+        self.assertEqual(0, conversation_profile.keep_alive)
+
+        ai_task_profile = parse_ai_task_profile(
+            SimpleNamespace(
+                subentry_id="task-1",
+                data={
+                    CONF_MODEL: "   ",
+                    CONF_PROMPT: "   ",
+                    CONF_MAX_HISTORY: "-3",
+                    CONF_KEEP_ALIVE: "-1",
+                },
+            )
+        )
+
+        self.assertIsNone(ai_task_profile.model)
+        self.assertIsNone(ai_task_profile.prompt)
+        self.assertEqual(0, ai_task_profile.max_history)
+        self.assertEqual(-1, ai_task_profile.keep_alive)
+
+        invalid_profile = parse_conversation_profile(
+            SimpleNamespace(
+                subentry_id=None,
+                data={
+                    CONF_MODEL: None,
+                    CONF_PROMPT: 123,
+                    CONF_LLM_HASS_API: "",
+                    CONF_MAX_HISTORY: "not-a-number",
+                    CONF_KEEP_ALIVE: "-2",
+                },
+            )
+        )
+
+        self.assertIsNone(invalid_profile.id)
+        self.assertIsNone(invalid_profile.model)
+        self.assertIsNone(invalid_profile.prompt)
+        self.assertIsNone(invalid_profile.hass_api)
+        self.assertEqual(DEFAULT_MAX_HISTORY, invalid_profile.max_history)
+        self.assertIsNone(invalid_profile.keep_alive)
+
+    def test_profile_history_limit_zero_is_not_context_length(self) -> None:
+        from lemonade.profiles import parse_ai_task_profile
+
+        profile = parse_ai_task_profile(
+            SimpleNamespace(
+                subentry_id="task-1",
+                data={CONF_MAX_HISTORY: 0},
+            )
+        )
+
+        self.assertEqual(0, profile.max_history)
+        self.assertFalse(hasattr(profile, "context_length"))
 
     async def test_async_add_profile_entity_preserves_subentry_compatibility(self) -> None:
         from lemonade.profiles import async_add_profile_entity
@@ -3001,9 +3115,9 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         ai_task_module = _require_module("lemonade.ai_task")
 
         calls = 0
-        original_parse_profile = ai_task_module.parse_profile
+        original_parse_profile = ai_task_module.parse_ai_task_profile
 
-        def fake_parse_profile(subentry: Any, profile_type: str | None = None) -> Any:
+        def fake_parse_profile(subentry: Any) -> Any:
             nonlocal calls
             calls += 1
             return ai_task_module.AITaskProfile(
@@ -3015,8 +3129,13 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 keep_alive=-1,
             )
 
-        self.addCleanup(setattr, ai_task_module, "parse_profile", original_parse_profile)
-        ai_task_module.parse_profile = fake_parse_profile
+        self.addCleanup(
+            setattr,
+            ai_task_module,
+            "parse_ai_task_profile",
+            original_parse_profile,
+        )
+        ai_task_module.parse_ai_task_profile = fake_parse_profile
 
         entry = SimpleNamespace(
             options={},

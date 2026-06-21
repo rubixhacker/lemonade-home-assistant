@@ -15,11 +15,6 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import config_validation as cv, llm, selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-try:
-    from homeassistant.const import CONF_PROMPT
-except ImportError:  # pragma: no cover - older Home Assistant compatibility
-    CONF_PROMPT = "prompt"
-
 from .api import LemonadeAuthError, LemonadeClient, LemonadeError
 from .const import (
     CONF_KEEP_ALIVE,
@@ -35,6 +30,8 @@ from .const import (
 )
 from .model_resolution import runtime_model_view
 from .profiles import (
+    ProfileFieldDefinition,
+    ProfileFieldSelectorKind,
     ProfileDefinition,
     profile_definition,
     profile_definitions,
@@ -333,43 +330,40 @@ class LemonadeProfileSubentryFlow(config_entries.ConfigSubentryFlow):
     ) -> vol.Schema:
         """Return the schema for a Lemonade profile."""
 
-        def marker(field: Any) -> Any:
-            key = field.key
+        def marker(field: ProfileFieldDefinition) -> Any:
             factory = vol.Required if field.required else vol.Optional
-            if key in profile_data:
-                return factory(key, default=profile_data[key])
-            if field.default is not None:
-                return factory(key, default=field.default)
-            return factory(key)
-
-        def prompt_marker(field: Any) -> Any:
-            if CONF_PROMPT in profile_data:
-                return vol.Optional(CONF_PROMPT, default=profile_data[CONF_PROMPT])
-            if field.prompt_policy != "default_instructions":
-                return vol.Optional(CONF_PROMPT)
-            prompt = _default_instructions_prompt()
+            default = field.default_value(profile_data)
+            if default is not None:
+                return factory(field.key, default=default)
+            prompt = field.prompt_suggested_value(
+                profile_data,
+                _default_instructions_prompt(),
+            )
             if prompt is None:
-                return vol.Optional(CONF_PROMPT)
+                return factory(field.key)
             return vol.Optional(
-                CONF_PROMPT,
+                field.key,
                 description={"suggested_value": prompt},
             )
 
         schema: dict[Any, Any] = {}
         for field in definition.fields:
-            if field.selector_kind == "string":
+            if field.selector_kind == ProfileFieldSelectorKind.STRING:
                 schema[marker(field)] = str
-            elif field.selector_kind == "model":
+            elif field.selector_kind == ProfileFieldSelectorKind.MODEL:
                 schema[marker(field)] = _model_select_selector(model_ids)
-            elif field.selector_kind == "template":
-                schema[prompt_marker(field)] = selector.TemplateSelector()
-            elif field.selector_kind == "llm_api":
+            elif field.selector_kind == ProfileFieldSelectorKind.TEMPLATE:
+                schema[marker(field)] = selector.TemplateSelector()
+            elif field.selector_kind == ProfileFieldSelectorKind.LLM_API:
                 schema[marker(field)] = selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=_llm_api_options(self.hass),
                     )
                 )
-            elif field.selector_kind == "number" and field.minimum is not None:
+            elif (
+                field.selector_kind == ProfileFieldSelectorKind.NUMBER
+                and field.minimum is not None
+            ):
                 schema[marker(field)] = _number_box_selector(minimum=field.minimum)
 
         return vol.Schema(schema)

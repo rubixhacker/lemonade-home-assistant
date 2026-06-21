@@ -22,7 +22,7 @@ from .model_resolution import resolve_entry_model
 from .profiles import (
     ConversationProfile,
     async_add_profile_entity,
-    parse_profile,
+    parse_conversation_profile,
     profile_subentries,
     profile_title,
 )
@@ -76,9 +76,7 @@ class LemonadeConversationEntity(
     @property
     def profile(self) -> ConversationProfile:
         """Return the current parsed conversation profile."""
-        profile = parse_profile(self.subentry, SUBENTRY_TYPE_CONVERSATION)
-        assert isinstance(profile, ConversationProfile)
-        return profile
+        return parse_conversation_profile(self.subentry)
 
     @property
     def supported_features(self) -> Any:
