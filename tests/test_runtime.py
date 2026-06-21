@@ -1285,6 +1285,15 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(0, ai_task_profile.max_history)
         self.assertEqual(-1, ai_task_profile.keep_alive)
 
+        invalid_model_profile = parse_ai_task_profile(
+            SimpleNamespace(
+                subentry_id="task-invalid-model",
+                data={CONF_MODEL: 123},
+            )
+        )
+
+        self.assertIsNone(invalid_model_profile.model)
+
         invalid_profile = parse_conversation_profile(
             SimpleNamespace(
                 subentry_id=None,
