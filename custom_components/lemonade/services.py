@@ -19,7 +19,12 @@ from homeassistant.helpers import config_validation as cv
 from .api import LemonadeClient
 from .data import LemonadeRuntimeData
 from .errors import LEMONADE_CLIENT_EXCEPTIONS, lemonade_home_assistant_error
-from .image_result import generated_image_artifact, image_bytes_and_extension
+from .image_result import (
+    ImageGenerationRequest,
+    ImageGenerationResult,
+    generate_image,
+    image_bytes_and_extension,
+)
 from .model_resolution import resolve_entry_model
 from .service_requests import (
     ChatCompletionRequest,
@@ -265,13 +270,16 @@ async def _invoke_chat_completion(
 
 async def _invoke_generate_image(
     context: DirectServiceContext[GenerateImageRequest],
-) -> dict[str, Any]:
+) -> ImageGenerationResult:
     """Call Lemonade image generation for a resolved direct service request."""
     request = context.request
-    return await context.client.generate_image(
-        prompt=request.prompt,
-        model=context.model,
-        size=request.size,
+    return await generate_image(
+        context.client,
+        ImageGenerationRequest(
+            prompt=request.prompt,
+            model=context.model,
+            size=request.size,
+        ),
     )
 
 
@@ -333,7 +341,7 @@ CHAT_COMPLETION_RECIPE = DirectServiceRecipe[
 )
 
 GENERATE_IMAGE_RECIPE = DirectServiceRecipe[
-    GenerateImageRequest, dict[str, Any]
+    GenerateImageRequest, ImageGenerationResult
 ](
     request_factory=GenerateImageRequest.from_service_call,
     capability=CAPABILITY_IMAGE,
@@ -396,16 +404,12 @@ async def _async_generate_image(
     )
 
     request = result.context.request
-    response = result.value
+    image_generation = result.value
+    response = image_generation.response
     if not request.save:
         return {"response": response}
 
-    artifact = generated_image_artifact(response, request.filename)
-    if artifact is None:
-        raise HomeAssistantError(
-            "Lemonade image response did not contain image bytes to save"
-        )
-
+    artifact = image_generation.require_artifact(request.filename)
     media_dir = hass.config.path("media", "lemonade")
     path = Path(media_dir) / artifact.filename
     await hass.async_add_executor_job(_write_image_file, path, artifact.image_bytes)

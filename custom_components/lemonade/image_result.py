@@ -11,8 +11,14 @@ from pathlib import Path
 import re
 from typing import Any
 
+from homeassistant.exceptions import HomeAssistantError
+
 DEFAULT_IMAGE_MIME_TYPE = "image/png"
 DEFAULT_IMAGE_EXTENSION = "png"
+AI_TASK_NO_IMAGE_ERROR = "No image returned"
+DIRECT_SERVICE_SAVE_NO_IMAGE_ERROR = (
+    "Lemonade image response did not contain image bytes to save"
+)
 
 _IMAGE_VALUE_KEYS = ("b64_json", "url", "image")
 _SAFE_EXTENSION = re.compile(r"[^A-Za-z0-9._-]+")
@@ -38,6 +44,85 @@ class GeneratedImageArtifact:
     extension: str
     filename: str
     media_path: str
+
+
+@dataclass(frozen=True)
+class ImageGenerationRequest:
+    """Typed Lemonade image generation invocation."""
+
+    prompt: str
+    model: str
+    size: str | None = None
+
+    def client_kwargs(self) -> dict[str, Any]:
+        """Return Lemonade client arguments without empty optional values."""
+        kwargs: dict[str, Any] = {
+            "prompt": self.prompt,
+            "model": self.model,
+        }
+        if self.size:
+            kwargs["size"] = self.size
+        return kwargs
+
+
+@dataclass(frozen=True)
+class ImageGenerationResult:
+    """Raw and decoded Lemonade image generation response."""
+
+    response: Any
+    image_result: LemonadeImageResult | None
+
+    def require_image(
+        self,
+        error_message: str = AI_TASK_NO_IMAGE_ERROR,
+    ) -> LemonadeImageResult:
+        """Return decoded image data or raise the module-owned no-image error."""
+        if self.image_result is None:
+            raise HomeAssistantError(error_message)
+        return self.image_result
+
+    def artifact(
+        self,
+        requested_filename: Any = None,
+        *,
+        timestamp_slug: str | None = None,
+    ) -> GeneratedImageArtifact | None:
+        """Return media artifact metadata for the decoded image, if present."""
+        if self.image_result is None:
+            return None
+        return _generated_image_artifact_from_result(
+            self.image_result,
+            requested_filename,
+            timestamp_slug=timestamp_slug,
+        )
+
+    def require_artifact(
+        self,
+        requested_filename: Any = None,
+        *,
+        timestamp_slug: str | None = None,
+        error_message: str = DIRECT_SERVICE_SAVE_NO_IMAGE_ERROR,
+    ) -> GeneratedImageArtifact:
+        """Return media artifact metadata or raise the direct-service save error."""
+        artifact = self.artifact(
+            requested_filename,
+            timestamp_slug=timestamp_slug,
+        )
+        if artifact is None:
+            raise HomeAssistantError(error_message)
+        return artifact
+
+
+async def generate_image(
+    client: Any,
+    request: ImageGenerationRequest,
+) -> ImageGenerationResult:
+    """Invoke Lemonade image generation and decode the first returned image."""
+    response = await client.generate_image(**request.client_kwargs())
+    return ImageGenerationResult(
+        response=response,
+        image_result=decode_image_result(response),
+    )
 
 
 def extension_from_mime_type(mime_type: str) -> str:
@@ -102,6 +187,20 @@ def generated_image_artifact(
     if result is None:
         return None
 
+    return _generated_image_artifact_from_result(
+        result,
+        requested_filename,
+        timestamp_slug=timestamp_slug,
+    )
+
+
+def _generated_image_artifact_from_result(
+    result: LemonadeImageResult,
+    requested_filename: Any = None,
+    *,
+    timestamp_slug: str | None = None,
+) -> GeneratedImageArtifact:
+    """Return media-save artifact metadata for a decoded image result."""
     extension = result.extension or DEFAULT_IMAGE_EXTENSION
     default_filename = f"lemonade_{timestamp_slug or _utcnow_slug()}.{extension}"
     filename = safe_media_filename(requested_filename, default_filename)

@@ -20,7 +20,7 @@ from .const import (
 from . import profile_chat
 from .data import LemonadeConfigEntry
 from .errors import LEMONADE_CLIENT_EXCEPTIONS, lemonade_home_assistant_error
-from .image_result import decode_image_result
+from .image_result import ImageGenerationRequest, generate_image
 from .llm import final_assistant_content as _llm_final_assistant_content
 from .profiles import (
     AITaskProfile,
@@ -168,18 +168,19 @@ class LemonadeAITaskEntity(ai_task.AITaskEntity):
         """Generate an image for an AI task using Lemonade."""
         invocation = self._image_generation(task)
         try:
-            response = await self.entry.runtime_data.client.generate_image(
-                prompt=invocation.prompt,
-                model=invocation.model,
+            generated = await generate_image(
+                self.entry.runtime_data.client,
+                ImageGenerationRequest(
+                    prompt=invocation.prompt,
+                    model=invocation.model,
+                ),
             )
         except LEMONADE_CLIENT_EXCEPTIONS as err:
             raise lemonade_home_assistant_error(
                 err,
                 "Error generating image with Lemonade",
             ) from err
-        image_result = decode_image_result(response)
-        if image_result is None:
-            raise HomeAssistantError("No image returned")
+        image_result = generated.require_image()
         return ai_task.GenImageTaskResult(
             image_data=image_result.image_bytes,
             conversation_id=getattr(chat_log, "conversation_id", None),

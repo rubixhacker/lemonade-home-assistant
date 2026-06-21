@@ -1359,6 +1359,86 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
 
 
 class LemonadeImageResultTest(unittest.TestCase):
+    def test_generate_image_invokes_client_and_returns_typed_result(self) -> None:
+        import asyncio
+
+        image_result_module = _require_module("lemonade.image_result")
+        response = {"data": [{"url": "data:image/jpeg;base64,aW1hZ2U="}]}
+
+        class Client:
+            def __init__(self) -> None:
+                self.calls: list[dict[str, Any]] = []
+
+            async def generate_image(self, **kwargs: Any) -> dict[str, Any]:
+                self.calls.append(kwargs)
+                return response
+
+        client = Client()
+        result = asyncio.run(
+            image_result_module.generate_image(
+                client,
+                image_result_module.ImageGenerationRequest(
+                    prompt="Draw a lemon",
+                    model="image-model",
+                    size="1024x1024",
+                ),
+            )
+        )
+
+        self.assertEqual(
+            [
+                {
+                    "prompt": "Draw a lemon",
+                    "model": "image-model",
+                    "size": "1024x1024",
+                }
+            ],
+            client.calls,
+        )
+        self.assertIs(response, result.response)
+        self.assertIsNotNone(result.image_result)
+        assert result.image_result is not None
+        self.assertEqual(b"image", result.image_result.image_bytes)
+        self.assertEqual("image/jpeg", result.image_result.mime_type)
+        self.assertEqual("jpg", result.image_result.extension)
+
+    def test_image_generation_result_requires_image_or_artifact(self) -> None:
+        from homeassistant.exceptions import HomeAssistantError
+
+        image_result_module = _require_module("lemonade.image_result")
+
+        valid = image_result_module.ImageGenerationResult(
+            response={"data": [{"b64_json": "aW1hZ2U="}]},
+            image_result=image_result_module.LemonadeImageResult(
+                image_bytes=b"image",
+                mime_type="image/png",
+                extension="png",
+            ),
+        )
+
+        self.assertEqual(b"image", valid.require_image().image_bytes)
+        artifact = valid.require_artifact(
+            "../unsafe/lemon.png",
+            timestamp_slug="20260102_030405",
+        )
+        self.assertEqual("lemon.png", artifact.filename)
+        self.assertEqual(
+            "media-source://media_source/local/lemonade/lemon.png",
+            artifact.media_path,
+        )
+
+        missing = image_result_module.ImageGenerationResult(
+            response={"data": []},
+            image_result=None,
+        )
+        with self.assertRaisesRegex(HomeAssistantError, "No image returned"):
+            missing.require_image()
+        with self.assertRaisesRegex(
+            HomeAssistantError,
+            "Lemonade image response did not contain image bytes to save",
+        ):
+            missing.require_artifact()
+
     def test_decode_image_result_traverses_object_response_shape(self) -> None:
         image_result_module = _require_module("lemonade.image_result")
 
@@ -2990,6 +3070,67 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 SimpleNamespace(instructions="Draw a lemon")
             ).prompt,
         )
+
+    async def test_ai_task_generate_image_uses_image_generation_module(self) -> None:
+        from homeassistant.components import ai_task
+
+        ai_task_module = _require_module("lemonade.ai_task")
+        image_result_module = _require_module("lemonade.image_result")
+        calls: list[dict[str, Any]] = []
+
+        async def generate_image(client: Any, request: Any) -> Any:
+            calls.append(
+                {
+                    "client": client,
+                    "request": request,
+                }
+            )
+            return image_result_module.ImageGenerationResult(
+                response={"data": [{"b64_json": "aW1hZ2U="}]},
+                image_result=image_result_module.LemonadeImageResult(
+                    image_bytes=b"image",
+                    mime_type="image/png",
+                    extension="png",
+                ),
+            )
+
+        entry = SimpleNamespace(
+            options={CONF_DEFAULT_IMAGE_MODEL: "entry-image"},
+            runtime_data=SimpleNamespace(
+                client=object(),
+                coordinator=SimpleNamespace(catalog=FakeCatalog({CAPABILITY_IMAGE: []})),
+            ),
+        )
+        entity = ai_task_module.LemonadeAITaskEntity(
+            entry,
+            SimpleNamespace(
+                subentry_id="task-1",
+                data={CONF_PROMPT: "Use watercolor style"},
+            ),
+        )
+
+        original_generate_image = ai_task_module.generate_image
+        ai_task_module.generate_image = generate_image
+        try:
+            result = await entity._async_generate_image(
+                SimpleNamespace(instructions="Draw a lemon"),
+                SimpleNamespace(conversation_id="conversation-1"),
+            )
+        finally:
+            ai_task_module.generate_image = original_generate_image
+
+        self.assertIsInstance(result, ai_task.GenImageTaskResult)
+        self.assertEqual(b"image", result.image_data)
+        self.assertEqual(1, len(calls))
+        self.assertIs(entry.runtime_data.client, calls[0]["client"])
+        self.assertIsInstance(
+            calls[0]["request"], image_result_module.ImageGenerationRequest
+        )
+        self.assertEqual(
+            "Use watercolor style\n\nDraw a lemon",
+            calls[0]["request"].prompt,
+        )
+        self.assertEqual("entry-image", calls[0]["request"].model)
 
     async def test_ai_task_generate_image_decodes_object_data_url_and_uses_catalog_model(self) -> None:
         from homeassistant.components import ai_task
@@ -4822,6 +4963,70 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(
                 b"image-bytes",
                 (root / "media" / "lemonade" / "lemon.png").read_bytes(),
+            )
+
+    async def test_generate_image_service_uses_image_generation_module_for_save(
+        self,
+    ) -> None:
+        import tempfile
+
+        from lemonade.const import ATTR_PROMPT, ATTR_SAVE, ATTR_SIZE, CAPABILITY_IMAGE
+
+        image_result_module = _require_module("lemonade.image_result")
+        services_module = _require_module("lemonade.services")
+        response = {"data": [{"b64_json": "aW1hZ2U="}]}
+        calls: list[dict[str, Any]] = []
+
+        async def generate_image(client: Any, request: Any) -> Any:
+            calls.append({"client": client, "request": request})
+            return image_result_module.ImageGenerationResult(
+                response=response,
+                image_result=image_result_module.LemonadeImageResult(
+                    image_bytes=b"image",
+                    mime_type="image/png",
+                    extension="png",
+                ),
+            )
+
+        client = object()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            entry = _service_entry(client, {CAPABILITY_IMAGE: ["catalog-image"]})
+            hass = FakeServiceHass(entry, root)
+
+            original_generate_image = services_module.generate_image
+            services_module.generate_image = generate_image
+            try:
+                result = await services_module._async_generate_image(
+                    hass,
+                    SimpleNamespace(
+                        data={
+                            ATTR_PROMPT: "Draw a lemon",
+                            ATTR_SAVE: True,
+                            ATTR_SIZE: "1024x1024",
+                        }
+                    ),
+                )
+            finally:
+                services_module.generate_image = original_generate_image
+
+            self.assertIs(response, result["response"])
+            self.assertRegex(
+                result["media_path"],
+                r"^media-source://media_source/local/lemonade/lemonade_\d{8}_\d{6}\.png$",
+            )
+            self.assertEqual(1, len(calls))
+            self.assertIs(client, calls[0]["client"])
+            self.assertIsInstance(
+                calls[0]["request"], image_result_module.ImageGenerationRequest
+            )
+            self.assertEqual("Draw a lemon", calls[0]["request"].prompt)
+            self.assertEqual("catalog-image", calls[0]["request"].model)
+            self.assertEqual("1024x1024", calls[0]["request"].size)
+            image_files = list((root / "media" / "lemonade").iterdir())
+            self.assertEqual(
+                [b"image"],
+                [image_file.read_bytes() for image_file in image_files],
             )
 
     async def test_generate_image_service_default_filename_uses_decoded_extension(self) -> None:
