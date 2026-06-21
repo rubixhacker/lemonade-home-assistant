@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
-from dataclasses import dataclass
-
 from homeassistant.const import Platform
 
 DOMAIN = "lemonade"
@@ -64,124 +61,23 @@ MODEL_COUNT_SENSOR_NAMES = {
 }
 
 
-@dataclass(frozen=True, slots=True)
-class CapabilityPresentation:
-    """Presentation metadata for a Lemonade model capability."""
-
-    capability: str
-    default_option_key: str | None = None
-    model_count_translation_key: str | None = None
-    repair_issue: bool = False
-
-
-@dataclass(frozen=True, slots=True)
-class DefaultModelSelectorDefinition:
-    """Policy for a Server Entry default Model Selector."""
-
-    capability: str
-    option_key: str
-    name: str
-    degraded_policy: str = "fallback_to_all_models"
-
-    def options(self, source: object) -> list[str]:
-        """Return selectable model IDs for this selector."""
-        from .model_resolution import runtime_model_view
-
-        model_view = runtime_model_view(source)
-        capability_options = model_view.model_ids(self.capability)
-        if capability_options or self.degraded_policy != "fallback_to_all_models":
-            return capability_options
-        return model_view.all_model_ids
-
-    def current_option(self, entry: object, source: object) -> str | None:
-        """Return the configured valid option or the first selectable model."""
-        from .model_resolution import runtime_model_view
-
-        options = self.options(source)
-        configured = runtime_model_view(source).entry_default_model(
-            entry,
-            self.option_key,
-        )
-        if configured in options:
-            return configured
-        return options[0] if options else None
-
-    def validate_option(self, option: str, source: object) -> str:
-        """Return a valid selectable option or raise."""
-        if option not in self.options(source):
-            raise ValueError(f"Unknown Lemonade model option: {option}")
-        return option
-
-
-CAPABILITY_PRESENTATIONS = (
-    CapabilityPresentation(
-        CAPABILITY_CONVERSATION,
-        model_count_translation_key="conversation_model_count",
-    ),
-    CapabilityPresentation(CAPABILITY_AI_TASK),
-    CapabilityPresentation(
-        CAPABILITY_IMAGE,
-        model_count_translation_key="image_model_count",
-        repair_issue=True,
-    ),
-    CapabilityPresentation(
-        CAPABILITY_TTS,
-        default_option_key=CONF_DEFAULT_TTS_MODEL,
-        model_count_translation_key="tts_model_count",
-        repair_issue=True,
-    ),
-    CapabilityPresentation(
-        CAPABILITY_STT,
-        default_option_key=CONF_DEFAULT_STT_MODEL,
-        model_count_translation_key="stt_model_count",
-        repair_issue=True,
-    ),
+from .server_capabilities import (  # noqa: E402,F401
+    CAPABILITY_PRESENTATIONS,
+    DEFAULT_MODEL_SELECTOR_DEFINITIONS,
+    MISSING_CAPABILITY_REPAIR_ISSUE_IDENTITIES,
+    MODEL_COUNT_SENSOR_POLICIES,
+    CapabilityPresentation,
+    DefaultModelSelectorDefinition,
+    MissingCapabilityRepairIssueIdentity,
+    ModelCountSensorPolicy,
+    ModelSelectorDegradedPolicy,
+    default_model_capability_presentations,
+    default_model_selector_definitions,
+    model_count_capability_presentations,
+    model_count_sensor_policies,
+    repair_issue_capabilities,
+    repair_issue_identities,
 )
-
-DEFAULT_MODEL_SELECTOR_DEFINITIONS = (
-    DefaultModelSelectorDefinition(
-        CAPABILITY_TTS,
-        CONF_DEFAULT_TTS_MODEL,
-        DEFAULT_MODEL_OPTION_NAMES[CONF_DEFAULT_TTS_MODEL],
-    ),
-    DefaultModelSelectorDefinition(
-        CAPABILITY_STT,
-        CONF_DEFAULT_STT_MODEL,
-        DEFAULT_MODEL_OPTION_NAMES[CONF_DEFAULT_STT_MODEL],
-    ),
-)
-
-
-def default_model_capability_presentations() -> Iterable[CapabilityPresentation]:
-    """Iterate capabilities configurable as default model options."""
-    return (
-        presentation
-        for presentation in CAPABILITY_PRESENTATIONS
-        if presentation.default_option_key is not None
-    )
-
-
-def default_model_selector_definitions() -> Iterable[DefaultModelSelectorDefinition]:
-    """Iterate Server Entry default Model Selector definitions."""
-    return DEFAULT_MODEL_SELECTOR_DEFINITIONS
-
-
-def model_count_capability_presentations() -> Iterable[CapabilityPresentation]:
-    """Iterate capabilities shown as model count sensors."""
-    return (
-        presentation
-        for presentation in CAPABILITY_PRESENTATIONS
-        if presentation.model_count_translation_key is not None
-    )
-
-
-def repair_issue_capabilities() -> Iterable[str]:
-    """Iterate legacy missing-capability repair issues to clean up."""
-    return (
-        presentation.capability
-        for presentation in CAPABILITY_PRESENTATIONS
-        if presentation.repair_issue
-    )
 
 SERVICE_CHAT_COMPLETION = "chat_completion"
 SERVICE_GENERATE_IMAGE = "generate_image"

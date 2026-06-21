@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
 
 import aiohttp
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_KEY, CONF_URL
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryError, ConfigEntryNotReady
+from homeassistant.exceptions import (
+    ConfigEntryAuthFailed,
+    ConfigEntryError,
+    ConfigEntryNotReady,
+)
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
@@ -23,8 +26,8 @@ from .const import (
     DEFAULT_TIMEOUT,
     DOMAIN,
     PLATFORMS,
-    repair_issue_capabilities,
 )
+from .server_capabilities import repair_issue_identities
 from .services import async_register_services
 
 _LOGGER = logging.getLogger(__name__)
@@ -42,7 +45,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 def _async_update_missing_capability_issues(
     hass: HomeAssistant,
     entry_id: str,
-    _coordinator: Any,
 ) -> None:
     """Delete legacy missing-capability repair issues."""
     _async_delete_missing_capability_issues(hass, entry_id)
@@ -52,10 +54,10 @@ def _async_delete_missing_capability_issues(
     hass: HomeAssistant, entry_id: str
 ) -> None:
     """Delete repair issues for optional capabilities tied to an entry."""
-    from .repairs import async_delete_missing_capability_issue
+    from .repairs import async_delete_missing_capability_issue_identity
 
-    for capability in repair_issue_capabilities():
-        async_delete_missing_capability_issue(hass, entry_id, capability)
+    for identity in repair_issue_identities():
+        async_delete_missing_capability_issue_identity(hass, entry_id, identity)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -105,11 +107,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.runtime_data = LemonadeRuntimeData(client=client, coordinator=coordinator)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = entry
 
-    _async_update_missing_capability_issues(hass, entry.entry_id, coordinator)
+    _async_update_missing_capability_issues(hass, entry.entry_id)
     entry.async_on_unload(
         coordinator.async_add_listener(
             lambda: _async_update_missing_capability_issues(
-                hass, entry.entry_id, coordinator
+                hass, entry.entry_id
             )
         )
     )

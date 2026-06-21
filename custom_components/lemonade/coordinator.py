@@ -13,8 +13,8 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .api import LemonadeClient
 from .const import DEFAULT_SCAN_INTERVAL_SECONDS, DOMAIN
-from .model_resolution import RuntimeModelView
 from .models import LemonadeModelCatalog, parse_models_response
+from .server_capabilities import RuntimeModelView
 
 _LOGGER = logging.getLogger(__name__)
 

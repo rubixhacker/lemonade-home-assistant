@@ -6,10 +6,14 @@ from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import MODEL_COUNT_SENSOR_NAMES, model_count_capability_presentations
+from .const import MODEL_COUNT_SENSOR_NAMES
 from .data import LemonadeConfigEntry
 from .entity import LemonadeEntity
-from .model_resolution import runtime_model_view
+from .server_capabilities import (
+    ModelCountSensorPolicy,
+    model_count_sensor_policies,
+    runtime_model_view,
+)
 
 
 async def async_setup_entry(
@@ -25,11 +29,9 @@ async def async_setup_entry(
             *(
                 LemonadeCapabilityCountSensor(
                     entry,
-                    presentation.capability,
-                    presentation.model_count_translation_key,
+                    policy,
                 )
-                for presentation in model_count_capability_presentations()
-                if presentation.model_count_translation_key is not None
+                for policy in model_count_sensor_policies()
             ),
         ]
     )
@@ -85,16 +87,18 @@ class LemonadeCapabilityCountSensor(LemonadeSensor):
     def __init__(
         self,
         entry: LemonadeConfigEntry,
-        capability: str,
-        translation_key: str,
+        policy: ModelCountSensorPolicy,
     ) -> None:
         """Initialize the capability count sensor."""
-        super().__init__(entry, translation_key)
-        self._capability = capability
-        self._attr_name = MODEL_COUNT_SENSOR_NAMES.get(translation_key, translation_key)
-        self._attr_translation_key = translation_key
+        super().__init__(entry, policy.translation_key)
+        self._policy = policy
+        self._attr_name = MODEL_COUNT_SENSOR_NAMES.get(
+            policy.translation_key,
+            policy.translation_key,
+        )
+        self._attr_translation_key = policy.translation_key
 
     @property
     def native_value(self) -> int:
         """Return the model count for the capability."""
-        return runtime_model_view(self.coordinator).model_count(self._capability)
+        return runtime_model_view(self.coordinator).model_count(self._policy.capability)

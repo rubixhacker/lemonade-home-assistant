@@ -6,12 +6,13 @@ from homeassistant.components.select import SelectEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import (
-    DefaultModelSelectorDefinition,
-    default_model_selector_definitions,
-)
 from .data import LemonadeConfigEntry
 from .entity import LemonadeEntity
+from .server_capabilities import (
+    DefaultModelSelectorDefinition,
+    default_model_selector_definitions,
+    runtime_model_view,
+)
 
 
 async def async_setup_entry(
@@ -48,14 +49,16 @@ class LemonadeDefaultModelSelect(LemonadeEntity, SelectEntity):
     @property
     def options(self) -> list[str]:
         """Return available model IDs for the capability."""
-        return self.selector_definition.options(self.coordinator)
+        return runtime_model_view(self.coordinator).default_model_selector_options(
+            self.selector_definition
+        )
 
     @property
     def current_option(self) -> str | None:
         """Return the configured model or the first available model."""
-        return self.selector_definition.current_option(
-            self.entry,
-            self.coordinator,
+        model_view = runtime_model_view(self.coordinator)
+        return model_view.current_default_model_selector_option(
+            self.entry, self.selector_definition
         )
 
     @property
@@ -65,7 +68,9 @@ class LemonadeDefaultModelSelect(LemonadeEntity, SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         """Update the configured default model and reload the entry."""
-        option = self.selector_definition.validate_option(option, self.coordinator)
+        option = runtime_model_view(
+            self.coordinator
+        ).validate_default_model_selector_option(option, self.selector_definition)
         self.hass.config_entries.async_update_entry(
             self.entry,
             options={**self.entry.options, self.selector_definition.option_key: option},

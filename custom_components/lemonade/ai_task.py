@@ -29,7 +29,7 @@ from .llm import (
     async_generate_chat_log_data,
     final_assistant_content as _llm_final_assistant_content,
 )
-from .model_resolution import resolve_entry_model, runtime_model_view
+from .model_resolution import resolve_entry_model
 from .profiles import (
     AITaskProfile,
     async_add_profile_entity,
@@ -37,6 +37,7 @@ from .profiles import (
     profile_subentries,
     profile_title,
 )
+from .server_capabilities import runtime_model_view
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,18 +102,17 @@ class LemonadeAITaskEntity(ai_task.AITaskEntity):
 
     _attr_name = None
     _attr_has_entity_name = True
+    _base_supported_features = (
+        ai_task.AITaskEntityFeature.GENERATE_DATA
+        | ai_task.AITaskEntityFeature.SUPPORT_ATTACHMENTS
+    )
 
     def __init__(self, entry: LemonadeConfigEntry, subentry: Any) -> None:
         """Initialize the AI task entity."""
         self.entry = entry
         self.subentry = subentry
         self._attr_unique_id = getattr(subentry, "subentry_id")
-        self._attr_supported_features = (
-            ai_task.AITaskEntityFeature.GENERATE_DATA
-            | ai_task.AITaskEntityFeature.SUPPORT_ATTACHMENTS
-        )
-        if runtime_model_view(entry).has_models(CAPABILITY_IMAGE):
-            self._attr_supported_features |= ai_task.AITaskEntityFeature.GENERATE_IMAGE
+        self._attr_supported_features = self._supported_features()
 
         if self._attr_unique_id:
             self._attr_device_info = DeviceInfo(
@@ -121,6 +121,18 @@ class LemonadeAITaskEntity(ai_task.AITaskEntity):
                 manufacturer="Lemonade Server",
                 entry_type=DeviceEntryType.SERVICE,
             )
+
+    def _supported_features(self) -> Any:
+        """Return current AI Task features for the Server Entry capabilities."""
+        features = self._base_supported_features
+        if runtime_model_view(self.entry).has_capability_models(CAPABILITY_IMAGE):
+            features |= ai_task.AITaskEntityFeature.GENERATE_IMAGE
+        return features
+
+    @property
+    def supported_features(self) -> Any:
+        """Return live AI Task features for the refreshed Server Entry."""
+        return self._supported_features()
 
     @property
     def profile(self) -> AITaskProfile:
@@ -150,7 +162,7 @@ class LemonadeAITaskEntity(ai_task.AITaskEntity):
         if profile_model in model_view.model_ids(CAPABILITY_IMAGE):
             return profile_model
 
-        model = resolve_entry_model(
+        model = model_view.resolve_entry_model(
             self.entry,
             CAPABILITY_IMAGE,
             default_option=CONF_DEFAULT_IMAGE_MODEL,

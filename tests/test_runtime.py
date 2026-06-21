@@ -1056,6 +1056,12 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
             model_count_capability_presentations,
             repair_issue_capabilities,
         )
+        from lemonade.server_capabilities import (
+            MissingCapabilityRepairIssueIdentity,
+            ModelCountSensorPolicy,
+            model_count_sensor_policies,
+            repair_issue_identities,
+        )
 
         default_records = tuple(default_model_capability_presentations())
 
@@ -1100,6 +1106,30 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             (CAPABILITY_IMAGE, CAPABILITY_TTS, CAPABILITY_STT),
             tuple(repair_issue_capabilities()),
+        )
+        self.assertEqual(
+            (
+                ModelCountSensorPolicy(
+                    CAPABILITY_CONVERSATION,
+                    "conversation_model_count",
+                ),
+                ModelCountSensorPolicy(CAPABILITY_IMAGE, "image_model_count"),
+                ModelCountSensorPolicy(CAPABILITY_TTS, "tts_model_count"),
+                ModelCountSensorPolicy(CAPABILITY_STT, "stt_model_count"),
+            ),
+            tuple(model_count_sensor_policies()),
+        )
+        self.assertEqual(
+            (
+                MissingCapabilityRepairIssueIdentity(CAPABILITY_IMAGE),
+                MissingCapabilityRepairIssueIdentity(CAPABILITY_TTS),
+                MissingCapabilityRepairIssueIdentity(CAPABILITY_STT),
+            ),
+            tuple(repair_issue_identities()),
+        )
+        self.assertEqual(
+            "missing_image_entry-1",
+            tuple(repair_issue_identities())[0].issue_id("entry-1"),
         )
 
     def test_parse_profile_returns_typed_immutable_profiles(self) -> None:
@@ -2676,6 +2706,39 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             entity._attr_supported_features,
         )
 
+    def test_ai_task_supported_features_follow_live_capability_view(self) -> None:
+        from homeassistant.components import ai_task
+
+        ai_task_module = _require_module("lemonade.ai_task")
+        coordinator = SimpleNamespace(
+            catalog=FakeCatalog({CAPABILITY_IMAGE: ["image-a"]})
+        )
+        entry = SimpleNamespace(
+            entry_id="entry-1",
+            title="Lemonade Server",
+            runtime_data=SimpleNamespace(coordinator=coordinator),
+        )
+        entity = ai_task_module.LemonadeAITaskEntity(
+            entry,
+            SimpleNamespace(
+                subentry_id="task-1",
+                subentry_type=SUBENTRY_TYPE_AI_TASK,
+                data={},
+            ),
+        )
+
+        self.assertTrue(
+            entity.supported_features & ai_task.AITaskEntityFeature.GENERATE_IMAGE
+        )
+        coordinator.catalog = FakeCatalog({})
+        self.assertFalse(
+            entity.supported_features & ai_task.AITaskEntityFeature.GENERATE_IMAGE
+        )
+        self.assertTrue(
+            entity._attr_supported_features
+            & ai_task.AITaskEntityFeature.GENERATE_IMAGE
+        )
+
     async def test_ai_task_generate_data_prefers_profile_model_and_parses_structured_json(self) -> None:
         from homeassistant.components import ai_task
         from homeassistant.components.conversation import UserContent
@@ -3733,14 +3796,9 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
     def test_missing_capability_repairs_are_cleanup_only(self) -> None:
         ir.CREATED.clear()
         ir.DELETED.clear()
-        coordinator = SimpleNamespace(
-            catalog=ModelsForOnlyCatalog({CAPABILITY_IMAGE: ["image-model"]})
-        )
-
         integration._async_update_missing_capability_issues(
             FakeHass(),
             "entry-1",
-            coordinator,
         )
 
         self.assertEqual(
@@ -5009,6 +5067,8 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_sensor_platform_adds_status_and_model_count_entities(self) -> None:
         sensor_module = _require_module("lemonade.sensor")
+        from lemonade.server_capabilities import ModelCountSensorPolicy
+
         hass = FakeHass()
         coordinator = SimpleNamespace(
             hass=hass,
@@ -5053,6 +5113,13 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             getattr(entities["model_count"], "_attr_state_class", None),
         )
         self.assertEqual(2, entities["conversation_model_count"].native_value)
+        self.assertEqual(
+            ModelCountSensorPolicy(
+                CAPABILITY_CONVERSATION,
+                "conversation_model_count",
+            ),
+            entities["conversation_model_count"]._policy,
+        )
         self.assertEqual(
             SensorStateClass.MEASUREMENT,
             getattr(entities["conversation_model_count"], "_attr_state_class", None),
@@ -5499,6 +5566,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_select_platform_adds_default_model_selects_and_updates_options(self) -> None:
         from lemonade.const import default_model_capability_presentations
+        from lemonade.server_capabilities import DefaultModelSelectorDefinition
 
         select_module = _require_module("lemonade.select")
         hass = FakeHass()
@@ -5540,7 +5608,10 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertTrue(entities[CONF_DEFAULT_TTS_MODEL].available)
         self.assertEqual("chat-a", entities[CONF_DEFAULT_TTS_MODEL].current_option)
-        self.assertIsNotNone(entities[CONF_DEFAULT_TTS_MODEL].selector_definition)
+        self.assertIsInstance(
+            entities[CONF_DEFAULT_TTS_MODEL].selector_definition,
+            DefaultModelSelectorDefinition,
+        )
         self.assertEqual(
             "chat-a",
             entities[CONF_DEFAULT_TTS_MODEL].selector_definition.current_option(
