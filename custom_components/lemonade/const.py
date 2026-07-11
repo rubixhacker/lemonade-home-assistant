@@ -46,11 +46,6 @@ CAPABILITIES = (
     CAPABILITY_STT,
     CAPABILITY_EMBEDDINGS,
 )
-DEFAULT_MODEL_OPTION_NAMES = {
-    CONF_DEFAULT_TTS_MODEL: "Default text-to-speech model",
-    CONF_DEFAULT_STT_MODEL: "Default speech-to-text model",
-}
-
 MODEL_COUNT_SENSOR_NAMES = {
     "server_status": "Server status",
     "model_count": "Model count",

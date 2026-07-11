@@ -1083,6 +1083,7 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
         from lemonade.server_capabilities import (
             CAPABILITY_DESCRIPTIONS,
             CapabilityDescription,
+            CapabilityPresentation,
             default_model_capability_presentations,
             default_model_selector_definitions,
             model_count_capability_presentations,
@@ -1136,14 +1137,78 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
                 for record in CAPABILITY_DESCRIPTIONS
             )
         )
+        expected_descriptions = (
+            (Capability.CONVERSATION, None, None, "conversation_model_count", False),
+            (Capability.AI_TASK, None, None, None, False),
+            (Capability.TOOL_CALLING, None, None, None, False),
+            (Capability.VISION, None, None, None, False),
+            (Capability.IMAGE, None, None, "image_model_count", True),
+            (Capability.IMAGE_EDIT, None, None, None, False),
+            (
+                Capability.TTS,
+                CONF_DEFAULT_TTS_MODEL,
+                "Default text-to-speech model",
+                "tts_model_count",
+                True,
+            ),
+            (
+                Capability.STT,
+                CONF_DEFAULT_STT_MODEL,
+                "Default speech-to-text model",
+                "stt_model_count",
+                True,
+            ),
+            (Capability.EMBEDDINGS, None, None, None, False),
+        )
+        self.assertEqual(
+            expected_descriptions,
+            tuple(
+                (
+                    record.capability,
+                    record.default_option_key,
+                    record.selector_name,
+                    record.model_count_translation_key,
+                    record.repair_issue,
+                )
+                for record in CAPABILITY_DESCRIPTIONS
+            ),
+        )
+        self.assertEqual(
+            ("fallback_to_all_models",) * len(expected_descriptions),
+            tuple(record.degraded_policy for record in CAPABILITY_DESCRIPTIONS),
+        )
+        self.assertEqual(
+            tuple(
+                CapabilityPresentation(capability, option_key, sensor_key, repair)
+                for capability, option_key, _name, sensor_key, repair in (
+                    expected_descriptions
+                )
+            ),
+            tuple(record.to_presentation() for record in CAPABILITY_DESCRIPTIONS),
+        )
         selector_definitions = tuple(default_model_selector_definitions())
         self.assertEqual(
             (
-                (CAPABILITY_TTS, CONF_DEFAULT_TTS_MODEL),
-                (CAPABILITY_STT, CONF_DEFAULT_STT_MODEL),
+                (
+                    CAPABILITY_TTS,
+                    CONF_DEFAULT_TTS_MODEL,
+                    "Default text-to-speech model",
+                    "fallback_to_all_models",
+                ),
+                (
+                    CAPABILITY_STT,
+                    CONF_DEFAULT_STT_MODEL,
+                    "Default speech-to-text model",
+                    "fallback_to_all_models",
+                ),
             ),
             tuple(
-                (definition.capability, definition.option_key)
+                (
+                    definition.capability,
+                    definition.option_key,
+                    definition.name,
+                    definition.degraded_policy,
+                )
                 for definition in selector_definitions
             ),
         )

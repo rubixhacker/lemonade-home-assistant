@@ -10,7 +10,6 @@ from typing import Any
 from .const import (
     CONF_DEFAULT_STT_MODEL,
     CONF_DEFAULT_TTS_MODEL,
-    DEFAULT_MODEL_OPTION_NAMES,
 )
 from .models import Capability, ModelId, parse_models_response
 
@@ -87,11 +86,21 @@ class CapabilityDescription:
 
     capability: Capability
     default_option_key: str | None = None
+    selector_name: str | None = None
     model_count_translation_key: str | None = None
     repair_issue: bool = False
     degraded_policy: ModelSelectorDegradedPolicy = (
         ModelSelectorDegradedPolicy.FALLBACK_TO_ALL_MODELS
     )
+
+    def to_presentation(self) -> CapabilityPresentation:
+        """Project compatibility presentation metadata."""
+        return CapabilityPresentation(
+            self.capability,
+            self.default_option_key,
+            self.model_count_translation_key,
+            self.repair_issue,
+        )
 
 
 CAPABILITY_DESCRIPTIONS = (
@@ -111,12 +120,14 @@ CAPABILITY_DESCRIPTIONS = (
     CapabilityDescription(
         Capability.TTS,
         default_option_key=CONF_DEFAULT_TTS_MODEL,
+        selector_name="Default text-to-speech model",
         model_count_translation_key="tts_model_count",
         repair_issue=True,
     ),
     CapabilityDescription(
         Capability.STT,
         default_option_key=CONF_DEFAULT_STT_MODEL,
+        selector_name="Default speech-to-text model",
         model_count_translation_key="stt_model_count",
         repair_issue=True,
     ),
@@ -416,12 +427,7 @@ def default_model_selector_definition(
 def default_model_capability_presentations() -> Iterable[CapabilityPresentation]:
     """Iterate capabilities configurable as default model options."""
     return (
-        CapabilityPresentation(
-            description.capability,
-            default_option_key=description.default_option_key,
-            model_count_translation_key=description.model_count_translation_key,
-            repair_issue=description.repair_issue,
-        )
+        description.to_presentation()
         for description in CAPABILITY_DESCRIPTIONS
         if description.default_option_key is not None
     )
@@ -433,7 +439,7 @@ def default_model_selector_definitions() -> Iterable[DefaultModelSelectorDefinit
         DefaultModelSelectorDefinition(
             description.capability,
             description.default_option_key,
-            DEFAULT_MODEL_OPTION_NAMES[description.default_option_key],
+            description.selector_name,
             description.degraded_policy,
         )
         for description in CAPABILITY_DESCRIPTIONS
@@ -456,12 +462,7 @@ def model_count_sensor_policies() -> Iterable[ModelCountSensorPolicy]:
 def model_count_capability_presentations() -> Iterable[CapabilityPresentation]:
     """Iterate capabilities shown as model count sensors."""
     return (
-        CapabilityPresentation(
-            description.capability,
-            default_option_key=description.default_option_key,
-            model_count_translation_key=description.model_count_translation_key,
-            repair_issue=description.repair_issue,
-        )
+        description.to_presentation()
         for description in CAPABILITY_DESCRIPTIONS
         if description.model_count_translation_key is not None
     )
