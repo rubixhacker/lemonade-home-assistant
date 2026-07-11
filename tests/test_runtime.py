@@ -31,6 +31,14 @@ class _VolMarker:
         return id(self)
 
 
+class _VolOptionalMarker(_VolMarker):
+    pass
+
+
+class _VolRequiredMarker(_VolMarker):
+    pass
+
+
 class _VolSchema:
     def __init__(self, schema: dict[Any, Any], *args: Any, **kwargs: Any) -> None:
         self.schema = schema
@@ -139,10 +147,10 @@ def _install_homeassistant_stubs() -> None:
     sys.modules.setdefault("aiohttp", aiohttp)
 
     voluptuous = sys.modules.setdefault("voluptuous", ModuleType("voluptuous"))
-    voluptuous.Optional = lambda key, *args, **kwargs: _VolMarker(
+    voluptuous.Optional = lambda key, *args, **kwargs: _VolOptionalMarker(
         key, *args, **kwargs
     )
-    voluptuous.Required = lambda key, *args, **kwargs: _VolMarker(
+    voluptuous.Required = lambda key, *args, **kwargs: _VolRequiredMarker(
         key, *args, **kwargs
     )
     voluptuous.Schema = _VolSchema
@@ -1784,6 +1792,134 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("form", result["type"])
         fields = _schema_fields(result["data_schema"])
         self.assertEqual(["omni-model"], fields[CONF_MODEL][1].config.options)
+
+    def test_profile_field_presentation_matrix_is_complete(self) -> None:
+        from lemonade.config_flow import LemonadeProfileSubentryFlow
+        from lemonade.profiles import profile_definitions
+
+        matrix = (
+            (SUBENTRY_TYPE_CONVERSATION, CONF_NAME, True, "text", None, None, None),
+            (SUBENTRY_TYPE_CONVERSATION, CONF_MODEL, False, "model", None, None, None),
+            (
+                SUBENTRY_TYPE_CONVERSATION,
+                CONF_PROMPT,
+                False,
+                "prompt",
+                None,
+                None,
+                "Default Home Assistant instructions",
+            ),
+            (
+                SUBENTRY_TYPE_CONVERSATION,
+                CONF_LLM_HASS_API,
+                False,
+                "llm_api",
+                None,
+                None,
+                None,
+            ),
+            (
+                SUBENTRY_TYPE_CONVERSATION,
+                CONF_MAX_HISTORY,
+                False,
+                "number",
+                DEFAULT_MAX_HISTORY,
+                0,
+                None,
+            ),
+            (
+                SUBENTRY_TYPE_CONVERSATION,
+                CONF_KEEP_ALIVE,
+                False,
+                "number",
+                None,
+                -1,
+                None,
+            ),
+            (SUBENTRY_TYPE_AI_TASK, CONF_NAME, True, "text", None, None, None),
+            (SUBENTRY_TYPE_AI_TASK, CONF_MODEL, False, "model", None, None, None),
+            (SUBENTRY_TYPE_AI_TASK, CONF_PROMPT, False, "prompt", None, None, None),
+            (
+                SUBENTRY_TYPE_AI_TASK,
+                CONF_MAX_HISTORY,
+                False,
+                "number",
+                DEFAULT_MAX_HISTORY,
+                0,
+                None,
+            ),
+            (
+                SUBENTRY_TYPE_AI_TASK,
+                CONF_KEEP_ALIVE,
+                False,
+                "number",
+                None,
+                -1,
+                None,
+            ),
+        )
+        expected_pairs = {(row[0], row[1]) for row in matrix}
+        actual_pairs = {
+            (definition.profile_type, field.key)
+            for definition in profile_definitions()
+            for field in definition.fields
+        }
+        self.assertEqual(expected_pairs, actual_pairs)
+        self.assertEqual(
+            {"text", "model", "prompt", "llm_api", "number"},
+            {row[3] for row in matrix},
+        )
+
+        flow = LemonadeProfileSubentryFlow()
+        llm_apis = [{"value": "assist", "label": "Assist"}]
+        flow.hass = SimpleNamespace(llm_apis=llm_apis)
+        definitions_by_type = {
+            definition.profile_type: definition
+            for definition in profile_definitions()
+        }
+        schemas = {
+            profile_type: _schema_fields(
+                flow._profile_schema(
+                    definitions_by_type[profile_type],
+                    ["model-a", "model-b"],
+                    {},
+                )
+            )
+            for profile_type in (
+                SUBENTRY_TYPE_CONVERSATION,
+                SUBENTRY_TYPE_AI_TASK,
+            )
+        }
+
+        for profile_type, key, required, kind, default, minimum, suggestion in matrix:
+            with self.subTest(profile_type=profile_type, key=key):
+                marker, rendered = schemas[profile_type][key]
+                self.assertEqual(required, isinstance(marker, _VolRequiredMarker))
+                self.assertEqual(default, marker.default)
+                self.assertEqual(
+                    suggestion,
+                    None
+                    if marker.description is None
+                    else marker.description.get("suggested_value"),
+                )
+                if kind == "text":
+                    self.assertIs(rendered, str)
+                elif kind == "model":
+                    self.assertIsInstance(rendered, _SelectSelector)
+                    self.assertEqual(["model-a", "model-b"], rendered.config.options)
+                elif kind == "prompt":
+                    self.assertIsInstance(rendered, _TemplateSelector)
+                elif kind == "llm_api":
+                    self.assertIsInstance(rendered, _SelectSelector)
+                    self.assertEqual(llm_apis, rendered.config.options)
+                    self.assertFalse(rendered.config.multiple)
+                elif kind == "number":
+                    self.assertIsInstance(rendered, _NumberSelector)
+                    self.assertEqual(minimum, rendered.config.min)
+                    self.assertEqual(1, rendered.config.step)
+                    self.assertEqual("box", rendered.config.mode)
+                else:
+                    self.fail(f"Unasserted presentation kind: {kind}")
 
     async def test_conversation_profile_subentry_flow_builds_schema(self) -> None:
         from lemonade.config_flow import LemonadeProfileSubentryFlow
