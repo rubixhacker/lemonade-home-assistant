@@ -1090,12 +1090,24 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
         )
 
         for name in (
+            "CAPABILITY_PRESENTATIONS",
             "DEFAULT_MODEL_SELECTOR_DEFINITIONS",
+            "MISSING_CAPABILITY_REPAIR_ISSUE_IDENTITIES",
+            "MODEL_COUNT_SENSOR_POLICIES",
+            "CapabilityPresentation",
+            "DefaultModelSelectorDefinition",
+            "MissingCapabilityRepairIssueIdentity",
+            "ModelCountSensorPolicy",
+            "ModelSelectorDegradedPolicy",
             "default_model_capability_presentations",
+            "default_model_selector_definitions",
             "model_count_capability_presentations",
+            "model_count_sensor_policies",
             "repair_issue_capabilities",
+            "repair_issue_identities",
         ):
-            self.assertFalse(hasattr(lemonade_const, name))
+            with self.subTest(name=name):
+                self.assertFalse(hasattr(lemonade_const, name))
 
         default_records = tuple(default_model_capability_presentations())
 
