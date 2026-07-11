@@ -1535,6 +1535,145 @@ def _service_entry(
 
 class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
+    async def test_connection_probe_builds_client_from_normalized_settings(self) -> None:
+        from dataclasses import FrozenInstanceError
+
+        import lemonade.connection as connection
+
+        class Client:
+            def __init__(
+                self,
+                session: Any,
+                url: str,
+                api_key: str | None = None,
+                timeout: float = 30.0,
+                verify_ssl: bool = True,
+            ) -> None:
+                self.session = session
+                self.url = url
+                self.api_key = api_key
+                self.timeout = timeout
+                self.verify_ssl = verify_ssl
+
+            async def health(self) -> dict[str, str]:
+                return {"status": "ok"}
+
+        original_client = connection.LemonadeClient
+        connection.LemonadeClient = Client
+        self.addCleanup(setattr, connection, "LemonadeClient", original_client)
+        settings = connection.ConnectionSettings(
+            url=" http://lemonade.local/ ",
+            api_key=" secret ",
+            timeout=3.5,
+            verify_ssl=False,
+        )
+
+        client = await connection.async_create_verified_client("session", settings)
+
+        self.assertEqual("http://lemonade.local", client.url)
+        self.assertEqual("secret", client.api_key)
+        self.assertEqual(3.5, client.timeout)
+        self.assertFalse(client.verify_ssl)
+        with self.assertRaises(FrozenInstanceError):
+            settings.timeout = 9.0
+
+    async def test_connection_probe_classifies_failures(self) -> None:
+        import aiohttp
+
+        import lemonade.connection as connection
+        from lemonade.api import LemonadeAuthError, LemonadeError
+
+        cases = (
+            (LemonadeAuthError("nope"), connection.ConnectionFailureKind.AUTH),
+            (TimeoutError("slow"), connection.ConnectionFailureKind.TRANSPORT),
+            (aiohttp.ClientError("offline"), connection.ConnectionFailureKind.TRANSPORT),
+            (ConnectionError("offline"), connection.ConnectionFailureKind.TRANSPORT),
+            (LemonadeError("bad response"), connection.ConnectionFailureKind.SERVER),
+            (ValueError("unexpected"), connection.ConnectionFailureKind.UNKNOWN),
+        )
+
+        for failure, expected_kind in cases:
+            with self.subTest(failure=type(failure).__name__):
+                class Client:
+                    def __init__(self, *args: Any, **kwargs: Any) -> None:
+                        return None
+
+                    async def health(self) -> None:
+                        raise failure
+
+                original_client = connection.LemonadeClient
+                connection.LemonadeClient = Client
+                try:
+                    with self.assertRaises(connection.ConnectionProbeError) as raised:
+                        await connection.async_create_verified_client(
+                            "session",
+                            connection.ConnectionSettings("http://lemonade.local"),
+                        )
+                finally:
+                    connection.LemonadeClient = original_client
+
+                self.assertEqual(expected_kind, raised.exception.kind)
+                self.assertIs(failure, raised.exception.__cause__)
+
+    async def test_config_flow_maps_classified_connection_failures(self) -> None:
+        import lemonade.config_flow as config_flow
+        from lemonade.connection import ConnectionFailureKind, ConnectionProbeError
+
+        cases = (
+            (ConnectionFailureKind.AUTH, "invalid_auth"),
+            (ConnectionFailureKind.TRANSPORT, "cannot_connect"),
+            (ConnectionFailureKind.SERVER, "cannot_connect"),
+            (ConnectionFailureKind.UNKNOWN, "unknown"),
+        )
+
+        for kind, expected_error in cases:
+            with self.subTest(kind=kind):
+                async def create_verified_client(*args: Any, **kwargs: Any) -> None:
+                    raise ConnectionProbeError(kind, RuntimeError(kind.value))
+
+                original_create = config_flow.async_create_verified_client
+                config_flow.async_create_verified_client = create_verified_client
+                try:
+                    errors = await config_flow._async_validate_connection(
+                        FakeHass(),
+                        "http://lemonade.local",
+                        "secret",
+                        3.5,
+                        False,
+                    )
+                finally:
+                    config_flow.async_create_verified_client = original_create
+
+                self.assertEqual({"base": expected_error}, errors)
+
+    async def test_setup_maps_classified_connection_failures(self) -> None:
+        from homeassistant.exceptions import (
+            ConfigEntryAuthFailed,
+            ConfigEntryError,
+            ConfigEntryNotReady,
+        )
+        from lemonade.connection import ConnectionFailureKind, ConnectionProbeError
+
+        cases = (
+            (ConnectionFailureKind.AUTH, ConfigEntryAuthFailed),
+            (ConnectionFailureKind.TRANSPORT, ConfigEntryNotReady),
+            (ConnectionFailureKind.SERVER, ConfigEntryError),
+            (ConnectionFailureKind.UNKNOWN, ConfigEntryError),
+        )
+
+        for kind, expected_exception in cases:
+            with self.subTest(kind=kind):
+                async def create_verified_client(*args: Any, **kwargs: Any) -> None:
+                    raise ConnectionProbeError(kind, RuntimeError(kind.value))
+
+                original_create = integration.async_create_verified_client
+                integration.async_create_verified_client = create_verified_client
+                try:
+                    with self.assertRaises(expected_exception):
+                        await integration.async_setup_entry(FakeHass(), FakeEntry())
+                finally:
+                    integration.async_create_verified_client = original_create
+
     def test_config_flow_registers_profile_subentry_types(self) -> None:
         from lemonade.config_flow import (
             LemonadeConfigFlow,
@@ -5439,11 +5578,22 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             health_timeouts.append(delay)
             return TimeoutContext()
 
-        original_client = integration.LemonadeClient
+        original_create = integration.async_create_verified_client
         original_timeout = integration.asyncio.timeout
-        integration.LemonadeClient = Client
+        async def create_verified_client(session: Any, settings: Any) -> Client:
+            return Client(
+                session,
+                settings.url,
+                api_key=settings.api_key,
+                timeout=settings.timeout,
+                verify_ssl=settings.verify_ssl,
+            )
+
+        integration.async_create_verified_client = create_verified_client
         integration.asyncio.timeout = timeout
-        self.addCleanup(setattr, integration, "LemonadeClient", original_client)
+        self.addCleanup(
+            setattr, integration, "async_create_verified_client", original_create
+        )
         self.addCleanup(setattr, integration.asyncio, "timeout", original_timeout)
         hass = FakeHass()
         entry = FakeEntry()
@@ -5499,9 +5649,21 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                     ]
                 }
 
-        original_client = integration.LemonadeClient
-        integration.LemonadeClient = Client
-        self.addCleanup(setattr, integration, "LemonadeClient", original_client)
+        original_create = integration.async_create_verified_client
+
+        async def create_verified_client(session: Any, settings: Any) -> Client:
+            return Client(
+                session,
+                settings.url,
+                api_key=settings.api_key,
+                timeout=settings.timeout,
+                verify_ssl=settings.verify_ssl,
+            )
+
+        integration.async_create_verified_client = create_verified_client
+        self.addCleanup(
+            setattr, integration, "async_create_verified_client", original_create
+        )
         hass = FakeHass()
         entry = FakeEntry()
 

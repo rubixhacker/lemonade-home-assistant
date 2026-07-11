@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import aiohttp
 import voluptuous as vol
 
 from homeassistant import config_entries
@@ -15,7 +14,12 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import config_validation as cv, llm, selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .api import LemonadeAuthError, LemonadeClient, LemonadeError
+from .connection import (
+    ConnectionFailureKind,
+    ConnectionProbeError,
+    ConnectionSettings,
+    async_create_verified_client,
+)
 from .const import (
     CONF_KEEP_ALIVE,
     CONF_MAX_HISTORY,
@@ -124,8 +128,7 @@ async def _async_validate_connection(
 ) -> dict[str, str]:
     """Validate that Lemonade Server is reachable."""
     errors: dict[str, str] = {}
-    client = LemonadeClient(
-        async_get_clientsession(hass),
+    settings = ConnectionSettings(
         url,
         api_key=api_key,
         timeout=timeout,
@@ -133,18 +136,18 @@ async def _async_validate_connection(
     )
 
     try:
-        await client.health()
-    except LemonadeAuthError:
-        errors["base"] = "invalid_auth"
-    except (TimeoutError, aiohttp.ClientError) as err:
-        _LOGGER.warning("Failed to connect to Lemonade Server at %s: %s", url, err)
-        errors["base"] = "cannot_connect"
-    except LemonadeError as err:
-        _LOGGER.warning("Lemonade Server validation failed at %s: %s", url, err)
-        errors["base"] = "cannot_connect"
-    except Exception:  # noqa: BLE001 - surface unexpected config-flow failures in logs
-        _LOGGER.exception("Unexpected Lemonade Server validation failure for %s", url)
-        errors["base"] = "unknown"
+        await async_create_verified_client(async_get_clientsession(hass), settings)
+    except ConnectionProbeError as err:
+        if err.kind is ConnectionFailureKind.AUTH:
+            errors["base"] = "invalid_auth"
+        elif err.kind in (ConnectionFailureKind.TRANSPORT, ConnectionFailureKind.SERVER):
+            _LOGGER.warning("Lemonade Server validation failed at %s: %s", settings.url, err)
+            errors["base"] = "cannot_connect"
+        else:
+            _LOGGER.exception(
+                "Unexpected Lemonade Server validation failure for %s", settings.url
+            )
+            errors["base"] = "unknown"
 
     return errors
 

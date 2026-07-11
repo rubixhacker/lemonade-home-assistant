@@ -5,8 +5,6 @@ from __future__ import annotations
 import asyncio
 import logging
 
-import aiohttp
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_KEY, CONF_URL
 from homeassistant.core import HomeAssistant
@@ -19,7 +17,12 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
-from .api import LemonadeAuthError, LemonadeClient, LemonadeError
+from .connection import (
+    ConnectionFailureKind,
+    ConnectionProbeError,
+    ConnectionSettings,
+    async_create_verified_client,
+)
 from .const import (
     CONF_TIMEOUT,
     CONF_VERIFY_SSL,
@@ -70,8 +73,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         CONF_VERIFY_SSL,
         entry.data.get(CONF_VERIFY_SSL, True),
     )
-    client = LemonadeClient(
-        async_get_clientsession(hass),
+    settings = ConnectionSettings(
         entry.data[CONF_URL],
         api_key=api_key,
         timeout=timeout,
@@ -80,23 +82,32 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     try:
         async with asyncio.timeout(timeout):
-            await client.health()
-    except LemonadeAuthError as err:
-        raise ConfigEntryAuthFailed from err
-    except (TimeoutError, aiohttp.ClientError, ConnectionError) as err:
-        _LOGGER.warning(
-            "Failed to connect to Lemonade Server at %s: %s",
-            entry.data[CONF_URL],
-            err,
-        )
-        raise ConfigEntryNotReady(err) from err
-    except LemonadeError as err:
+            client = await async_create_verified_client(
+                async_get_clientsession(hass), settings
+            )
+    except ConnectionProbeError as err:
+        if err.kind is ConnectionFailureKind.AUTH:
+            raise ConfigEntryAuthFailed from err
+        if err.kind is ConnectionFailureKind.TRANSPORT:
+            _LOGGER.warning(
+                "Failed to connect to Lemonade Server at %s: %s",
+                settings.url,
+                err,
+            )
+            raise ConfigEntryNotReady(err) from err
         _LOGGER.warning(
             "Lemonade Server returned an error during setup at %s: %s",
-            entry.data[CONF_URL],
+            settings.url,
             err,
         )
         raise ConfigEntryError(err) from err
+    except TimeoutError as err:
+        _LOGGER.warning(
+            "Failed to connect to Lemonade Server at %s: %s",
+            settings.url,
+            err,
+        )
+        raise ConfigEntryNotReady(err) from err
 
     from .coordinator import LemonadeCoordinator
     from .data import LemonadeRuntimeData
