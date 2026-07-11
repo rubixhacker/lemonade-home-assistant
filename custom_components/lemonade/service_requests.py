@@ -28,6 +28,11 @@ from .const import (
     ATTR_VOICE,
     CONF_ENTRY_ID,
 )
+from .image_result import (
+    DirectImageIntent,
+    ProduceImageArtifact,
+    ReturnRawImageResponse,
+)
 
 
 @dataclass(frozen=True)
@@ -53,21 +58,6 @@ class ChatCompletionRequest:
 
 
 @dataclass(frozen=True)
-class ReturnRawImageResponse:
-    """Return the Lemonade response without decoding image data."""
-
-
-@dataclass(frozen=True)
-class ProduceImageArtifact:
-    """Decode an image and produce a Home Assistant media artifact."""
-
-    filename: str | None
-
-
-ImageServiceIntent = ReturnRawImageResponse | ProduceImageArtifact
-
-
-@dataclass(frozen=True)
 class GenerateImageRequest:
     """Parsed request for lemonade.generate_image."""
 
@@ -75,7 +65,7 @@ class GenerateImageRequest:
     model: str | None
     prompt: str
     size: str | None
-    intent: ImageServiceIntent
+    intent: DirectImageIntent
 
     @classmethod
     def from_service_call(cls, call: ServiceCall) -> "GenerateImageRequest":

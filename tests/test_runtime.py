@@ -1501,34 +1501,69 @@ class LemonadeImageResultTest(unittest.TestCase):
     def test_generate_image_returns_closed_outcomes_for_each_intent(self) -> None:
         import asyncio
         image_result_module = _require_module("lemonade.image_result")
-        responses = iter([{"data": []}, {"data": []}])
 
         class Client:
-            async def generate_image(self, **kwargs: Any) -> Any:
-                return next(responses)
+            def __init__(self, response: Any) -> None:
+                self.response = response
 
-        raw = asyncio.run(
-            image_result_module.generate_image(
-                Client(),
-                image_result_module.ImageGenerationRequest(
-                    prompt="Draw",
-                    model="model",
-                    intent=image_result_module.ReturnRawResponse(),
-                ),
-            )
+            async def generate_image(self, **kwargs: Any) -> Any:
+                return self.response
+
+        cases = (
+            (
+                "raw",
+                image_result_module.ReturnRawImageResponse(),
+                {"data": []},
+                image_result_module.RawImageResponse,
+                None,
+            ),
+            (
+                "named artifact",
+                image_result_module.ProduceImageArtifact("../unsafe/lemon.png"),
+                {"data": [{"url": "data:image/jpeg;base64,aW1hZ2U="}]},
+                image_result_module.ImageArtifactReady,
+                "lemon.png",
+            ),
+            (
+                "default artifact",
+                image_result_module.ProduceImageArtifact(None),
+                {"data": [{"b64_json": "aW1hZ2U="}]},
+                image_result_module.ImageArtifactReady,
+                "default",
+            ),
+            (
+                "missing artifact",
+                image_result_module.ProduceImageArtifact(None),
+                {"data": []},
+                image_result_module.RequestedImageMissing,
+                None,
+            ),
         )
-        missing = asyncio.run(
-            image_result_module.generate_image(
-                Client(),
-                image_result_module.ImageGenerationRequest(
-                    prompt="Draw",
-                    model="model",
-                    intent=image_result_module.DecodeImageResponse(),
-                ),
-            )
-        )
-        self.assertIsInstance(raw, image_result_module.RawImageResponse)
-        self.assertIsInstance(missing, image_result_module.RequestedImageMissing)
+
+        for name, intent, response, outcome_type, expected_filename in cases:
+            with self.subTest(name=name):
+                outcome = asyncio.run(
+                    image_result_module.generate_image(
+                        Client(response),
+                        image_result_module.ImageGenerationRequest(
+                            prompt="Draw",
+                            model="model",
+                            intent=intent,
+                        ),
+                    )
+                )
+                self.assertIsInstance(outcome, outcome_type)
+                self.assertIs(response, outcome.response)
+                if expected_filename is not None:
+                    artifact = outcome.artifact
+                    if expected_filename == "default":
+                        self.assertRegex(
+                            artifact.filename,
+                            r"^lemonade_\d{8}_\d{6}\.png$",
+                        )
+                    else:
+                        self.assertEqual(expected_filename, artifact.filename)
+                    self.assertEqual(b"image", artifact.image_bytes)
 
     def test_decode_image_result_traverses_object_response_shape(self) -> None:
         image_result_module = _require_module("lemonade.image_result")
@@ -1561,46 +1596,6 @@ class LemonadeImageResultTest(unittest.TestCase):
         self.assertEqual(b"jpeg-image", result.image_bytes)
         self.assertEqual("image/jpeg", result.mime_type)
         self.assertEqual("jpg", result.extension)
-
-    def test_image_generation_result_artifact_owns_safe_filename_and_media_path(self) -> None:
-        image_result_module = _require_module("lemonade.image_result")
-
-        image = image_result_module.DecodedImage(
-            response={"data": [{"url": "data:image/jpeg;base64,aW1hZ2U="}]},
-            image=image_result_module.decode_image_result(
-                {"data": [{"url": "data:image/jpeg;base64,aW1hZ2U="}]}
-            ),
-        )
-        artifact = image.artifact(
-            "../unsafe/lemon.png",
-            timestamp_slug="20260102_030405",
-        )
-
-        self.assertIsNotNone(artifact)
-        assert artifact is not None
-        self.assertEqual(b"image", artifact.image_bytes)
-        self.assertEqual("jpg", artifact.extension)
-        self.assertEqual("lemon.png", artifact.filename)
-        self.assertEqual(
-            "media-source://media_source/local/lemonade/lemon.png",
-            artifact.media_path,
-        )
-
-        default_image = image_result_module.DecodedImage(
-            response={"image": "aW1hZ2U="},
-            image=image_result_module.decode_image_result(
-                {"image": "aW1hZ2U="}
-            ),
-        )
-        default_artifact = default_image.artifact(
-            "../../",
-            timestamp_slug="20260102_030405",
-        )
-
-        self.assertIsNotNone(default_artifact)
-        assert default_artifact is not None
-        self.assertEqual("lemonade_20260102_030405.png", default_artifact.filename)
-
 
 class FakeServiceHass:
     def __init__(self, entry: Any, root: Path | None = None) -> None:
@@ -5227,10 +5222,12 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             ATTR_VOICE,
             CONF_ENTRY_ID,
         )
-        from lemonade.service_requests import (
-            GenerateImageRequest,
+        from lemonade.image_result import (
             ProduceImageArtifact,
             ReturnRawImageResponse,
+        )
+        from lemonade.service_requests import (
+            GenerateImageRequest,
             TextToSpeechRequest,
             TranscribeAudioRequest,
         )
@@ -5587,12 +5584,17 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
         async def generate_image(client: Any, request: Any) -> Any:
             calls.append({"client": client, "request": request})
-            return image_result_module.DecodedImage(
+            return image_result_module.ImageArtifactReady(
                 response=response,
-                image=image_result_module.LemonadeImageResult(
+                artifact=image_result_module.GeneratedImageArtifact(
                     image_bytes=b"image",
                     mime_type="image/png",
                     extension="png",
+                    filename="lemonade_20260102_030405.png",
+                    media_path=(
+                        "media-source://media_source/local/lemonade/"
+                        "lemonade_20260102_030405.png"
+                    ),
                 ),
             )
 
@@ -5632,7 +5634,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual("catalog-image", calls[0]["request"].model)
             self.assertEqual("1024x1024", calls[0]["request"].size)
             self.assertEqual(
-                image_result_module.DecodeImageResponse(),
+                image_result_module.ProduceImageArtifact(filename=None),
                 calls[0]["request"].intent,
             )
             image_files = list((root / "media" / "lemonade").iterdir())

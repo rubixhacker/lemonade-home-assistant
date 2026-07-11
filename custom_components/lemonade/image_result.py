@@ -45,16 +45,26 @@ class GeneratedImageArtifact:
 
 
 @dataclass(frozen=True)
-class ReturnRawResponse:
+class ReturnRawImageResponse:
     """Request the untouched Lemonade response."""
 
 
 @dataclass(frozen=True)
-class DecodeImageResponse:
-    """Request decoded image data from the Lemonade response."""
+class ProduceImageArtifact:
+    """Request image data ready to save as a Home Assistant media artifact."""
+
+    filename: str | None
 
 
-ImageResponseIntent = ReturnRawResponse | DecodeImageResponse
+DirectImageIntent = ReturnRawImageResponse | ProduceImageArtifact
+
+
+@dataclass(frozen=True)
+class DecodeImageForAITask:
+    """Request decoded image data for a Home Assistant AI Task."""
+
+
+ImageResponseIntent = DirectImageIntent | DecodeImageForAITask
 
 
 @dataclass(frozen=True)
@@ -64,7 +74,7 @@ class ImageGenerationRequest:
     prompt: str
     model: str
     size: str | None = None
-    intent: ImageResponseIntent = DecodeImageResponse()
+    intent: ImageResponseIntent = DecodeImageForAITask()
 
     def client_kwargs(self) -> dict[str, Any]:
         """Return Lemonade client arguments without empty optional values."""
@@ -91,19 +101,13 @@ class DecodedImage:
     response: Any
     image: LemonadeImageResult
 
-    def artifact(
-        self,
-        requested_filename: Any = None,
-        *,
-        timestamp_slug: str | None = None,
-    ) -> GeneratedImageArtifact:
-        """Return media artifact metadata for the decoded image."""
-        return _image_artifact_from_result(
-            self.image,
-            requested_filename,
-            timestamp_slug=timestamp_slug,
-        )
 
+@dataclass(frozen=True)
+class ImageArtifactReady:
+    """Decoded response with media artifact metadata ready for the adapter."""
+
+    response: Any
+    artifact: GeneratedImageArtifact
 
 
 @dataclass(frozen=True)
@@ -113,7 +117,9 @@ class RequestedImageMissing:
     response: Any
 
 
-ImageGenerationResult = RawImageResponse | DecodedImage | RequestedImageMissing
+ImageGenerationResult = (
+    RawImageResponse | DecodedImage | ImageArtifactReady | RequestedImageMissing
+)
 
 
 async def generate_image(
@@ -122,11 +128,16 @@ async def generate_image(
 ) -> ImageGenerationResult:
     """Invoke Lemonade image generation and decode the first returned image."""
     response = await client.generate_image(**request.client_kwargs())
-    if isinstance(request.intent, ReturnRawResponse):
+    if isinstance(request.intent, ReturnRawImageResponse):
         return RawImageResponse(response=response)
     image = decode_image_result(response)
     if image is None:
         return RequestedImageMissing(response=response)
+    if isinstance(request.intent, ProduceImageArtifact):
+        return ImageArtifactReady(
+            response=response,
+            artifact=_image_artifact_from_result(image, request.intent.filename),
+        )
     return DecodedImage(response=response, image=image)
 
 
