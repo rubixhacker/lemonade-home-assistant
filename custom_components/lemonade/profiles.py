@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 import inspect
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Protocol, TypeAlias
 
 from homeassistant.const import CONF_MODEL, CONF_NAME
 try:
@@ -43,23 +43,6 @@ class ProfileKind(StrEnum):
             except ValueError:
                 return None
         return None
-
-
-class ProfileFieldSelectorKind(StrEnum):
-    """Closed Home Assistant selector kinds for profile fields."""
-
-    STRING = "string"
-    MODEL = "model"
-    TEMPLATE = "template"
-    LLM_API = "llm_api"
-    NUMBER = "number"
-
-
-class ProfilePromptPolicy(StrEnum):
-    """Closed prompt default behavior for profile fields."""
-
-    NONE = "none"
-    DEFAULT_INSTRUCTIONS = "default_instructions"
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,34 +90,61 @@ class ProfileModelPolicy:
     include_all_models: bool = True
 
 
+class ProfileField(Protocol):
+    """Small interface shared by well-formed profile field definitions."""
+
+    @property
+    def key(self) -> str:
+        """Return the persisted profile-data key."""
+        ...
+
+
 @dataclass(frozen=True, slots=True)
-class ProfileFieldDefinition:
-    """Definition for a Lemonade profile setup field."""
+class TextProfileField:
+    """Required or optional plain-text profile field."""
 
     key: str
-    selector_kind: ProfileFieldSelectorKind
     required: bool = False
-    default: Any = None
-    prompt_policy: ProfilePromptPolicy = ProfilePromptPolicy.NONE
-    minimum: int | None = None
 
-    def default_value(self, profile_data: Mapping[str, Any]) -> Any:
-        """Return this field's persisted or definition default."""
-        if self.key in profile_data:
-            return profile_data[self.key]
-        return self.default
 
-    def prompt_suggested_value(
-        self,
-        profile_data: Mapping[str, Any],
-        default_instructions_prompt: str | None,
-    ) -> str | None:
-        """Return a suggested prompt value when this field policy allows it."""
-        if self.key in profile_data:
-            return None
-        if self.prompt_policy != ProfilePromptPolicy.DEFAULT_INSTRUCTIONS:
-            return None
-        return default_instructions_prompt
+@dataclass(frozen=True, slots=True)
+class ModelProfileField:
+    """Optional Lemonade model profile field."""
+
+    key: str
+
+
+@dataclass(frozen=True, slots=True)
+class NumberProfileField:
+    """Optional integral profile field with a lower bound."""
+
+    key: str
+    minimum: int
+    default: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PromptProfileField:
+    """Optional template prompt profile field."""
+
+    key: str
+    suggest_default_instructions: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class LLMAPIProfileField:
+    """Optional Home Assistant LLM API profile field."""
+
+    key: str
+
+
+ProfileFieldDefinition: TypeAlias = (
+    TextProfileField
+    | ModelProfileField
+    | NumberProfileField
+    | PromptProfileField
+    | LLMAPIProfileField
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,29 +167,12 @@ CONVERSATION_PROFILE_DEFINITION = ProfileDefinition(
     profile_type=ProfileKind.CONVERSATION,
     capability=Capability.CONVERSATION,
     fields=(
-        ProfileFieldDefinition(
-            CONF_NAME,
-            ProfileFieldSelectorKind.STRING,
-            required=True,
-        ),
-        ProfileFieldDefinition(CONF_MODEL, ProfileFieldSelectorKind.MODEL),
-        ProfileFieldDefinition(
-            CONF_PROMPT,
-            ProfileFieldSelectorKind.TEMPLATE,
-            prompt_policy=ProfilePromptPolicy.DEFAULT_INSTRUCTIONS,
-        ),
-        ProfileFieldDefinition(CONF_LLM_HASS_API, ProfileFieldSelectorKind.LLM_API),
-        ProfileFieldDefinition(
-            CONF_MAX_HISTORY,
-            ProfileFieldSelectorKind.NUMBER,
-            default=DEFAULT_MAX_HISTORY,
-            minimum=0,
-        ),
-        ProfileFieldDefinition(
-            CONF_KEEP_ALIVE,
-            ProfileFieldSelectorKind.NUMBER,
-            minimum=-1,
-        ),
+        TextProfileField(CONF_NAME, required=True),
+        ModelProfileField(CONF_MODEL),
+        PromptProfileField(CONF_PROMPT, suggest_default_instructions=True),
+        LLMAPIProfileField(CONF_LLM_HASS_API),
+        NumberProfileField(CONF_MAX_HISTORY, minimum=0, default=DEFAULT_MAX_HISTORY),
+        NumberProfileField(CONF_KEEP_ALIVE, minimum=-1),
     ),
     model_policy=ProfileModelPolicy(Capability.CONVERSATION),
     llm_hass_api_field=CONF_LLM_HASS_API,
@@ -188,24 +181,11 @@ AI_TASK_PROFILE_DEFINITION = ProfileDefinition(
     profile_type=ProfileKind.AI_TASK,
     capability=Capability.AI_TASK,
     fields=(
-        ProfileFieldDefinition(
-            CONF_NAME,
-            ProfileFieldSelectorKind.STRING,
-            required=True,
-        ),
-        ProfileFieldDefinition(CONF_MODEL, ProfileFieldSelectorKind.MODEL),
-        ProfileFieldDefinition(CONF_PROMPT, ProfileFieldSelectorKind.TEMPLATE),
-        ProfileFieldDefinition(
-            CONF_MAX_HISTORY,
-            ProfileFieldSelectorKind.NUMBER,
-            default=DEFAULT_MAX_HISTORY,
-            minimum=0,
-        ),
-        ProfileFieldDefinition(
-            CONF_KEEP_ALIVE,
-            ProfileFieldSelectorKind.NUMBER,
-            minimum=-1,
-        ),
+        TextProfileField(CONF_NAME, required=True),
+        ModelProfileField(CONF_MODEL),
+        PromptProfileField(CONF_PROMPT),
+        NumberProfileField(CONF_MAX_HISTORY, minimum=0, default=DEFAULT_MAX_HISTORY),
+        NumberProfileField(CONF_KEEP_ALIVE, minimum=-1),
     ),
     model_policy=ProfileModelPolicy(Capability.AI_TASK),
 )

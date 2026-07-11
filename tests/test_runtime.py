@@ -958,9 +958,12 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
 
     def test_profile_runtime_filters_profiles_and_maps_capabilities(self) -> None:
         from lemonade.profiles import (
-            ProfileFieldSelectorKind,
+            LLMAPIProfileField,
+            ModelProfileField,
+            NumberProfileField,
             ProfileKind,
-            ProfilePromptPolicy,
+            PromptProfileField,
+            TextProfileField,
             profile_definition,
             profile_definitions,
             profile_capability,
@@ -1036,26 +1039,21 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
             ),
             tuple(fields_by_key),
         )
+        expected_field_types = {
+            CONF_NAME: TextProfileField,
+            CONF_MODEL: ModelProfileField,
+            CONF_PROMPT: PromptProfileField,
+            CONF_LLM_HASS_API: LLMAPIProfileField,
+            CONF_MAX_HISTORY: NumberProfileField,
+            CONF_KEEP_ALIVE: NumberProfileField,
+        }
+        for key, expected_type in expected_field_types.items():
+            with self.subTest(key=key):
+                self.assertIsInstance(fields_by_key[key], expected_type)
         self.assertTrue(fields_by_key[CONF_NAME].required)
-        self.assertEqual("model", fields_by_key[CONF_MODEL].selector_kind)
-        self.assertIs(
-            ProfileFieldSelectorKind.MODEL,
-            fields_by_key[CONF_MODEL].selector_kind,
-        )
-        self.assertEqual("template", fields_by_key[CONF_PROMPT].selector_kind)
-        self.assertIs(
-            ProfileFieldSelectorKind.TEMPLATE,
-            fields_by_key[CONF_PROMPT].selector_kind,
-        )
-        self.assertEqual(
-            "default_instructions",
-            fields_by_key[CONF_PROMPT].prompt_policy,
-        )
-        self.assertIs(
-            ProfilePromptPolicy.DEFAULT_INSTRUCTIONS,
-            fields_by_key[CONF_PROMPT].prompt_policy,
-        )
-        self.assertEqual("llm_api", fields_by_key[CONF_LLM_HASS_API].selector_kind)
+        self.assertNotIn("selector_kind", fields_by_key[CONF_MODEL].__slots__)
+        self.assertNotIn("minimum", fields_by_key[CONF_MODEL].__slots__)
+        self.assertTrue(fields_by_key[CONF_PROMPT].suggest_default_instructions)
         self.assertEqual(DEFAULT_MAX_HISTORY, fields_by_key[CONF_MAX_HISTORY].default)
         self.assertEqual(0, fields_by_key[CONF_MAX_HISTORY].minimum)
         self.assertEqual(-1, fields_by_key[CONF_KEEP_ALIVE].minimum)
@@ -1067,12 +1065,8 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
 
         ai_task_fields = {field.key: field for field in ai_task_definition.fields}
         self.assertNotIn(CONF_LLM_HASS_API, ai_task_fields)
-        self.assertEqual("template", ai_task_fields[CONF_PROMPT].selector_kind)
-        self.assertEqual("none", ai_task_fields[CONF_PROMPT].prompt_policy)
-        self.assertIs(
-            ProfilePromptPolicy.NONE,
-            ai_task_fields[CONF_PROMPT].prompt_policy,
-        )
+        self.assertIsInstance(ai_task_fields[CONF_PROMPT], PromptProfileField)
+        self.assertFalse(ai_task_fields[CONF_PROMPT].suggest_default_instructions)
         self.assertEqual(CAPABILITY_AI_TASK, ai_task_definition.model_policy.capability)
         self.assertTrue(ai_task_definition.model_policy.include_all_models)
 
@@ -1184,9 +1178,7 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
         from lemonade.profiles import (
             AITaskProfile,
             ConversationProfile,
-            ProfileFieldSelectorKind,
             ProfileKind,
-            ProfilePromptPolicy,
             UnknownProfile,
             parse_profile,
         )
@@ -1257,11 +1249,6 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsInstance(ProfileKind.CONVERSATION, str)
         self.assertEqual(SUBENTRY_TYPE_CONVERSATION, ProfileKind.CONVERSATION)
-        self.assertEqual("model", ProfileFieldSelectorKind.MODEL)
-        self.assertEqual(
-            "default_instructions",
-            ProfilePromptPolicy.DEFAULT_INSTRUCTIONS,
-        )
         with self.assertRaises(ValueError):
             ProfileKind("unsupported")
 
