@@ -1024,9 +1024,9 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
         assert conversation_definition is not None
         self.assertEqual(CAPABILITY_CONVERSATION, conversation_definition.capability)
         self.assertIn(CONF_LLM_HASS_API, conversation_definition.supported_fields)
-        self.assertEqual(
-            CONF_LLM_HASS_API,
-            conversation_definition.llm_hass_api_field,
+        self.assertNotIn(
+            "llm_hass_api_field",
+            conversation_definition.__dataclass_fields__,
         )
         ai_task_definition = profile_definition(SUBENTRY_TYPE_AI_TASK)
         self.assertIsNotNone(ai_task_definition)
@@ -1058,6 +1058,19 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
         for key, expected_type in expected_field_types.items():
             with self.subTest(key=key):
                 self.assertIsInstance(fields_by_key[key], expected_type)
+        self.assertEqual(
+            1,
+            sum(
+                isinstance(field, LLMAPIProfileField)
+                for field in conversation_definition.fields
+            ),
+        )
+        self.assertFalse(
+            any(
+                isinstance(field, LLMAPIProfileField)
+                for field in ai_task_definition.fields
+            )
+        )
         self.assertTrue(fields_by_key[CONF_NAME].required)
         self.assertNotIn("selector_kind", fields_by_key[CONF_MODEL].__slots__)
         self.assertNotIn("minimum", fields_by_key[CONF_MODEL].__slots__)
@@ -2689,6 +2702,42 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             llm_module.AssistantMessage(None)
 
         self.assertEqual("", llm_module.AssistantMessage("").content)
+
+    def test_llm_message_constructors_reject_non_string_content(self) -> None:
+        llm_module = _require_module("lemonade.llm")
+
+        for constructor, content in (
+            (llm_module.SystemMessage, 0),
+            (llm_module.UserMessage, []),
+            (llm_module.UserMessage, None),
+            (llm_module.AssistantMessage, False),
+        ):
+            with self.subTest(constructor=constructor.__name__):
+                with self.assertRaises(ValueError):
+                    constructor(content)
+
+        self.assertEqual("", llm_module.SystemMessage("").content)
+        self.assertEqual("", llm_module.UserMessage("").content)
+        self.assertEqual("", llm_module.AssistantMessage("").content)
+        self.assertEqual(
+            "",
+            llm_module.parse_message({"role": "user", "content": None}).content,
+        )
+
+    def test_llm_openai_mappings_reject_non_string_message_content(self) -> None:
+        from homeassistant.exceptions import HomeAssistantError
+
+        llm_module = _require_module("lemonade.llm")
+
+        for message in (
+            {"role": "system", "content": 0},
+            {"role": "user", "content": False},
+            {"role": "user", "content": [{"type": "text", "text": 0}]},
+            {"role": "assistant", "content": {"text": "answer"}},
+        ):
+            with self.subTest(role=message["role"]):
+                with self.assertRaises(HomeAssistantError):
+                    llm_module.parse_message(message)
 
     def test_llm_tool_records_deep_freeze_direct_constructor_payloads(self) -> None:
         llm_module = _require_module("lemonade.llm")

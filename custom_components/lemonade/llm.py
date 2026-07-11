@@ -88,6 +88,10 @@ class SystemMessage:
 
     content: str
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.content, str):
+            raise ValueError("System message content must be a string")
+
 
 @dataclass(frozen=True)
 class UserMessage:
@@ -97,6 +101,8 @@ class UserMessage:
     parts: tuple[ImagePart, ...] = ()
 
     def __post_init__(self) -> None:
+        if not isinstance(self.content, str):
+            raise ValueError("User message content must be a string")
         object.__setattr__(self, "parts", tuple(self.parts))
 
 
@@ -108,6 +114,8 @@ class AssistantMessage:
     tool_calls: tuple[ToolCall, ...] = ()
 
     def __post_init__(self) -> None:
+        if self.content is not None and not isinstance(self.content, str):
+            raise ValueError("Assistant message content must be a string or None")
         object.__setattr__(self, "tool_calls", tuple(self.tool_calls))
         if self.content is None and not self.tool_calls:
             raise ValueError("Assistant message requires content or tool calls")
@@ -415,10 +423,14 @@ def parse_message(content: Any) -> Message:
         role = content.get("role")
         message_content = content.get("content")
         if role == "system":
-            return SystemMessage(message_content or "")
+            if not isinstance(message_content, str):
+                raise HomeAssistantError(
+                    "Unsupported OpenAI system message content"
+                )
+            return SystemMessage(message_content)
         if role == "user":
             if isinstance(message_content, str) or message_content is None:
-                return UserMessage(message_content or "")
+                return UserMessage("" if message_content is None else message_content)
             if not isinstance(message_content, (list, tuple)):
                 raise HomeAssistantError("Unsupported OpenAI user message content")
             text_parts: list[str] = []
@@ -428,8 +440,11 @@ def parse_message(content: Any) -> Message:
                     raise HomeAssistantError("Unsupported OpenAI user content part")
                 if part.get("type") == "text":
                     text = part.get("text")
-                    if isinstance(text, str):
-                        text_parts.append(text)
+                    if not isinstance(text, str):
+                        raise HomeAssistantError(
+                            "Unsupported OpenAI user text content part"
+                        )
+                    text_parts.append(text)
                     continue
                 if part.get("type") == "image_url":
                     image_parts.append(_image_part_from_openai(part))
@@ -438,10 +453,19 @@ def parse_message(content: Any) -> Message:
             return UserMessage("".join(text_parts), image_parts)
         if role == "assistant":
             tool_calls = content.get("tool_calls") or ()
-            return AssistantMessage(
-                message_content,
-                tuple(_tool_call_record_from_interop(call) for call in tool_calls),
-            )
+            if message_content is not None and not isinstance(message_content, str):
+                raise HomeAssistantError(
+                    "Unsupported OpenAI assistant message content"
+                )
+            try:
+                return AssistantMessage(
+                    message_content,
+                    tuple(_tool_call_record_from_interop(call) for call in tool_calls),
+                )
+            except ValueError as err:
+                raise HomeAssistantError(
+                    "Unsupported OpenAI assistant message content"
+                ) from err
         if role == "tool":
             value = message_content
             content_format: Literal["json", "text"] = "json"

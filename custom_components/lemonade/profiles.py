@@ -137,6 +137,10 @@ class LLMAPIProfileField:
 
     key: str
 
+    def parse(self, data: Mapping[str, Any]) -> str | None:
+        """Return the normalized Home Assistant LLM API ID."""
+        return _optional_str(data.get(self.key))
+
 
 ProfileFieldDefinition: TypeAlias = (
     TextProfileField
@@ -155,7 +159,6 @@ class ProfileDefinition:
     capability: Capability
     fields: tuple[ProfileFieldDefinition, ...]
     model_policy: ProfileModelPolicy
-    llm_hass_api_field: str | None = None
 
     @property
     def supported_fields(self) -> tuple[str, ...]:
@@ -175,7 +178,6 @@ CONVERSATION_PROFILE_DEFINITION = ProfileDefinition(
         NumberProfileField(CONF_KEEP_ALIVE, minimum=-1),
     ),
     model_policy=ProfileModelPolicy(Capability.CONVERSATION),
-    llm_hass_api_field=CONF_LLM_HASS_API,
 )
 AI_TASK_PROFILE_DEFINITION = ProfileDefinition(
     profile_type=ProfileKind.AI_TASK,
@@ -260,11 +262,19 @@ def _prompt_option(data: Mapping[str, Any]) -> str | None:
     return _optional_str(data.get(CONF_PROMPT))
 
 
-def _llm_hass_api_option(data: Mapping[str, Any], key: str | None) -> str | None:
+def _llm_hass_api_option(
+    data: Mapping[str, Any], definition: ProfileDefinition
+) -> str | None:
     """Return a normalized optional Home Assistant LLM API ID."""
-    if key is None:
-        return None
-    return _optional_str(data.get(key))
+    field = next(
+        (
+            field
+            for field in definition.fields
+            if isinstance(field, LLMAPIProfileField)
+        ),
+        None,
+    )
+    return field.parse(data) if field is not None else None
 
 
 def _int_profile_option(
@@ -313,7 +323,7 @@ def parse_profile(
             profile_type=definition.profile_type,
             model=_model_option(data),
             prompt=_prompt_option(data),
-            hass_api=_llm_hass_api_option(data, definition.llm_hass_api_field),
+            hass_api=_llm_hass_api_option(data, definition),
             max_history=_max_history_option(data),
             keep_alive=_keep_alive_option(data),
         )
