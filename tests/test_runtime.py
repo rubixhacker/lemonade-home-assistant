@@ -1081,8 +1081,10 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
     def test_capability_presentation_metadata_groups_callers(self) -> None:
         import lemonade.const as lemonade_const
         from lemonade.server_capabilities import (
-            DEFAULT_MODEL_SELECTOR_DEFINITIONS,
+            CAPABILITY_DESCRIPTIONS,
+            CapabilityDescription,
             default_model_capability_presentations,
+            default_model_selector_definitions,
             model_count_capability_presentations,
             repair_issue_capabilities,
             MissingCapabilityRepairIssueIdentity,
@@ -1090,6 +1092,7 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
             model_count_sensor_policies,
             repair_issue_identities,
         )
+        from lemonade.models import Capability
 
         for name in (
             "CAPABILITY_PRESENTATIONS",
@@ -1124,19 +1127,30 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
             ),
         )
         self.assertEqual(
+            tuple(Capability),
+            tuple(record.capability for record in CAPABILITY_DESCRIPTIONS),
+        )
+        self.assertTrue(
+            all(
+                isinstance(record, CapabilityDescription)
+                for record in CAPABILITY_DESCRIPTIONS
+            )
+        )
+        selector_definitions = tuple(default_model_selector_definitions())
+        self.assertEqual(
             (
                 (CAPABILITY_TTS, CONF_DEFAULT_TTS_MODEL),
                 (CAPABILITY_STT, CONF_DEFAULT_STT_MODEL),
             ),
             tuple(
                 (definition.capability, definition.option_key)
-                for definition in DEFAULT_MODEL_SELECTOR_DEFINITIONS
+                for definition in selector_definitions
             ),
         )
         self.assertTrue(
             all(
                 definition.degraded_policy == "fallback_to_all_models"
-                for definition in DEFAULT_MODEL_SELECTOR_DEFINITIONS
+                for definition in selector_definitions
             )
         )
         self.assertEqual(

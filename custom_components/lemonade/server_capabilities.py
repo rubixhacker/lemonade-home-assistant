@@ -8,11 +8,6 @@ from enum import StrEnum
 from typing import Any
 
 from .const import (
-    CAPABILITY_AI_TASK,
-    CAPABILITY_CONVERSATION,
-    CAPABILITY_IMAGE,
-    CAPABILITY_STT,
-    CAPABILITY_TTS,
     CONF_DEFAULT_STT_MODEL,
     CONF_DEFAULT_TTS_MODEL,
     DEFAULT_MODEL_OPTION_NAMES,
@@ -31,7 +26,7 @@ class ModelSelectorDegradedPolicy(StrEnum):
 class ModelCountSensorPolicy:
     """Policy for a Server Entry model-count sensor."""
 
-    capability: str
+    capability: Capability
     translation_key: str
 
 
@@ -39,7 +34,7 @@ class ModelCountSensorPolicy:
 class DefaultModelSelectorDefinition:
     """Policy for a Server Entry default Model Selector."""
 
-    capability: str
+    capability: Capability
     option_key: str
     name: str
     degraded_policy: ModelSelectorDegradedPolicy = (
@@ -69,7 +64,7 @@ class DefaultModelSelectorDefinition:
 class MissingCapabilityRepairIssueIdentity:
     """Repair issue identity for a missing Server Entry capability."""
 
-    capability: str
+    capability: Capability
 
     def issue_id(self, entry_id: str) -> str:
         """Return the stable Home Assistant repair issue ID."""
@@ -80,61 +75,52 @@ class MissingCapabilityRepairIssueIdentity:
 class CapabilityPresentation:
     """Compatibility presentation metadata for a Lemonade model capability."""
 
-    capability: str
+    capability: Capability
     default_option_key: str | None = None
     model_count_translation_key: str | None = None
     repair_issue: bool = False
 
 
-MODEL_COUNT_SENSOR_POLICIES = (
-    ModelCountSensorPolicy(CAPABILITY_CONVERSATION, "conversation_model_count"),
-    ModelCountSensorPolicy(CAPABILITY_IMAGE, "image_model_count"),
-    ModelCountSensorPolicy(CAPABILITY_TTS, "tts_model_count"),
-    ModelCountSensorPolicy(CAPABILITY_STT, "stt_model_count"),
-)
+@dataclass(frozen=True, slots=True)
+class CapabilityDescription:
+    """Semantic Home Assistant presentation for one known capability."""
 
-DEFAULT_MODEL_SELECTOR_DEFINITIONS = (
-    DefaultModelSelectorDefinition(
-        CAPABILITY_TTS,
-        CONF_DEFAULT_TTS_MODEL,
-        DEFAULT_MODEL_OPTION_NAMES[CONF_DEFAULT_TTS_MODEL],
-    ),
-    DefaultModelSelectorDefinition(
-        CAPABILITY_STT,
-        CONF_DEFAULT_STT_MODEL,
-        DEFAULT_MODEL_OPTION_NAMES[CONF_DEFAULT_STT_MODEL],
-    ),
-)
+    capability: Capability
+    default_option_key: str | None = None
+    model_count_translation_key: str | None = None
+    repair_issue: bool = False
+    degraded_policy: ModelSelectorDegradedPolicy = (
+        ModelSelectorDegradedPolicy.FALLBACK_TO_ALL_MODELS
+    )
 
-MISSING_CAPABILITY_REPAIR_ISSUE_IDENTITIES = (
-    MissingCapabilityRepairIssueIdentity(CAPABILITY_IMAGE),
-    MissingCapabilityRepairIssueIdentity(CAPABILITY_TTS),
-    MissingCapabilityRepairIssueIdentity(CAPABILITY_STT),
-)
 
-CAPABILITY_PRESENTATIONS = (
-    CapabilityPresentation(
-        CAPABILITY_CONVERSATION,
+CAPABILITY_DESCRIPTIONS = (
+    CapabilityDescription(
+        Capability.CONVERSATION,
         model_count_translation_key="conversation_model_count",
     ),
-    CapabilityPresentation(CAPABILITY_AI_TASK),
-    CapabilityPresentation(
-        CAPABILITY_IMAGE,
+    CapabilityDescription(Capability.AI_TASK),
+    CapabilityDescription(Capability.TOOL_CALLING),
+    CapabilityDescription(Capability.VISION),
+    CapabilityDescription(
+        Capability.IMAGE,
         model_count_translation_key="image_model_count",
         repair_issue=True,
     ),
-    CapabilityPresentation(
-        CAPABILITY_TTS,
+    CapabilityDescription(Capability.IMAGE_EDIT),
+    CapabilityDescription(
+        Capability.TTS,
         default_option_key=CONF_DEFAULT_TTS_MODEL,
         model_count_translation_key="tts_model_count",
         repair_issue=True,
     ),
-    CapabilityPresentation(
-        CAPABILITY_STT,
+    CapabilityDescription(
+        Capability.STT,
         default_option_key=CONF_DEFAULT_STT_MODEL,
         model_count_translation_key="stt_model_count",
         repair_issue=True,
     ),
+    CapabilityDescription(Capability.EMBEDDINGS),
 )
 
 
@@ -226,7 +212,7 @@ def _entry_default_model(entry: Any, option_key: str | None) -> str | None:
 def _is_default_model_selector_option(option_key: str | None) -> bool:
     """Return true when an option key is backed by Model Selector policy."""
     return option_key in {
-        definition.option_key for definition in DEFAULT_MODEL_SELECTOR_DEFINITIONS
+        definition.option_key for definition in default_model_selector_definitions()
     }
 
 
@@ -420,7 +406,7 @@ def default_model_selector_definition(
     return next(
         (
             definition
-            for definition in DEFAULT_MODEL_SELECTOR_DEFINITIONS
+            for definition in default_model_selector_definitions()
             if definition.option_key == option_key
         ),
         None,
@@ -430,36 +416,66 @@ def default_model_selector_definition(
 def default_model_capability_presentations() -> Iterable[CapabilityPresentation]:
     """Iterate capabilities configurable as default model options."""
     return (
-        presentation
-        for presentation in CAPABILITY_PRESENTATIONS
-        if presentation.default_option_key is not None
+        CapabilityPresentation(
+            description.capability,
+            default_option_key=description.default_option_key,
+            model_count_translation_key=description.model_count_translation_key,
+            repair_issue=description.repair_issue,
+        )
+        for description in CAPABILITY_DESCRIPTIONS
+        if description.default_option_key is not None
     )
 
 
 def default_model_selector_definitions() -> Iterable[DefaultModelSelectorDefinition]:
     """Iterate Server Entry default Model Selector definitions."""
-    return DEFAULT_MODEL_SELECTOR_DEFINITIONS
+    return (
+        DefaultModelSelectorDefinition(
+            description.capability,
+            description.default_option_key,
+            DEFAULT_MODEL_OPTION_NAMES[description.default_option_key],
+            description.degraded_policy,
+        )
+        for description in CAPABILITY_DESCRIPTIONS
+        if description.default_option_key is not None
+    )
 
 
 def model_count_sensor_policies() -> Iterable[ModelCountSensorPolicy]:
     """Iterate Server Entry model-count sensor policies."""
-    return MODEL_COUNT_SENSOR_POLICIES
+    return (
+        ModelCountSensorPolicy(
+            description.capability,
+            description.model_count_translation_key,
+        )
+        for description in CAPABILITY_DESCRIPTIONS
+        if description.model_count_translation_key is not None
+    )
 
 
 def model_count_capability_presentations() -> Iterable[CapabilityPresentation]:
     """Iterate capabilities shown as model count sensors."""
     return (
-        presentation
-        for presentation in CAPABILITY_PRESENTATIONS
-        if presentation.model_count_translation_key is not None
+        CapabilityPresentation(
+            description.capability,
+            default_option_key=description.default_option_key,
+            model_count_translation_key=description.model_count_translation_key,
+            repair_issue=description.repair_issue,
+        )
+        for description in CAPABILITY_DESCRIPTIONS
+        if description.model_count_translation_key is not None
     )
 
 
 def repair_issue_identities() -> Iterable[MissingCapabilityRepairIssueIdentity]:
     """Iterate missing-capability repair issue identities."""
-    return MISSING_CAPABILITY_REPAIR_ISSUE_IDENTITIES
+    return (
+        MissingCapabilityRepairIssueIdentity(description.capability)
+        for description in CAPABILITY_DESCRIPTIONS
+        if description.repair_issue
+    )
 
 
-def repair_issue_capabilities() -> Iterable[str]:
+def repair_issue_capabilities() -> Iterable[Capability]:
     """Iterate legacy missing-capability repair issues to clean up."""
     return (identity.capability for identity in repair_issue_identities())
