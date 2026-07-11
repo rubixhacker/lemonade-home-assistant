@@ -11,8 +11,6 @@ from pathlib import Path
 import re
 from typing import Any
 
-from homeassistant.exceptions import HomeAssistantError
-
 DEFAULT_IMAGE_MIME_TYPE = "image/png"
 DEFAULT_IMAGE_EXTENSION = "png"
 AI_TASK_NO_IMAGE_ERROR = "No image returned"
@@ -47,13 +45,26 @@ class GeneratedImageArtifact:
 
 
 @dataclass(frozen=True)
+class ReturnRawResponse:
+    """Request the untouched Lemonade response."""
+
+
+@dataclass(frozen=True)
+class DecodeImageResponse:
+    """Request decoded image data from the Lemonade response."""
+
+
+ImageResponseIntent = ReturnRawResponse | DecodeImageResponse
+
+
+@dataclass(frozen=True)
 class ImageGenerationRequest:
     """Typed Lemonade image generation invocation."""
 
     prompt: str
     model: str
     size: str | None = None
-    decode_response: bool = True
+    intent: ImageResponseIntent = DecodeImageResponse()
 
     def client_kwargs(self) -> dict[str, Any]:
         """Return Lemonade client arguments without empty optional values."""
@@ -67,51 +78,42 @@ class ImageGenerationRequest:
 
 
 @dataclass(frozen=True)
-class ImageGenerationResult:
-    """Raw and decoded Lemonade image generation response."""
+class RawImageResponse:
+    """Untouched response for a caller that did not request image decoding."""
 
     response: Any
-    image_result: LemonadeImageResult | None
 
-    def require_image(
-        self,
-        error_message: str = AI_TASK_NO_IMAGE_ERROR,
-    ) -> LemonadeImageResult:
-        """Return decoded image data or raise the module-owned no-image error."""
-        if self.image_result is None:
-            raise HomeAssistantError(error_message)
-        return self.image_result
+
+@dataclass(frozen=True)
+class DecodedImage:
+    """Successfully decoded image generation response."""
+
+    response: Any
+    image: LemonadeImageResult
 
     def artifact(
         self,
         requested_filename: Any = None,
         *,
         timestamp_slug: str | None = None,
-    ) -> GeneratedImageArtifact | None:
-        """Return media artifact metadata for the decoded image, if present."""
-        if self.image_result is None:
-            return None
+    ) -> GeneratedImageArtifact:
+        """Return media artifact metadata for the decoded image."""
         return _image_artifact_from_result(
-            self.image_result,
+            self.image,
             requested_filename,
             timestamp_slug=timestamp_slug,
         )
 
-    def require_artifact(
-        self,
-        requested_filename: Any = None,
-        *,
-        timestamp_slug: str | None = None,
-        error_message: str = DIRECT_SERVICE_SAVE_NO_IMAGE_ERROR,
-    ) -> GeneratedImageArtifact:
-        """Return media artifact metadata or raise the direct-service save error."""
-        artifact = self.artifact(
-            requested_filename,
-            timestamp_slug=timestamp_slug,
-        )
-        if artifact is None:
-            raise HomeAssistantError(error_message)
-        return artifact
+
+
+@dataclass(frozen=True)
+class RequestedImageMissing:
+    """Response from which a requested image could not be decoded."""
+
+    response: Any
+
+
+ImageGenerationResult = RawImageResponse | DecodedImage | RequestedImageMissing
 
 
 async def generate_image(
@@ -120,12 +122,12 @@ async def generate_image(
 ) -> ImageGenerationResult:
     """Invoke Lemonade image generation and decode the first returned image."""
     response = await client.generate_image(**request.client_kwargs())
-    return ImageGenerationResult(
-        response=response,
-        image_result=(
-            decode_image_result(response) if request.decode_response else None
-        ),
-    )
+    if isinstance(request.intent, ReturnRawResponse):
+        return RawImageResponse(response=response)
+    image = decode_image_result(response)
+    if image is None:
+        return RequestedImageMissing(response=response)
+    return DecodedImage(response=response, image=image)
 
 
 def extension_from_mime_type(mime_type: str) -> str:

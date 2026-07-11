@@ -53,6 +53,21 @@ class ChatCompletionRequest:
 
 
 @dataclass(frozen=True)
+class ReturnRawImageResponse:
+    """Return the Lemonade response without decoding image data."""
+
+
+@dataclass(frozen=True)
+class ProduceImageArtifact:
+    """Decode an image and produce a Home Assistant media artifact."""
+
+    filename: str | None
+
+
+ImageServiceIntent = ReturnRawImageResponse | ProduceImageArtifact
+
+
+@dataclass(frozen=True)
 class GenerateImageRequest:
     """Parsed request for lemonade.generate_image."""
 
@@ -60,8 +75,7 @@ class GenerateImageRequest:
     model: str | None
     prompt: str
     size: str | None
-    save: bool
-    filename: str | None
+    intent: ImageServiceIntent
 
     @classmethod
     def from_service_call(cls, call: ServiceCall) -> "GenerateImageRequest":
@@ -71,8 +85,11 @@ class GenerateImageRequest:
             model=call.data.get(CONF_MODEL),
             prompt=call.data[ATTR_PROMPT],
             size=call.data.get(ATTR_SIZE),
-            save=call.data.get(ATTR_SAVE, False),
-            filename=call.data.get(ATTR_FILENAME),
+            intent=(
+                ProduceImageArtifact(filename=call.data.get(ATTR_FILENAME))
+                if call.data.get(ATTR_SAVE, False)
+                else ReturnRawImageResponse()
+            ),
         )
 
 

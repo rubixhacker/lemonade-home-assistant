@@ -20,13 +20,21 @@ from .api import LemonadeClient
 from .data import LemonadeRuntimeData
 from .errors import LEMONADE_CLIENT_EXCEPTIONS, lemonade_home_assistant_error
 from .image_result import (
+    DIRECT_SERVICE_SAVE_NO_IMAGE_ERROR,
+    DecodedImage,
+    DecodeImageResponse,
     ImageGenerationRequest,
     ImageGenerationResult,
+    RawImageResponse,
+    RequestedImageMissing,
+    ReturnRawResponse,
     generate_image,
 )
 from .service_requests import (
     ChatCompletionRequest,
     GenerateImageRequest,
+    ProduceImageArtifact,
+    ReturnRawImageResponse,
     TextToSpeechRequest,
     TranscribeAudioRequest,
     thaw_chat_messages,
@@ -269,7 +277,11 @@ async def _invoke_generate_image(
             prompt=request.prompt,
             model=context.model,
             size=request.size,
-            decode_response=request.save,
+            intent=(
+                DecodeImageResponse()
+                if isinstance(request.intent, ProduceImageArtifact)
+                else ReturnRawResponse()
+            ),
         ),
     )
 
@@ -386,18 +398,28 @@ async def _async_generate_image(
         recipe=GENERATE_IMAGE_RECIPE,
     )
 
-    request = result.context.request
+    intent = result.context.request.intent
     image_generation = result.value
-    response = image_generation.response
-    if not request.save:
-        return {"response": response}
+    if isinstance(intent, ReturnRawImageResponse) and isinstance(
+        image_generation, RawImageResponse
+    ):
+        return {"response": image_generation.response}
+    if isinstance(intent, ProduceImageArtifact) and isinstance(
+        image_generation, RequestedImageMissing
+    ):
+        raise HomeAssistantError(DIRECT_SERVICE_SAVE_NO_IMAGE_ERROR)
+    if not (
+        isinstance(intent, ProduceImageArtifact)
+        and isinstance(image_generation, DecodedImage)
+    ):
+        raise AssertionError("Image generation intent and outcome do not correspond")
 
-    artifact = image_generation.require_artifact(request.filename)
+    artifact = image_generation.artifact(intent.filename)
     media_dir = hass.config.path("media", "lemonade")
     path = Path(media_dir) / artifact.filename
     await hass.async_add_executor_job(_write_image_file, path, artifact.image_bytes)
     return {
-        "response": response,
+        "response": image_generation.response,
         ATTR_MEDIA_PATH: artifact.media_path,
     }
 
