@@ -1537,8 +1537,14 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_connection_probe_builds_client_from_normalized_settings(self) -> None:
         from dataclasses import FrozenInstanceError
+        from typing import get_type_hints
 
         import lemonade.connection as connection
+
+        self.assertIs(
+            Any,
+            get_type_hints(connection.async_create_verified_client)["session"],
+        )
 
         class Client:
             def __init__(

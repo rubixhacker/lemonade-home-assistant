@@ -49,7 +49,7 @@ class ConnectionProbeError(Exception):
 
 
 async def async_create_verified_client(
-    session: aiohttp.ClientSession | Any,
+    session: Any,
     settings: ConnectionSettings,
 ) -> LemonadeClient:
     """Build and health-check a Lemonade client, classifying probe failures."""
