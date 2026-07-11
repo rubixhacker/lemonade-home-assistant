@@ -25,7 +25,6 @@ from .image_result import (
     generate_image,
     image_bytes_and_extension,
 )
-from .model_resolution import resolve_entry_model
 from .service_requests import (
     ChatCompletionRequest,
     GenerateImageRequest,
@@ -39,6 +38,7 @@ from .speech import (
     synthesize_speech,
     transcribe_file,
 )
+from .server_capabilities import runtime_model_view
 from .const import (
     ATTR_FILENAME,
     ATTR_FILE_PATH,
@@ -175,7 +175,7 @@ def _resolve_service_model(
     model_label: str,
 ) -> str:
     """Resolve a direct service model from request, defaults, or catalog."""
-    model = resolve_entry_model(
+    model = runtime_model_view(entry).resolve_entry_model(
         entry,
         capability,
         explicit_model=requested_model,

@@ -17,8 +17,8 @@ from .llm import (
     async_execute_chat_log_turn,
     async_generate_chat_log_data,
 )
-from .model_resolution import resolve_entry_model
 from .profiles import AITaskProfile, ConversationProfile
+from .server_capabilities import runtime_model_view
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,7 +54,7 @@ class ProfilePromptedChatLog:
 
 def resolve_conversation_profile_model(entry: Any, profile: ConversationProfile) -> str:
     """Return the model configured for a conversation profile chat turn."""
-    model = resolve_entry_model(
+    model = runtime_model_view(entry).resolve_entry_model(
         entry,
         CAPABILITY_CONVERSATION,
         profile_model=profile.model,
@@ -67,7 +67,7 @@ def resolve_conversation_profile_model(entry: Any, profile: ConversationProfile)
 
 def resolve_ai_task_profile_model(entry: Any, profile: AITaskProfile) -> str:
     """Return the model configured for an AI task profile data chat turn."""
-    model = resolve_entry_model(
+    model = runtime_model_view(entry).resolve_entry_model(
         entry,
         CAPABILITY_AI_TASK,
         profile_model=profile.model,

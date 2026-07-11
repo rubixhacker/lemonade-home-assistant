@@ -183,7 +183,10 @@ from lemonade.const import (  # noqa: E402
     CAPABILITY_VISION,
 )
 import lemonade.models as lemonade_models  # noqa: E402
-from lemonade.model_resolution import catalog_model_ids, resolve_model  # noqa: E402
+from lemonade.server_capabilities import (  # noqa: E402
+    RuntimeCapabilityView,
+    catalog_model_ids,
+)
 from lemonade.models import parse_models_response  # noqa: E402
 
 
@@ -258,7 +261,7 @@ class ParseModelsResponseTest(unittest.TestCase):
         self.assertEqual(["chat-model"], catalog.model_ids(Capability.CONVERSATION))
         self.assertEqual("chat-model", catalog.first_model_id(Capability.CONVERSATION))
 
-    def test_model_resolution_accepts_typed_and_legacy_capabilities(self) -> None:
+    def test_server_capability_view_accepts_typed_and_legacy_capabilities(self) -> None:
         self.assertTrue(hasattr(lemonade_models, "Capability"))
         Capability = lemonade_models.Capability
 
@@ -270,7 +273,7 @@ class ParseModelsResponseTest(unittest.TestCase):
         )
         self.assertEqual(
             "Bonsai-8B-gguf",
-            resolve_model(catalog, Capability.CONVERSATION),
+            RuntimeCapabilityView(catalog).resolve_model(Capability.CONVERSATION),
         )
         self.assertEqual(
             ["Bonsai-8B-gguf", "Qwen3.6-27B-GGUF"],

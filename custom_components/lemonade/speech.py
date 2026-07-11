@@ -16,7 +16,7 @@ from .const import (
     CONF_DEFAULT_TTS_MODEL,
 )
 from .errors import LEMONADE_CLIENT_EXCEPTIONS, lemonade_home_assistant_error
-from .model_resolution import resolve_entry_model
+from .server_capabilities import runtime_model_view
 
 _CONTENT_TYPE_EXTENSIONS = {
     "audio/aac": "aac",
@@ -161,7 +161,7 @@ class InvalidSpeechTranscription(SpeechTranscription):
 
 def resolve_speech_synthesis_model(entry: Any, explicit_model: Any = None) -> str | None:
     """Return the requested, configured, or first catalog TTS model."""
-    return resolve_entry_model(
+    return runtime_model_view(entry).resolve_entry_model(
         entry,
         CAPABILITY_TTS,
         explicit_model=explicit_model,
@@ -181,7 +181,7 @@ def resolve_speech_transcription_model(
     entry: Any, explicit_model: Any = None
 ) -> str | None:
     """Return the requested, configured, or first catalog STT model."""
-    return resolve_entry_model(
+    return runtime_model_view(entry).resolve_entry_model(
         entry,
         CAPABILITY_STT,
         explicit_model=explicit_model,

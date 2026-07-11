@@ -729,12 +729,16 @@ class ModelsForOnlyCatalog:
         )
 
 
-class ModelResolutionTest(unittest.TestCase):
+class ServerCapabilityViewTest(unittest.TestCase):
 
     def test_resolve_model_prefers_explicit_profile_default_then_catalog(self) -> None:
-        from lemonade.model_resolution import catalog_model_ids, resolve_model
+        from lemonade.server_capabilities import (
+            RuntimeCapabilityView,
+            catalog_model_ids,
+        )
 
         catalog = ModelsForOnlyCatalog({CAPABILITY_CONVERSATION: ["catalog-chat"]})
+        view = RuntimeCapabilityView(catalog)
 
         self.assertEqual(
             ["catalog-chat"],
@@ -742,8 +746,7 @@ class ModelResolutionTest(unittest.TestCase):
         )
         self.assertEqual(
             "request-chat",
-            resolve_model(
-                catalog,
+            view.resolve_model(
                 CAPABILITY_CONVERSATION,
                 explicit_model="request-chat",
                 profile_model="profile-chat",
@@ -752,8 +755,7 @@ class ModelResolutionTest(unittest.TestCase):
         )
         self.assertEqual(
             "profile-chat",
-            resolve_model(
-                catalog,
+            view.resolve_model(
                 CAPABILITY_CONVERSATION,
                 explicit_model="",
                 profile_model="profile-chat",
@@ -762,8 +764,7 @@ class ModelResolutionTest(unittest.TestCase):
         )
         self.assertEqual(
             "default-chat",
-            resolve_model(
-                catalog,
+            view.resolve_model(
                 CAPABILITY_CONVERSATION,
                 profile_model=None,
                 default_model="default-chat",
@@ -771,19 +772,22 @@ class ModelResolutionTest(unittest.TestCase):
         )
         self.assertEqual(
             "catalog-chat",
-            resolve_model(
-                catalog,
+            view.resolve_model(
                 CAPABILITY_CONVERSATION,
                 default_model="",
             ),
         )
-        self.assertIsNone(resolve_model(FakeCatalog({}), CAPABILITY_CONVERSATION))
+        self.assertIsNone(
+            RuntimeCapabilityView(FakeCatalog({})).resolve_model(
+                CAPABILITY_CONVERSATION
+            )
+        )
 
     def test_runtime_model_view_owns_entry_selection_and_current_option_policy(
         self,
     ) -> None:
-        from lemonade.model_resolution import runtime_model_view
         from lemonade.coordinator import LemonadeRuntimeState
+        from lemonade.server_capabilities import runtime_model_view
 
         runtime_state = LemonadeRuntimeState.from_server_payload(
             {"status": "ok"},
@@ -871,10 +875,10 @@ class ModelResolutionTest(unittest.TestCase):
         self.assertEqual(3, view.total_model_count)
         self.assertIs(runtime_state.model_view, view)
 
-    def test_entry_default_model_resolution_ignores_stale_fallback_option(
+    def test_entry_default_model_ignores_stale_fallback_option(
         self,
     ) -> None:
-        from lemonade.model_resolution import runtime_model_view
+        from lemonade.server_capabilities import runtime_model_view
 
         entry = SimpleNamespace(
             options={CONF_DEFAULT_TTS_MODEL: "chat-a"},
@@ -1073,18 +1077,25 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(ai_task_definition.model_policy.include_all_models)
 
     def test_capability_presentation_metadata_groups_callers(self) -> None:
-        from lemonade.const import (
+        import lemonade.const as lemonade_const
+        from lemonade.server_capabilities import (
             DEFAULT_MODEL_SELECTOR_DEFINITIONS,
             default_model_capability_presentations,
             model_count_capability_presentations,
             repair_issue_capabilities,
-        )
-        from lemonade.server_capabilities import (
             MissingCapabilityRepairIssueIdentity,
             ModelCountSensorPolicy,
             model_count_sensor_policies,
             repair_issue_identities,
         )
+
+        for name in (
+            "DEFAULT_MODEL_SELECTOR_DEFINITIONS",
+            "default_model_capability_presentations",
+            "model_count_capability_presentations",
+            "repair_issue_capabilities",
+        ):
+            self.assertFalse(hasattr(lemonade_const, name))
 
         default_records = tuple(default_model_capability_presentations())
 
@@ -5930,7 +5941,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         ):
             await entity.async_get_tts_audio("Hello", "en")
 
-    async def test_tts_model_resolution_prefers_request_then_entry_then_catalog(self) -> None:
+    async def test_tts_model_selection_prefers_request_then_entry_then_catalog(self) -> None:
         tts_module = _require_module("lemonade.tts")
 
         class Client:
@@ -6223,8 +6234,10 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stt.SpeechResultState.ERROR, result.result)
 
     async def test_select_platform_adds_default_model_selects_and_updates_options(self) -> None:
-        from lemonade.const import default_model_capability_presentations
-        from lemonade.server_capabilities import DefaultModelSelectorDefinition
+        from lemonade.server_capabilities import (
+            DefaultModelSelectorDefinition,
+            default_model_capability_presentations,
+        )
 
         select_module = _require_module("lemonade.select")
         hass = FakeHass()

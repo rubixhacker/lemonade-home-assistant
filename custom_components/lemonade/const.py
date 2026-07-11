@@ -60,25 +60,6 @@ MODEL_COUNT_SENSOR_NAMES = {
     "stt_model_count": "Speech-to-text model count",
 }
 
-
-from .server_capabilities import (  # noqa: E402,F401
-    CAPABILITY_PRESENTATIONS,
-    DEFAULT_MODEL_SELECTOR_DEFINITIONS,
-    MISSING_CAPABILITY_REPAIR_ISSUE_IDENTITIES,
-    MODEL_COUNT_SENSOR_POLICIES,
-    CapabilityPresentation,
-    DefaultModelSelectorDefinition,
-    MissingCapabilityRepairIssueIdentity,
-    ModelCountSensorPolicy,
-    ModelSelectorDegradedPolicy,
-    default_model_capability_presentations,
-    default_model_selector_definitions,
-    model_count_capability_presentations,
-    model_count_sensor_policies,
-    repair_issue_capabilities,
-    repair_issue_identities,
-)
-
 SERVICE_CHAT_COMPLETION = "chat_completion"
 SERVICE_GENERATE_IMAGE = "generate_image"
 SERVICE_TRANSCRIBE_AUDIO = "transcribe_audio"

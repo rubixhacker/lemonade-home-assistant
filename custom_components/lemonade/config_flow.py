@@ -30,9 +30,7 @@ from .const import (
     DEFAULT_URL,
     DOMAIN,
     SUBENTRY_TYPE_CONVERSATION,
-    default_model_selector_definitions,
 )
-from .model_resolution import runtime_model_view
 from .profiles import (
     ProfileFieldDefinition,
     ProfileFieldSelectorKind,
@@ -40,6 +38,7 @@ from .profiles import (
     profile_definition,
     profile_definitions,
 )
+from .server_capabilities import default_model_selector_definitions, runtime_model_view
 
 _LOGGER = logging.getLogger(__name__)
 
