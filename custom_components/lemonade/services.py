@@ -23,7 +23,6 @@ from .image_result import (
     ImageGenerationRequest,
     ImageGenerationResult,
     generate_image,
-    image_bytes_and_extension,
 )
 from .service_requests import (
     ChatCompletionRequest,
@@ -200,11 +199,6 @@ def _extract_chat_content(response: dict[str, Any]) -> str | None:
         return None
     content = message.get("content")
     return content if isinstance(content, str) else None
-
-
-def extract_image_bytes(response: Any) -> tuple[bytes | None, str | None]:
-    """Extract image bytes and an extension from an image generation response."""
-    return image_bytes_and_extension(response)
 
 
 def _write_image_file(path: Path, image_bytes: bytes) -> None:

@@ -91,7 +91,7 @@ class ImageGenerationResult:
         """Return media artifact metadata for the decoded image, if present."""
         if self.image_result is None:
             return None
-        return _generated_image_artifact_from_result(
+        return _image_artifact_from_result(
             self.image_result,
             requested_filename,
             timestamp_slug=timestamp_slug,
@@ -171,33 +171,7 @@ def decode_image_value(value: Any) -> LemonadeImageResult | None:
     )
 
 
-def image_bytes_and_extension(response: Any) -> tuple[bytes | None, str | None]:
-    """Return decoded image bytes and extension for service compatibility."""
-    result = decode_image_result(response)
-    if result is None:
-        return None, None
-    return result.image_bytes, result.extension
-
-
-def generated_image_artifact(
-    response: Any,
-    requested_filename: Any = None,
-    *,
-    timestamp_slug: str | None = None,
-) -> GeneratedImageArtifact | None:
-    """Return decoded image bytes plus media-save artifact semantics."""
-    result = decode_image_result(response)
-    if result is None:
-        return None
-
-    return _generated_image_artifact_from_result(
-        result,
-        requested_filename,
-        timestamp_slug=timestamp_slug,
-    )
-
-
-def _generated_image_artifact_from_result(
+def _image_artifact_from_result(
     result: LemonadeImageResult,
     requested_filename: Any = None,
     *,

@@ -1482,11 +1482,16 @@ class LemonadeImageResultTest(unittest.TestCase):
         self.assertEqual("image/jpeg", result.mime_type)
         self.assertEqual("jpg", result.extension)
 
-    def test_generated_image_artifact_owns_safe_filename_and_media_path(self) -> None:
+    def test_image_generation_result_artifact_owns_safe_filename_and_media_path(self) -> None:
         image_result_module = _require_module("lemonade.image_result")
 
-        artifact = image_result_module.generated_image_artifact(
-            {"data": [{"url": "data:image/jpeg;base64,aW1hZ2U="}]},
+        image = image_result_module.ImageGenerationResult(
+            response={"data": [{"url": "data:image/jpeg;base64,aW1hZ2U="}]},
+            image_result=image_result_module.decode_image_result(
+                {"data": [{"url": "data:image/jpeg;base64,aW1hZ2U="}]}
+            ),
+        )
+        artifact = image.artifact(
             "../unsafe/lemon.png",
             timestamp_slug="20260102_030405",
         )
@@ -1501,8 +1506,13 @@ class LemonadeImageResultTest(unittest.TestCase):
             artifact.media_path,
         )
 
-        default_artifact = image_result_module.generated_image_artifact(
-            {"image": "aW1hZ2U="},
+        default_image = image_result_module.ImageGenerationResult(
+            response={"image": "aW1hZ2U="},
+            image_result=image_result_module.decode_image_result(
+                {"image": "aW1hZ2U="}
+            ),
+        )
+        default_artifact = default_image.require_artifact(
             "../../",
             timestamp_slug="20260102_030405",
         )
@@ -4308,72 +4318,42 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertIs(False, fields[ATTR_SAVE][0].default)
         self.assertIn(ATTR_FILENAME, fields)
 
-    def test_extract_image_bytes_decodes_supported_response_shapes(self) -> None:
-        services_module = _require_module("lemonade.services")
-
-        self.assertTrue(hasattr(services_module, "extract_image_bytes"))
-        extract_image_bytes = services_module.extract_image_bytes
-
-        self.assertEqual(
-            (b"first-image", "png"),
-            extract_image_bytes(
-                {
-                    "data": [
-                        {
-                            "b64_json": "Zmlyc3QtaW1hZ2U=",
-                            "url": "data:image/png;base64,c2Vjb25kLWltYWdl",
-                        }
-                    ],
-                    "b64_json": "dGhpcmQtaW1hZ2U=",
-                    "image": "Zm91cnRoLWltYWdl",
-                }
-            ),
-        )
-        self.assertEqual(
-            (b"url-image", "png"),
-            extract_image_bytes(
-                {"data": [{"url": "DATA:image/png;base64,dXJsLWltYWdl"}]}
-            ),
-        )
-        self.assertEqual(
-            (b"root-image", "png"),
-            extract_image_bytes({"image": "cm9vdC1pbWFnZQ=="}),
-        )
-        self.assertEqual((None, None), extract_image_bytes({"data": [{"url": "https://example/image.png"}]}))
-
     def test_parse_transcription_response_returns_frozen_result_and_rejects_invalid_text(self) -> None:
         from dataclasses import FrozenInstanceError
 
-        from lemonade.transcription import (
-            TranscriptionResult,
-            parse_transcription_result,
+        from lemonade.speech import (
+            SpeechTranscriptionResult,
+            parse_speech_transcription_result,
         )
 
-        result = parse_transcription_result({"text": "turn on lights", "extra": True})
+        result = parse_speech_transcription_result(
+            {"text": "turn on lights", "extra": True}
+        )
 
-        self.assertIsInstance(result, TranscriptionResult)
+        self.assertIsInstance(result, SpeechTranscriptionResult)
         self.assertEqual("turn on lights", result.text)
         with self.assertRaises(FrozenInstanceError):
             result.text = "changed"  # type: ignore[misc]
         with self.assertRaisesRegex(KeyError, "text"):
-            parse_transcription_result({})
+            parse_speech_transcription_result({})
         with self.assertRaisesRegex(
             TypeError,
             "Lemonade transcription response missing valid text",
         ):
-            parse_transcription_result({"text": None})
+            parse_speech_transcription_result({"text": None})
         with self.assertRaisesRegex(
             TypeError,
             "Lemonade transcription response missing valid text",
         ):
-            parse_transcription_result({"text": 123})
+            parse_speech_transcription_result({"text": 123})
 
     async def test_transcription_helpers_build_requests_and_capture_invalid_outcomes(self) -> None:
         import tempfile
 
-        from lemonade.transcription import (
+        from lemonade.speech import (
+            SpeechTranscriptionRequest,
             file_transcription_request,
-            request_transcription,
+            request_speech_transcription,
             stream_transcription_request,
             transcribe_file,
             transcribe_stream_result,
@@ -4394,6 +4374,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(b"file-audio", file_request.audio)
+        self.assertIsInstance(file_request, SpeechTranscriptionRequest)
         self.assertEqual("speech.wav", file_request.filename)
         self.assertEqual("stt-model", file_request.model)
         self.assertEqual("en", file_request.language)
@@ -4418,7 +4399,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 return {"text": None}
 
         client = Client()
-        outcome = await request_transcription(client, stream_request)
+        outcome = await request_speech_transcription(client, stream_request)
 
         self.assertEqual(
             {
@@ -4483,42 +4464,11 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             valid_client.kwargs,
         )
 
-    def test_transcription_adapter_preserves_legacy_outcome_shape(self) -> None:
-        from lemonade.transcription import (
-            TranscriptionOutcome,
-            TranscriptionResult,
-            transcription_outcome,
-        )
-
-        result = TranscriptionResult("legacy text")
-        legacy_valid = TranscriptionOutcome(
-            response={"text": "legacy text"},
-            result=result,
-        )
-        parse_error = TypeError("bad text")
-        legacy_invalid = TranscriptionOutcome(
-            response={"text": None},
-            result=None,
-            error=parse_error,
-        )
-        parsed_invalid = transcription_outcome({"text": None})
-
-        self.assertIs(legacy_valid.result, result)
-        self.assertIsNone(legacy_valid.error)
-        self.assertEqual("legacy text", legacy_valid.text)
-        self.assertTrue(legacy_valid.is_valid)
-        self.assertIs(legacy_valid.require_result(), result)
-        self.assertIsNone(legacy_invalid.result)
-        self.assertIs(legacy_invalid.error, parse_error)
-        self.assertIsNone(legacy_invalid.text)
-        self.assertFalse(legacy_invalid.is_valid)
-        with self.assertRaises(TypeError) as raised:
-            legacy_invalid.require_result()
-        self.assertIs(parse_error, raised.exception)
-        self.assertTrue(hasattr(parsed_invalid, "result"))
-        self.assertTrue(hasattr(parsed_invalid, "error"))
-        self.assertIsNone(parsed_invalid.result)
-        self.assertIsNotNone(parsed_invalid.error)
+    def test_retired_compatibility_modules_are_not_importable(self) -> None:
+        for module_name in ("voice", "transcription"):
+            with self.subTest(module_name=module_name):
+                with self.assertRaises(ModuleNotFoundError):
+                    importlib.import_module("lemonade." + module_name)
 
     async def test_speech_transcription_outcome_is_sum_type_without_nullable_cluster(self) -> None:
         from lemonade.speech import (
@@ -4691,12 +4641,12 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
         from homeassistant.exceptions import HomeAssistantError
         from lemonade.api import LemonadeError
-        from lemonade.voice import (
-            VoiceGenerationRequest,
+        from lemonade.speech import (
+            SpeechSynthesisRequest,
             audio_extension,
-            generate_entry_voice,
-            generate_voice,
-            resolve_voice_model,
+            resolve_speech_synthesis_model,
+            synthesize_entry_speech,
+            synthesize_speech,
         )
 
         class Client:
@@ -4714,8 +4664,8 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             {CONF_DEFAULT_TTS_MODEL: "entry-tts"},
         )
 
-        self.assertEqual("entry-tts", resolve_voice_model(entry))
-        result = await generate_entry_voice(
+        self.assertEqual("entry-tts", resolve_speech_synthesis_model(entry))
+        result = await synthesize_entry_speech(
             entry,
             text="Hello",
             explicit_model="request-tts",
@@ -4740,9 +4690,9 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("flac", audio_extension(None, ".flac"))
         self.assertEqual("mp3", audio_extension(None, None))
 
-        generated = await generate_voice(
+        generated = await synthesize_speech(
             client,
-            VoiceGenerationRequest(
+            SpeechSynthesisRequest(
                 text="Again",
                 model="model",
                 voice=None,
@@ -4756,7 +4706,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             HomeAssistantError,
             "No Lemonade TTS model is available",
         ):
-            await generate_entry_voice(empty_entry, text="Hello")
+            await synthesize_entry_speech(empty_entry, text="Hello")
 
         for error, expected_message in (
             (LemonadeError("boom"), "Error generating speech with Lemonade: boom"),
@@ -4775,9 +4725,9 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                         raise error
 
                 with self.assertRaisesRegex(HomeAssistantError, expected_message):
-                    await generate_voice(
+                    await synthesize_speech(
                         ErrorClient(),
-                        VoiceGenerationRequest(
+                        SpeechSynthesisRequest(
                             text="Hello",
                             model="tts",
                             voice=None,
@@ -5356,13 +5306,13 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 str(raised.exception),
             )
 
-    async def test_transcribe_audio_service_uses_shared_transcription_and_preserves_invalid_shape(self) -> None:
+    async def test_transcribe_audio_service_uses_canonical_speech_outcome_for_invalid_response(self) -> None:
         import tempfile
 
         from lemonade.const import ATTR_FILE_PATH, CAPABILITY_STT
 
         services_module = _require_module("lemonade.services")
-        transcription_module = _require_module("lemonade.transcription")
+        speech_module = _require_module("lemonade.speech")
 
         response: dict[str, Any] = {"text": None}
         request_calls: list[dict[str, Any]] = []
@@ -5389,7 +5339,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                         "language": kwargs["language"],
                     }
                 )
-                return transcription_module.transcription_outcome(response)
+                return speech_module.speech_transcription_outcome(response)
 
             services_module.transcribe_file = transcribe_file
             try:
