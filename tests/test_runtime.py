@@ -2409,6 +2409,76 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
+    def test_llm_normalized_messages_round_trip_through_openai_mappings(self) -> None:
+        llm_module = _require_module("lemonade.llm")
+        messages = (
+            llm_module.SystemMessage("You are helpful"),
+            llm_module.UserMessage(
+                "Look",
+                (
+                    llm_module.ImagePart(
+                        "image/png",
+                        "data:image/png;base64,aW1hZ2U=",
+                    ),
+                ),
+            ),
+            llm_module.AssistantMessage(
+                None,
+                (
+                    llm_module.ToolCall(
+                        "call-1",
+                        "HassTurnOn",
+                        {"entity_id": "light.kitchen"},
+                    ),
+                ),
+            ),
+            llm_module.ToolResultMessage(
+                llm_module.ToolResult({"ok": True}, "call-1", "HassTurnOn")
+            ),
+        )
+
+        self.assertEqual(
+            messages,
+            tuple(
+                llm_module.parse_message(llm_module.serialize_message(message))
+                for message in messages
+            ),
+        )
+
+    def test_llm_message_constructors_freeze_iterable_fields(self) -> None:
+        llm_module = _require_module("lemonade.llm")
+        parts = [llm_module.ImagePart("image/png", "https://example/image.png")]
+        tool_calls = [
+            llm_module.ToolCall(
+                "call-1",
+                "HassTurnOn",
+                {"target": {"entity_id": "light.kitchen"}},
+            )
+        ]
+
+        user_message = llm_module.UserMessage("Look", parts)
+        assistant_message = llm_module.AssistantMessage(None, tool_calls)
+        parts.clear()
+        tool_calls.clear()
+
+        self.assertIs(tuple, type(user_message.parts))
+        self.assertIs(tuple, type(assistant_message.tool_calls))
+        self.assertEqual(1, len(user_message.parts))
+        self.assertEqual(
+            "light.kitchen",
+            assistant_message.tool_calls[0].arguments["target"]["entity_id"],
+        )
+        with self.assertRaises(TypeError):
+            assistant_message.tool_calls[0].arguments["target"]["entity_id"] = "light.porch"
+
+    def test_llm_assistant_message_requires_content_or_tool_calls(self) -> None:
+        llm_module = _require_module("lemonade.llm")
+
+        with self.assertRaises(ValueError):
+            llm_module.AssistantMessage(None)
+
+        self.assertEqual("", llm_module.AssistantMessage("").content)
+
     def test_llm_tool_records_deep_freeze_direct_constructor_payloads(self) -> None:
         llm_module = _require_module("lemonade.llm")
         arguments = {

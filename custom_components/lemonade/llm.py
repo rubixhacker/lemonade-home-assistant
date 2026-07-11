@@ -91,6 +91,9 @@ class UserMessage:
     content: str
     parts: tuple[ImagePart, ...] = ()
 
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "parts", tuple(self.parts))
+
 
 @dataclass(frozen=True)
 class AssistantMessage:
@@ -98,6 +101,11 @@ class AssistantMessage:
 
     content: str | None
     tool_calls: tuple[ToolCall, ...] = ()
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "tool_calls", tuple(self.tool_calls))
+        if self.content is None and not self.tool_calls:
+            raise ValueError("Assistant message requires content or tool calls")
 
 
 @dataclass(frozen=True)
@@ -282,6 +290,18 @@ def _image_part_to_openai(image_part: ImagePart) -> dict[str, Any]:
     return {"type": "image_url", "image_url": {"url": image_part.url}}
 
 
+def _image_part_from_openai(part: Mapping[str, Any]) -> ImagePart:
+    """Parse an OpenAI image content part into normalized image data."""
+    image_url = part.get("image_url")
+    url = _value(image_url, "url")
+    if not isinstance(url, str) or not url:
+        raise HomeAssistantError("Unsupported image content part: missing URL")
+    mime_type = "image/unknown"
+    if url.startswith("data:image/"):
+        mime_type = url[5:].split(";", 1)[0]
+    return ImagePart(mime_type, url)
+
+
 def _attachment_to_content_part(attachment: Any) -> dict[str, Any]:
     """Convert a user attachment into an OpenAI content part."""
     return _image_part_to_openai(_image_part_from_attachment(attachment))
@@ -294,11 +314,21 @@ def _tool_call_record_from_interop(tool_call: Any) -> ToolCall:
     if function is not None:
         name = _value(function, "name")
         arguments = _value(function, "arguments", "args", "tool_args", default={})
-        return ToolCall(tool_call_id, name or "", arguments)
+        return ToolCall(tool_call_id, name or "", _parse_tool_arguments(arguments))
 
     name = _value(tool_call, "name", "tool_name")
     arguments = _value(tool_call, "arguments", "args", "tool_args", "input", default={})
-    return ToolCall(tool_call_id, name or "", arguments)
+    return ToolCall(tool_call_id, name or "", _parse_tool_arguments(arguments))
+
+
+def _parse_tool_arguments(arguments: Any) -> Any:
+    """Normalize JSON-encoded OpenAI tool arguments when possible."""
+    if not isinstance(arguments, str):
+        return arguments
+    try:
+        return json_loads(arguments)
+    except (TypeError, ValueError):
+        return arguments
 
 
 def _extract_tool_call(tool_call: Any) -> tuple[str | None, str | None, Any]:
@@ -376,6 +406,53 @@ def _tool_call_to_tool_input(tool_call: Any) -> Any:
 
 def parse_message(content: Any) -> Message:
     """Parse Home Assistant conversation content into a normalized message."""
+    if isinstance(content, Mapping):
+        role = content.get("role")
+        message_content = content.get("content")
+        if role == "system":
+            return SystemMessage(message_content or "")
+        if role == "user":
+            if isinstance(message_content, str) or message_content is None:
+                return UserMessage(message_content or "")
+            if not isinstance(message_content, (list, tuple)):
+                raise HomeAssistantError("Unsupported OpenAI user message content")
+            text_parts: list[str] = []
+            image_parts: list[ImagePart] = []
+            for part in message_content:
+                if not isinstance(part, Mapping):
+                    raise HomeAssistantError("Unsupported OpenAI user content part")
+                if part.get("type") == "text":
+                    text = part.get("text")
+                    if isinstance(text, str):
+                        text_parts.append(text)
+                    continue
+                if part.get("type") == "image_url":
+                    image_parts.append(_image_part_from_openai(part))
+                    continue
+                raise HomeAssistantError("Unsupported OpenAI user content part")
+            return UserMessage("".join(text_parts), image_parts)
+        if role == "assistant":
+            tool_calls = content.get("tool_calls") or ()
+            return AssistantMessage(
+                message_content,
+                tuple(_tool_call_record_from_interop(call) for call in tool_calls),
+            )
+        if role == "tool":
+            value = message_content
+            if isinstance(value, str):
+                try:
+                    value = json_loads(value)
+                except (TypeError, ValueError):
+                    pass
+            return ToolResultMessage(
+                ToolResult(
+                    value,
+                    tool_call_id=_value(content, "tool_call_id", "id"),
+                    name=_value(content, "name", "tool_name"),
+                )
+            )
+        raise HomeAssistantError(f"Unsupported OpenAI message role: {role}")
+
     if _is_content(content, SystemContent, "SystemContent"):
         return SystemMessage(_value(content, "content", default="") or "")
 
@@ -392,6 +469,8 @@ def parse_message(content: Any) -> Message:
     if _is_content(content, AssistantContent, "AssistantContent"):
         assistant_content = _value(content, "content")
         tool_calls = _value(content, "tool_calls", default=None) or []
+        if assistant_content is None and not tool_calls:
+            assistant_content = ""
         return AssistantMessage(
             content=assistant_content,
             tool_calls=tuple(
