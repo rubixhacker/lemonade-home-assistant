@@ -2290,7 +2290,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
         llm_module = _require_module("lemonade.llm")
 
-        user_message = llm_module._content_to_message_record(
+        user_message = llm_module.parse_message(
             UserContent(
                 "Look",
                 attachments=[
@@ -2298,7 +2298,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 ],
             )
         )
-        assistant_message = llm_module._content_to_message_record(
+        assistant_message = llm_module.parse_message(
             AssistantContent(
                 None,
                 tool_calls=[
@@ -2313,11 +2313,10 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             )
         )
 
-        self.assertIsInstance(user_message, llm_module.Message)
-        self.assertEqual("user", user_message.role)
+        self.assertIsInstance(user_message, llm_module.UserMessage)
         self.assertIsInstance(user_message.parts[0], llm_module.ImagePart)
         with self.assertRaises(FrozenInstanceError):
-            user_message.role = "assistant"  # type: ignore[misc]
+            user_message.content = "Changed"  # type: ignore[misc]
         with self.assertRaises(FrozenInstanceError):
             user_message.parts[0].url = "https://example/changed.png"  # type: ignore[misc]
 
@@ -2330,6 +2329,85 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
         with self.assertRaises(TypeError):
             assistant_message.tool_calls[0].arguments["entity_id"] = "light.dining"
+
+    def test_llm_normalized_message_cases_parse_serialize_and_retain_exhaustively(self) -> None:
+        from homeassistant.components.conversation import (
+            AssistantContent,
+            SystemContent,
+            ToolResultContent,
+            UserContent,
+        )
+
+        llm_module = _require_module("lemonade.llm")
+        messages = (
+            llm_module.parse_message(SystemContent("You are helpful")),
+            llm_module.parse_message(UserContent("Old question")),
+            llm_module.parse_message(AssistantContent("Old answer")),
+            llm_module.parse_message(UserContent("Turn on the kitchen")),
+            llm_module.parse_message(
+                AssistantContent(
+                    None,
+                    [
+                        {
+                            "id": "call-1",
+                            "function": {
+                                "name": "HassTurnOn",
+                                "arguments": "{}",
+                            },
+                        }
+                    ],
+                )
+            ),
+            llm_module.parse_message(
+                ToolResultContent(
+                    {"ok": True},
+                    tool_call_id="call-1",
+                    tool_name="HassTurnOn",
+                )
+            ),
+        )
+
+        self.assertEqual(
+            [
+                llm_module.SystemMessage,
+                llm_module.UserMessage,
+                llm_module.AssistantMessage,
+                llm_module.UserMessage,
+                llm_module.AssistantMessage,
+                llm_module.ToolResultMessage,
+            ],
+            [type(message) for message in messages],
+        )
+        self.assertFalse(any(hasattr(message, "role") for message in messages))
+        self.assertEqual(
+            [
+                {"role": "system", "content": "You are helpful"},
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call-1",
+                            "type": "function",
+                            "function": {
+                                "name": "HassTurnOn",
+                                "arguments": "{}",
+                            },
+                        }
+                    ],
+                },
+                {
+                    "role": "tool",
+                    "content": '{"ok": true}',
+                    "tool_call_id": "call-1",
+                    "name": "HassTurnOn",
+                },
+            ],
+            [
+                llm_module.serialize_message(message)
+                for message in llm_module.retain_messages(messages, 1)
+            ],
+        )
 
     def test_llm_tool_records_deep_freeze_direct_constructor_payloads(self) -> None:
         llm_module = _require_module("lemonade.llm")
@@ -2372,13 +2450,13 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
         llm_module = _require_module("lemonade.llm")
         seen_messages: list[Any] = []
-        original_converter = llm_module._message_record_to_openai
+        original_converter = llm_module.serialize_message
 
         def record_converter(message: Any) -> dict[str, Any]:
             seen_messages.append(message)
             return original_converter(message)
 
-        llm_module._message_record_to_openai = record_converter
+        llm_module.serialize_message = record_converter
         try:
             image_message = llm_module.content_to_message(
                 UserContent(
@@ -2401,7 +2479,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 )
             )
         finally:
-            llm_module._message_record_to_openai = original_converter
+            llm_module.serialize_message = original_converter
 
         self.assertEqual(
             "data:image/png;base64,aW1hZ2UtYnl0ZXM=",
@@ -2412,9 +2490,9 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             assistant_message["tool_calls"][0]["function"]["name"],
         )
         self.assertEqual(2, len(seen_messages))
-        self.assertIsInstance(seen_messages[0], llm_module.Message)
+        self.assertIsInstance(seen_messages[0], llm_module.UserMessage)
         self.assertIsInstance(seen_messages[0].parts[0], llm_module.ImagePart)
-        self.assertIsInstance(seen_messages[1], llm_module.Message)
+        self.assertIsInstance(seen_messages[1], llm_module.AssistantMessage)
         self.assertIsInstance(seen_messages[1].tool_calls[0], llm_module.ToolCall)
 
     def test_llm_converts_tool_result_object_payloads(self) -> None:

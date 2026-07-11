@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import inspect
 import json
 from types import MappingProxyType
-from typing import Any
+from typing import Any, TypeAlias
 
 from homeassistant.components import conversation
 try:
@@ -78,14 +78,38 @@ class ToolResult:
 
 
 @dataclass(frozen=True)
-class Message:
-    """Normalized conversation message parsed from HA interop shapes."""
+class SystemMessage:
+    """Normalized system instruction."""
 
-    role: str
-    content: str | None = None
+    content: str
+
+
+@dataclass(frozen=True)
+class UserMessage:
+    """Normalized user text with optional image attachments."""
+
+    content: str
     parts: tuple[ImagePart, ...] = ()
+
+
+@dataclass(frozen=True)
+class AssistantMessage:
+    """Normalized assistant text and tool calls."""
+
+    content: str | None
     tool_calls: tuple[ToolCall, ...] = ()
-    tool_result: ToolResult | None = None
+
+
+@dataclass(frozen=True)
+class ToolResultMessage:
+    """Normalized tool result and its optional call identity."""
+
+    result: ToolResult
+
+
+Message: TypeAlias = (
+    SystemMessage | UserMessage | AssistantMessage | ToolResultMessage
+)
 
 
 @dataclass(frozen=True)
@@ -350,16 +374,15 @@ def _tool_call_to_tool_input(tool_call: Any) -> Any:
             return tool_input(tool_name, tool_args)
 
 
-def _content_to_message_record(content: Any) -> Message:
+def parse_message(content: Any) -> Message:
     """Parse Home Assistant conversation content into a normalized message."""
     if _is_content(content, SystemContent, "SystemContent"):
-        return Message("system", content=_value(content, "content", default=""))
+        return SystemMessage(_value(content, "content", default="") or "")
 
     if _is_content(content, UserContent, "UserContent"):
-        text = _value(content, "content", default="")
+        text = _value(content, "content", default="") or ""
         attachments = _value(content, "attachments", default=None) or []
-        return Message(
-            "user",
+        return UserMessage(
             content=text,
             parts=tuple(
                 _image_part_from_attachment(attachment) for attachment in attachments
@@ -369,8 +392,7 @@ def _content_to_message_record(content: Any) -> Message:
     if _is_content(content, AssistantContent, "AssistantContent"):
         assistant_content = _value(content, "content")
         tool_calls = _value(content, "tool_calls", default=None) or []
-        return Message(
-            "assistant",
+        return AssistantMessage(
             content=assistant_content,
             tool_calls=tuple(
                 _tool_call_record_from_interop(tool_call) for tool_call in tool_calls
@@ -381,9 +403,8 @@ def _content_to_message_record(content: Any) -> Message:
         tool_result = _value(
             content, "tool_result", "result", "content", default=None
         )
-        return Message(
-            "tool",
-            tool_result=ToolResult(
+        return ToolResultMessage(
+            result=ToolResult(
                 _tool_result_json_value(tool_result),
                 tool_call_id=_attribute_value(content, "tool_call_id", "id"),
                 name=_attribute_value(content, "tool_name", "name"),
@@ -395,15 +416,12 @@ def _content_to_message_record(content: Any) -> Message:
     )
 
 
-def _message_record_to_openai(message: Message) -> dict[str, Any]:
+def serialize_message(message: Message) -> dict[str, Any]:
     """Convert a normalized message into an OpenAI message."""
-    if message.role == "system":
-        return {
-            "role": "system",
-            "content": message.content if message.content is not None else "",
-        }
+    if isinstance(message, SystemMessage):
+        return {"role": "system", "content": message.content}
 
-    if message.role == "user":
+    if isinstance(message, UserMessage):
         if not message.parts:
             return {
                 "role": "user",
@@ -416,7 +434,7 @@ def _message_record_to_openai(message: Message) -> dict[str, Any]:
         parts.extend(_image_part_to_openai(image_part) for image_part in message.parts)
         return {"role": "user", "content": parts}
 
-    if message.role == "assistant":
+    if isinstance(message, AssistantMessage):
         converted: dict[str, Any] = {
             "role": "assistant",
             "content": (
@@ -431,23 +449,26 @@ def _message_record_to_openai(message: Message) -> dict[str, Any]:
             ]
         return converted
 
-    if message.role == "tool" and message.tool_result is not None:
+    if isinstance(message, ToolResultMessage):
+        tool_result = message.result
         converted = {
             "role": "tool",
-            "content": json_dumps(_jsonable_value(message.tool_result.value)),
+            "content": json_dumps(_jsonable_value(tool_result.value)),
         }
-        if message.tool_result.tool_call_id:
-            converted["tool_call_id"] = message.tool_result.tool_call_id
-        if message.tool_result.name:
-            converted["name"] = message.tool_result.name
+        if tool_result.tool_call_id:
+            converted["tool_call_id"] = tool_result.tool_call_id
+        if tool_result.name:
+            converted["name"] = tool_result.name
         return converted
 
-    raise HomeAssistantError(f"Unsupported normalized message role: {message.role}")
+    raise HomeAssistantError(
+        f"Unsupported normalized message: {message.__class__.__name__}"
+    )
 
 
 def content_to_message(content: Any) -> dict[str, Any]:
     """Convert Home Assistant conversation content to an OpenAI message."""
-    return _message_record_to_openai(_content_to_message_record(content))
+    return serialize_message(parse_message(content))
 
 
 def _response_message(response: Mapping[str, Any]) -> Mapping[str, Any] | None:
@@ -537,41 +558,43 @@ def _format_llm_api_tools(llm_api: Any | None) -> list[dict[str, Any]] | None:
 def _chat_log_message_records(chat_log: Any) -> list[Message]:
     """Return normalized message records for the current chat log content."""
     return [
-        _content_to_message_record(content)
+        parse_message(content)
         for content in getattr(chat_log, "content", [])
     ]
 
 
-def _trim_message_records(
-    records: list[Message],
+def retain_messages(
+    records: Iterable[Message],
     max_history: int | None,
 ) -> list[Message]:
     """Return message records limited to the requested non-system history."""
+    records = list(records)
     if max_history is None or max_history < 1:
         return records
 
-    system_records = [record for record in records if record.role == "system"]
-    history_records = [record for record in records if record.role != "system"]
+    system_records = [record for record in records if isinstance(record, SystemMessage)]
+    history_records = [
+        record for record in records if not isinstance(record, SystemMessage)
+    ]
     if len(history_records) <= max_history:
         return records
 
     start = len(history_records) - max_history
     retained = history_records[start:]
 
-    while retained and retained[0].role == "tool" and start > 0:
+    while retained and isinstance(retained[0], ToolResultMessage) and start > 0:
         start -= 1
         retained = history_records[start:]
 
     return [*system_records, *retained]
-
 
 def _chat_log_messages(
     chat_log: Any,
     max_history: int | None = None,
 ) -> list[dict[str, Any]]:
     """Return OpenAI messages for the current chat log content."""
-    records = _trim_message_records(_chat_log_message_records(chat_log), max_history)
-    return [_message_record_to_openai(record) for record in records]
+    records = retain_messages(_chat_log_message_records(chat_log), max_history)
+    return [serialize_message(record) for record in records]
 
 
 def _response_format_from_structure(structure: Any) -> Mapping[str, Any]:
