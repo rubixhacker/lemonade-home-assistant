@@ -2445,6 +2445,26 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             ),
         )
 
+    def test_llm_plain_text_openai_tool_result_round_trips_without_json_quotes(self) -> None:
+        from homeassistant.components.conversation import ToolResultContent
+
+        llm_module = _require_module("lemonade.llm")
+        openai_message = {
+            "role": "tool",
+            "content": "success",
+            "tool_call_id": "call-1",
+            "name": "HassTurnOn",
+        }
+
+        self.assertEqual(
+            openai_message,
+            llm_module.serialize_message(llm_module.parse_message(openai_message)),
+        )
+        self.assertEqual(
+            '"success"',
+            llm_module.content_to_message(ToolResultContent("success"))["content"],
+        )
+
     def test_llm_message_constructors_freeze_iterable_fields(self) -> None:
         llm_module = _require_module("lemonade.llm")
         parts = [llm_module.ImagePart("image/png", "https://example/image.png")]

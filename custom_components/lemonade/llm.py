@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import inspect
 import json
 from types import MappingProxyType
-from typing import Any, TypeAlias
+from typing import Any, Literal, TypeAlias
 
 from homeassistant.components import conversation
 try:
@@ -72,8 +72,13 @@ class ToolResult:
     value: Any
     tool_call_id: str | None = None
     name: str | None = None
+    content_format: Literal["json", "text"] = "json"
 
     def __post_init__(self) -> None:
+        if self.content_format not in ("json", "text"):
+            raise ValueError(f"Unsupported tool result format: {self.content_format}")
+        if self.content_format == "text" and not isinstance(self.value, str):
+            raise ValueError("Text tool result requires a string value")
         object.__setattr__(self, "value", _deep_freeze(self.value))
 
 
@@ -439,16 +444,18 @@ def parse_message(content: Any) -> Message:
             )
         if role == "tool":
             value = message_content
+            content_format: Literal["json", "text"] = "json"
             if isinstance(value, str):
                 try:
                     value = json_loads(value)
                 except (TypeError, ValueError):
-                    pass
+                    content_format = "text"
             return ToolResultMessage(
                 ToolResult(
                     value,
                     tool_call_id=_value(content, "tool_call_id", "id"),
                     name=_value(content, "name", "tool_name"),
+                    content_format=content_format,
                 )
             )
         raise HomeAssistantError(f"Unsupported OpenAI message role: {role}")
@@ -532,7 +539,11 @@ def serialize_message(message: Message) -> dict[str, Any]:
         tool_result = message.result
         converted = {
             "role": "tool",
-            "content": json_dumps(_jsonable_value(tool_result.value)),
+            "content": (
+                tool_result.value
+                if tool_result.content_format == "text"
+                else json_dumps(_jsonable_value(tool_result.value))
+            ),
         }
         if tool_result.tool_call_id:
             converted["tool_call_id"] = tool_result.tool_call_id
