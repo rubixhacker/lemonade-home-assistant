@@ -5788,55 +5788,58 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 str(raised.exception),
             )
 
-    async def test_transcribe_audio_service_uses_canonical_speech_outcome_for_invalid_response(self) -> None:
+    async def test_transcribe_audio_service_preserves_parsed_response_outcomes(self) -> None:
         import tempfile
 
         from lemonade.const import ATTR_FILE_PATH, CAPABILITY_STT
-
-        services_module = _require_module("lemonade.services")
-        speech_module = _require_module("lemonade.speech")
-
-        response: dict[str, Any] = {"text": None}
-        request_calls: list[dict[str, Any]] = []
+        from lemonade.services import _async_transcribe_audio
 
         class Client:
-            async def transcribe_audio(self, **kwargs: Any) -> dict[str, Any]:
-                raise AssertionError("transcribe_file should call the client")
+            def __init__(self, response: Any) -> None:
+                self.response = response
+                self.calls: list[dict[str, Any]] = []
+
+            async def transcribe_audio(self, **kwargs: Any) -> Any:
+                self.calls.append(kwargs)
+                return self.response
+
+        cases = (
+            ({"text": "turn on lights"}, "turn on lights"),
+            ({"text": None}, None),
+            ({}, None),
+            (["not", "a", "mapping"], None),
+        )
 
         with tempfile.TemporaryDirectory() as tmpdir:
             audio_file = Path(tmpdir) / "speech.wav"
             audio_file.write_bytes(b"speech")
-            entry = _service_entry(Client(), {CAPABILITY_STT: ["catalog-stt"]})
-            hass = FakeServiceHass(entry)
+            for response, expected_text in cases:
+                with self.subTest(response=response):
+                    client = Client(response)
+                    entry = _service_entry(
+                        client, {CAPABILITY_STT: ["catalog-stt"]}
+                    )
+                    hass = FakeServiceHass(entry)
 
-            original_transcribe_file = services_module.transcribe_file
+                    result = await _async_transcribe_audio(
+                        hass,
+                        SimpleNamespace(data={ATTR_FILE_PATH: str(audio_file)}),
+                    )
 
-            async def transcribe_file(client: Any, file_path: Path, **kwargs: Any) -> Any:
-                request_calls.append(
-                    {
-                        "client": client,
-                        "audio": await kwargs["read_file_bytes"](file_path),
-                        "filename": file_path.name,
-                        "model": kwargs["model"],
-                        "language": kwargs["language"],
-                    }
-                )
-                return speech_module.speech_transcription_outcome(response)
-
-            services_module.transcribe_file = transcribe_file
-            try:
-                result = await services_module._async_transcribe_audio(
-                    hass, SimpleNamespace(data={ATTR_FILE_PATH: str(audio_file)})
-                )
-            finally:
-                services_module.transcribe_file = original_transcribe_file
-
-        self.assertEqual(1, len(request_calls))
-        self.assertIsInstance(request_calls[0]["client"], Client)
-        self.assertEqual(b"speech", request_calls[0]["audio"])
-        self.assertEqual("speech.wav", request_calls[0]["filename"])
-        self.assertEqual("catalog-stt", request_calls[0]["model"])
-        self.assertEqual({"text": None, "response": response}, result)
+                    self.assertEqual(
+                        {"text": expected_text, "response": response}, result
+                    )
+                    self.assertEqual(
+                        [
+                            {
+                                "audio": b"speech",
+                                "filename": "speech.wav",
+                                "model": "catalog-stt",
+                                "language": None,
+                            }
+                        ],
+                        client.calls,
+                    )
 
     async def test_direct_services_translate_client_errors_to_home_assistant_error(self) -> None:
         import aiohttp
