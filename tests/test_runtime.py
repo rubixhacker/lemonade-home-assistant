@@ -4763,45 +4763,46 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertIs(False, fields[ATTR_SAVE][0].default)
         self.assertIn(ATTR_FILENAME, fields)
 
-    def test_parse_transcription_response_returns_frozen_result_and_rejects_invalid_text(self) -> None:
+    def test_parse_transcription_response_returns_frozen_closed_outcomes(self) -> None:
         from dataclasses import FrozenInstanceError
 
         from lemonade.speech import (
-            SpeechTranscriptionResult,
-            parse_speech_transcription_result,
+            SpeechTranscriptionFailure,
+            SpeechTranscriptionSuccess,
+            speech_transcription_outcome,
         )
 
-        result = parse_speech_transcription_result(
+        result = speech_transcription_outcome(
             {"text": "turn on lights", "extra": True}
         )
 
-        self.assertIsInstance(result, SpeechTranscriptionResult)
+        self.assertIsInstance(result, SpeechTranscriptionSuccess)
         self.assertEqual("turn on lights", result.text)
         with self.assertRaises(FrozenInstanceError):
             result.text = "changed"  # type: ignore[misc]
-        with self.assertRaisesRegex(KeyError, "text"):
-            parse_speech_transcription_result({})
-        with self.assertRaisesRegex(
-            TypeError,
-            "Lemonade transcription response missing valid text",
+        for response, error_type in (
+            ({}, KeyError),
+            ({"text": None}, TypeError),
+            ({"text": 123}, TypeError),
         ):
-            parse_speech_transcription_result({"text": None})
-        with self.assertRaisesRegex(
-            TypeError,
-            "Lemonade transcription response missing valid text",
-        ):
-            parse_speech_transcription_result({"text": 123})
+            with self.subTest(response=response):
+                failure = speech_transcription_outcome(response)
+                self.assertIsInstance(failure, SpeechTranscriptionFailure)
+                self.assertIsInstance(failure.error, error_type)
+                self.assertEqual(response, failure.response)
 
     async def test_transcription_helpers_build_requests_and_capture_invalid_outcomes(self) -> None:
         import tempfile
 
         from lemonade.speech import (
             SpeechTranscriptionRequest,
+            SpeechTranscriptionFailure,
+            SpeechTranscriptionSuccess,
             file_transcription_request,
             request_speech_transcription,
             stream_transcription_request,
             transcribe_file,
-            transcribe_stream_result,
+            transcribe_stream,
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -4855,13 +4856,8 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             },
             client.kwargs,
         )
-        self.assertIsNone(outcome.text)
-        self.assertFalse(outcome.is_valid)
-        with self.assertRaisesRegex(
-            TypeError,
-            "Lemonade transcription response missing valid text",
-        ):
-            outcome.require_result()
+        self.assertIsInstance(outcome, SpeechTranscriptionFailure)
+        self.assertIsInstance(outcome.error, TypeError)
 
         class ValidClient:
             async def transcribe_audio(self, **kwargs: Any) -> dict[str, Any]:
@@ -4869,13 +4865,14 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 return {"text": "stream text"}
 
         valid_client = ValidClient()
-        stream_result = await transcribe_stream_result(
+        stream_result = await transcribe_stream(
             valid_client,
             audio_stream(),
             model="stream-model",
             language="en",
         )
 
+        self.assertIsInstance(stream_result, SpeechTranscriptionSuccess)
         self.assertEqual("stream text", stream_result.text)
         self.assertEqual(
             {
@@ -4917,34 +4914,33 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_speech_transcription_outcome_is_sum_type_without_nullable_cluster(self) -> None:
         from lemonade.speech import (
-            InvalidSpeechTranscription,
-            ValidSpeechTranscription,
+            SpeechTranscriptionFailure,
+            SpeechTranscriptionSuccess,
             speech_transcription_outcome,
         )
 
-        valid = speech_transcription_outcome({"text": "turn on lights"})
-        invalid = speech_transcription_outcome({"text": None})
+        cases = (
+            ({"text": "turn on lights"}, SpeechTranscriptionSuccess),
+            ({"text": None}, SpeechTranscriptionFailure),
+            ({}, SpeechTranscriptionFailure),
+        )
+        for response, expected_type in cases:
+            with self.subTest(response=response):
+                outcome = speech_transcription_outcome(response)
+                self.assertIsInstance(outcome, expected_type)
+                self.assertEqual(response, outcome.response)
 
-        self.assertIsInstance(valid, ValidSpeechTranscription)
-        self.assertEqual("turn on lights", valid.text)
-        self.assertTrue(valid.is_valid)
-        self.assertIsInstance(invalid, InvalidSpeechTranscription)
-        self.assertIsNone(invalid.text)
-        self.assertFalse(invalid.is_valid)
-        self.assertFalse(hasattr(invalid, "result"))
-        self.assertFalse(hasattr(invalid, "error"))
-        with self.assertRaisesRegex(
-            TypeError,
-            "Lemonade transcription response missing valid text",
-        ):
-            invalid.require_result()
+        success = speech_transcription_outcome({"text": "turn on lights"})
+        failure = speech_transcription_outcome({"text": None})
+        self.assertEqual("turn on lights", success.text)
+        self.assertFalse(hasattr(success, "error"))
+        self.assertFalse(hasattr(failure, "text"))
+        self.assertIsInstance(failure.error, TypeError)
 
     async def test_speech_transcribes_entry_stream_with_resolved_model_and_typed_invalid_outcome(self) -> None:
         from lemonade.speech import (
-            InvalidSpeechTranscription,
             SpeechTranscriptionFailure,
             SpeechTranscriptionSuccess,
-            ValidSpeechTranscription,
             transcribe_entry_stream,
             transcribe_entry_stream_result,
         )
@@ -4987,10 +4983,9 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             language=None,
         )
 
-        self.assertIsInstance(valid, ValidSpeechTranscription)
-        self.assertEqual("stream text", valid.require_result().text)
-        self.assertIsInstance(invalid, InvalidSpeechTranscription)
-        self.assertIsNone(invalid.text)
+        self.assertIsInstance(valid, SpeechTranscriptionSuccess)
+        self.assertEqual("stream text", valid.text)
+        self.assertIsInstance(invalid, SpeechTranscriptionFailure)
         self.assertIsInstance(failure, SpeechTranscriptionFailure)
         with self.assertRaisesRegex(
             TypeError,
@@ -6616,7 +6611,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
         class Client:
             async def transcribe_audio(self, **kwargs: Any) -> dict[str, Any]:
-                raise AssertionError("transcribe_stream_result should call the client")
+                raise AssertionError("transcription helper should call the client")
 
         async def audio_stream() -> Any:
             yield b"audio"

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterable
 import logging
-from typing import Any
+from typing import Any, assert_never
 
 from homeassistant.components import stt
 from homeassistant.core import HomeAssistant
@@ -13,6 +13,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .data import LemonadeConfigEntry
 from .speech import (
     SpeechTranscriptionFailure,
+    SpeechTranscriptionSuccess,
     resolve_speech_transcription_model,
     transcribe_entry_stream_result,
 )
@@ -104,5 +105,6 @@ class LemonadeSTTEntity(stt.SpeechToTextEntity):
         if isinstance(result, SpeechTranscriptionFailure):
             _LOGGER.error("Error transcribing audio with Lemonade: %s", result.error)
             return _error_result()
-
-        return stt.SpeechResult(result.text, stt.SpeechResultState.SUCCESS)
+        if isinstance(result, SpeechTranscriptionSuccess):
+            return stt.SpeechResult(result.text, stt.SpeechResultState.SUCCESS)
+        assert_never(result)

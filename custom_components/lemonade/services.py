@@ -6,7 +6,7 @@ import base64
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, TypeVar, assert_never
 
 import voluptuous as vol
 
@@ -37,6 +37,8 @@ from .service_requests import (
 from .llm import response_assistant_content, serialize_message
 from .speech import (
     SpeechSynthesisRequest,
+    SpeechTranscriptionFailure,
+    SpeechTranscriptionSuccess,
     require_speech_synthesis_model,
     synthesize_speech,
     transcribe_file,
@@ -404,7 +406,11 @@ async def _async_transcribe_audio(
         recipe=TRANSCRIBE_AUDIO_RECIPE,
     )
     outcome = result.value
-    return {"text": outcome.text, "response": outcome.response}
+    if isinstance(outcome, SpeechTranscriptionSuccess):
+        return {"text": outcome.text, "response": outcome.response}
+    if isinstance(outcome, SpeechTranscriptionFailure):
+        return {"text": None, "response": outcome.response}
+    assert_never(outcome)
 
 
 async def _async_text_to_speech(

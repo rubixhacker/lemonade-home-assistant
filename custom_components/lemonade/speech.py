@@ -56,13 +56,6 @@ class SpeechSynthesisResult:
 
 
 @dataclass(frozen=True)
-class SpeechTranscriptionResult:
-    """Validated transcription text returned by Lemonade."""
-
-    text: str
-
-
-@dataclass(frozen=True)
 class SpeechTranscriptionRequest:
     """Prepared Lemonade transcription request payload."""
 
@@ -74,89 +67,21 @@ class SpeechTranscriptionRequest:
 
 @dataclass(frozen=True)
 class SpeechTranscriptionSuccess:
-    """Valid transcription text for speech-to-text adapters."""
+    """A valid Lemonade transcription response."""
 
-    result: SpeechTranscriptionResult
-
-    @property
-    def text(self) -> str:
-        """Return validated transcription text."""
-        return self.result.text
+    text: str
+    response: Any
 
 
 @dataclass(frozen=True)
 class SpeechTranscriptionFailure:
-    """Transcription failure retained for adapter logging."""
+    """A transcription failure retained for adapter logging."""
 
     error: Exception
+    response: Any | None = None
 
 
-SpeechTranscriptionAdapterResult = (
-    SpeechTranscriptionSuccess | SpeechTranscriptionFailure
-)
-
-
-@dataclass(frozen=True)
-class SpeechTranscription:
-    """Typed Lemonade transcription outcome."""
-
-    response: Any
-
-    @property
-    def text(self) -> str | None:
-        """Return transcribed text when this outcome is valid."""
-        raise NotImplementedError
-
-    @property
-    def is_valid(self) -> bool:
-        """Return true when the response contained valid transcription text."""
-        raise NotImplementedError
-
-    def require_result(self) -> SpeechTranscriptionResult:
-        """Return the result or re-raise the invalid response error."""
-        raise NotImplementedError
-
-
-@dataclass(frozen=True)
-class ValidSpeechTranscription(SpeechTranscription):
-    """Transcription outcome with validated text."""
-
-    transcription: SpeechTranscriptionResult
-
-    @property
-    def text(self) -> str:
-        """Return validated transcription text."""
-        return self.transcription.text
-
-    @property
-    def is_valid(self) -> bool:
-        """Return true for valid transcription text."""
-        return True
-
-    def require_result(self) -> SpeechTranscriptionResult:
-        """Return the validated transcription result."""
-        return self.transcription
-
-
-@dataclass(frozen=True)
-class InvalidSpeechTranscription(SpeechTranscription):
-    """Transcription outcome with the parsing failure retained internally."""
-
-    _exception: Exception
-
-    @property
-    def text(self) -> None:
-        """Return no text for invalid transcription responses."""
-        return None
-
-    @property
-    def is_valid(self) -> bool:
-        """Return false for invalid transcription responses."""
-        return False
-
-    def require_result(self) -> SpeechTranscriptionResult:
-        """Raise the transcription parsing failure."""
-        raise self._exception
+SpeechTranscription = SpeechTranscriptionSuccess | SpeechTranscriptionFailure
 
 
 def resolve_speech_synthesis_model(entry: Any, explicit_model: Any = None) -> str | None:
@@ -274,24 +199,17 @@ async def synthesize_entry_speech(
     return await synthesize_speech(entry.runtime_data.client, request)
 
 
-def parse_speech_transcription_result(response: Any) -> SpeechTranscriptionResult:
-    """Parse a Lemonade transcription response into a validated result."""
-    if not isinstance(response, Mapping):
-        raise TypeError(_INVALID_TEXT_ERROR)
-
-    text = response["text"]
-    if not isinstance(text, str):
-        raise TypeError(_INVALID_TEXT_ERROR)
-    return SpeechTranscriptionResult(text)
-
-
 def speech_transcription_outcome(response: Any) -> SpeechTranscription:
-    """Parse a transcription response into a valid or invalid outcome record."""
+    """Parse a Lemonade response into the closed transcription outcome."""
     try:
-        result = parse_speech_transcription_result(response)
+        if not isinstance(response, Mapping):
+            raise TypeError(_INVALID_TEXT_ERROR)
+        text = response["text"]
+        if not isinstance(text, str):
+            raise TypeError(_INVALID_TEXT_ERROR)
     except (KeyError, TypeError) as err:
-        return InvalidSpeechTranscription(response=response, _exception=err)
-    return ValidSpeechTranscription(response=response, transcription=result)
+        return SpeechTranscriptionFailure(error=err, response=response)
+    return SpeechTranscriptionSuccess(text=text, response=response)
 
 
 async def file_transcription_request(
@@ -386,25 +304,6 @@ async def transcribe_stream(
     return await request_speech_transcription(client, request)
 
 
-async def transcribe_stream_result(
-    client: Any,
-    stream: AsyncIterable[bytes],
-    *,
-    model: str,
-    language: str | None,
-    filename: str = "speech.wav",
-) -> SpeechTranscriptionResult:
-    """Transcribe a stream and require a valid text result."""
-    outcome = await transcribe_stream(
-        client,
-        stream,
-        model=model,
-        language=language,
-        filename=filename,
-    )
-    return outcome.require_result()
-
-
 async def transcribe_entry_stream(
     entry: Any,
     stream: AsyncIterable[bytes],
@@ -430,18 +329,15 @@ async def transcribe_entry_stream_result(
     explicit_model: Any = None,
     language: str | None,
     filename: str = "speech.wav",
-) -> SpeechTranscriptionAdapterResult:
-    """Resolve a config entry model and return a typed adapter result."""
+) -> SpeechTranscription:
+    """Resolve a config entry model and retain client failures as outcomes."""
     try:
-        outcome = await transcribe_entry_stream(
+        return await transcribe_entry_stream(
             entry,
             stream,
             explicit_model=explicit_model,
             language=language,
             filename=filename,
         )
-        return SpeechTranscriptionSuccess(outcome.require_result())
     except LEMONADE_CLIENT_EXCEPTIONS as err:
-        return SpeechTranscriptionFailure(err)
-    except (KeyError, TypeError) as err:
         return SpeechTranscriptionFailure(err)
