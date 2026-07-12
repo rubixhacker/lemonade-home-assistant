@@ -26,3 +26,13 @@
 ## Concerns
 
 - The required combined unittest command has a pre-existing/inherited Home Assistant stub import failure in `tests.test_models`; Task 3 runtime tests and both non-test verification gates pass.
+
+## Reviewer fix
+
+- Removed the unused `LemonadeModel.raw` reference to untrusted caller-owned mappings.
+- Made `LemonadeModelCatalog.models` detach from caller containers and made `by_capability` an immutable projection derived from canonical model values.
+- Added regression coverage proving mutations to the original model record, labels list, and response list cannot change runtime state; also verified the capability index rejects mutation.
+- Extended deletion assertions for retired runtime `health`, `raw_models`, and stored `model_view` fields without rejecting the derived `model_view` property.
+- Commit: `09bb038` — Freeze canonical runtime model catalog.
+- Verification: `python3 -m unittest tests.test_runtime -q` ran 144 tests, OK; `python3 -m compileall -q custom_components/lemonade` and `git diff --check` exited 0.
+- The required combined command ran 145 tests but retained the inherited `tests.test_models` import error (`homeassistant.components` missing); the same import error reproduces with `tests.test_models` alone.
