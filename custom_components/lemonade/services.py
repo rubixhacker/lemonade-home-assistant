@@ -33,8 +33,8 @@ from .service_requests import (
     GenerateImageRequest,
     TextToSpeechRequest,
     TranscribeAudioRequest,
-    thaw_chat_messages,
 )
+from .llm import response_assistant_content, serialize_message
 from .speech import (
     SpeechSynthesisRequest,
     require_speech_synthesis_model,
@@ -190,21 +190,6 @@ def _resolve_service_model(
     raise HomeAssistantError(f"No Lemonade {model_label} model is available")
 
 
-def _extract_chat_content(response: dict[str, Any]) -> str | None:
-    """Extract assistant content from an OpenAI-style chat response."""
-    choices = response.get("choices")
-    if not isinstance(choices, list) or not choices:
-        return None
-    first = choices[0]
-    if not isinstance(first, dict):
-        return None
-    message = first.get("message")
-    if not isinstance(message, dict):
-        return None
-    content = message.get("content")
-    return content if isinstance(content, str) else None
-
-
 def _write_image_file(path: Path, image_bytes: bytes) -> None:
     """Create parent directories and write image bytes."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -256,7 +241,7 @@ async def _invoke_chat_completion(
     request = context.request
     return await context.client.chat_completion(
         model=context.model,
-        messages=thaw_chat_messages(request.messages),
+        messages=[serialize_message(message) for message in request.messages],
         temperature=request.temperature,
         max_tokens=request.max_tokens,
     )
@@ -376,7 +361,7 @@ async def _async_chat_completion(
         recipe=CHAT_COMPLETION_RECIPE,
     )
     response = result.value
-    return {"content": _extract_chat_content(response), "response": response}
+    return {"content": response_assistant_content(response), "response": response}
 
 
 async def _async_generate_image(

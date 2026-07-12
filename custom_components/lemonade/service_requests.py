@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from types import MappingProxyType
 from typing import Any
 
 from homeassistant.const import CONF_MODEL
@@ -33,6 +31,7 @@ from .image_result import (
     ProduceImageArtifact,
     ReturnRawImageResponse,
 )
+from .llm import Message, SystemMessage, UserMessage, parse_message
 
 
 @dataclass(frozen=True)
@@ -41,7 +40,7 @@ class ChatCompletionRequest:
 
     entry_id: str | None
     model: str | None
-    messages: tuple[Mapping[str, Any], ...]
+    messages: tuple[Message, ...]
     temperature: Any
     max_tokens: Any
 
@@ -125,11 +124,11 @@ class TextToSpeechRequest:
         )
 
 
-def _chat_messages(data: dict[str, Any]) -> tuple[Mapping[str, Any], ...]:
-    """Build OpenAI-compatible chat messages from service data."""
+def _chat_messages(data: dict[str, Any]) -> tuple[Message, ...]:
+    """Normalize direct chat messages at the Home Assistant intake seam."""
     messages = data.get(ATTR_MESSAGES)
     if messages:
-        return tuple(_immutable_message(message) for message in messages)
+        return tuple(parse_message(message) for message in messages)
 
     prompt = data.get(ATTR_PROMPT)
     if not prompt:
@@ -137,48 +136,8 @@ def _chat_messages(data: dict[str, Any]) -> tuple[Mapping[str, Any], ...]:
             f"Either '{ATTR_PROMPT}' or '{ATTR_MESSAGES}' is required"
         )
 
-    built_messages: list[dict[str, Any]] = []
+    built_messages: list[Message] = []
     if system_prompt := data.get(ATTR_SYSTEM_PROMPT):
-        built_messages.append({"role": "system", "content": system_prompt})
-    built_messages.append({"role": "user", "content": prompt})
-    return tuple(_immutable_message(message) for message in built_messages)
-
-
-def thaw_chat_messages(messages: tuple[Mapping[str, Any], ...]) -> list[dict[str, Any]]:
-    """Return mutable OpenAI-compatible chat message payloads."""
-    return [_mutable_mapping(message) for message in messages]
-
-
-def _immutable_message(message: Mapping[str, Any]) -> Mapping[str, Any]:
-    """Return an immutable copy of one chat message."""
-    return _immutable_mapping(message)
-
-
-def _immutable_mapping(value: Mapping[str, Any]) -> Mapping[str, Any]:
-    """Return an immutable deep copy of a mapping."""
-    return MappingProxyType(
-        {key: _immutable_value(mapping_value) for key, mapping_value in value.items()}
-    )
-
-
-def _immutable_value(value: Any) -> Any:
-    """Return an immutable deep copy of a service request value."""
-    if isinstance(value, Mapping):
-        return _immutable_mapping(value)
-    if isinstance(value, (list, tuple)):
-        return tuple(_immutable_value(item) for item in value)
-    return value
-
-
-def _mutable_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
-    """Return a mutable deep copy of an immutable mapping."""
-    return {key: _mutable_value(mapping_value) for key, mapping_value in value.items()}
-
-
-def _mutable_value(value: Any) -> Any:
-    """Return a mutable deep copy of an immutable request value."""
-    if isinstance(value, Mapping):
-        return _mutable_mapping(value)
-    if isinstance(value, tuple):
-        return [_mutable_value(item) for item in value]
-    return value
+        built_messages.append(SystemMessage(system_prompt))
+    built_messages.append(UserMessage(prompt))
+    return tuple(built_messages)

@@ -5161,6 +5161,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         from homeassistant.const import CONF_MODEL
         from homeassistant.exceptions import HomeAssistantError
         from lemonade.const import ATTR_MESSAGES, ATTR_PROMPT, ATTR_SYSTEM_PROMPT
+        from lemonade.llm import SystemMessage, UserMessage
         from lemonade.service_requests import ChatCompletionRequest
 
         request = ChatCompletionRequest.from_service_call(
@@ -5179,8 +5180,8 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("chat-model", request.model)
         self.assertEqual(
             (
-                {"role": "system", "content": "Be concise"},
-                {"role": "user", "content": "Hello"},
+                SystemMessage("Be concise"),
+                UserMessage("Hello"),
             ),
             request.messages,
         )
@@ -5202,58 +5203,71 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
 
         message_data[ATTR_MESSAGES][0]["content"] = "Changed outside"
-        self.assertEqual("Original", request.messages[0]["content"])
-        with self.assertRaises(TypeError):
-            request.messages[0]["content"] = "Changed through request"
+        self.assertEqual(UserMessage("Original"), request.messages[0])
 
-    def test_chat_completion_request_deep_freezes_nested_messages(self) -> None:
+    def test_chat_completion_request_normalizes_all_supported_message_variants(self) -> None:
         from lemonade.const import ATTR_MESSAGES
+        from lemonade.llm import (
+            AssistantMessage,
+            ImagePart,
+            SystemMessage,
+            ToolCall,
+            ToolResult,
+            ToolResultMessage,
+            UserMessage,
+        )
         from lemonade.service_requests import ChatCompletionRequest
 
-        message_data = {
-            ATTR_MESSAGES: [
+        cases = (
+            ({"role": "system", "content": "rules"}, SystemMessage("rules")),
+            ({"role": "user", "content": "hello"}, UserMessage("hello")),
+            (
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "look"},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": "data:image/png;base64,AA=="},
+                        },
+                    ],
+                },
+                UserMessage(
+                    "look",
+                    (ImagePart("image/png", "data:image/png;base64,AA=="),),
+                ),
+            ),
+            (
                 {
                     "role": "assistant",
-                    "content": [{"type": "text", "text": "Original"}],
+                    "content": None,
                     "tool_calls": [
                         {
                             "id": "call-1",
+                            "type": "function",
                             "function": {
                                 "name": "turn_on",
-                                "arguments": {"entity_id": "light.kitchen"},
+                                "arguments": '{"entity_id":"light.kitchen"}',
                             },
                         }
                     ],
-                }
-            ],
-        }
-        request = ChatCompletionRequest.from_service_call(
-            SimpleNamespace(data=message_data)
+                },
+                AssistantMessage(
+                    None,
+                    (ToolCall("call-1", "turn_on", {"entity_id": "light.kitchen"}),),
+                ),
+            ),
+            (
+                {"role": "tool", "tool_call_id": "call-1", "content": '{"ok":true}'},
+                ToolResultMessage(ToolResult({"ok": True}, tool_call_id="call-1")),
+            ),
         )
-
-        message_data[ATTR_MESSAGES][0]["content"][0]["text"] = "Changed outside"
-        message_data[ATTR_MESSAGES][0]["tool_calls"][0]["function"]["name"] = "turn_off"
-        message_data[ATTR_MESSAGES][0]["tool_calls"][0]["function"]["arguments"][
-            "entity_id"
-        ] = "light.dining"
-
-        self.assertEqual("Original", request.messages[0]["content"][0]["text"])
-        self.assertEqual(
-            "turn_on",
-            request.messages[0]["tool_calls"][0]["function"]["name"],
-        )
-        self.assertEqual(
-            "light.kitchen",
-            request.messages[0]["tool_calls"][0]["function"]["arguments"]["entity_id"],
-        )
-        with self.assertRaises(TypeError):
-            request.messages[0]["content"][0]["text"] = "Changed through request"
-        with self.assertRaises(AttributeError):
-            request.messages[0]["content"].append({"type": "text", "text": "New"})
-        with self.assertRaises(TypeError):
-            request.messages[0]["tool_calls"][0]["function"]["arguments"][
-                "entity_id"
-            ] = "light.porch"
+        for raw, expected in cases:
+            with self.subTest(role=raw["role"]):
+                request = ChatCompletionRequest.from_service_call(
+                    SimpleNamespace(data={ATTR_MESSAGES: [raw]})
+                )
+                self.assertEqual((expected,), request.messages)
 
     def test_direct_service_requests_parse_service_call_data_once(self) -> None:
         from dataclasses import FrozenInstanceError
