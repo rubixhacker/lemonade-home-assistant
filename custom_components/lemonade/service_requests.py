@@ -31,7 +31,13 @@ from .image_result import (
     ProduceImageArtifact,
     ReturnRawImageResponse,
 )
-from .llm import Message, SystemMessage, UserMessage, parse_message
+from .chat_messages import (
+    Message,
+    MessageParseError,
+    SystemMessage,
+    UserMessage,
+    parse_openai_message,
+)
 
 
 @dataclass(frozen=True)
@@ -128,7 +134,10 @@ def _chat_messages(data: dict[str, Any]) -> tuple[Message, ...]:
     """Normalize direct chat messages at the Home Assistant intake seam."""
     messages = data.get(ATTR_MESSAGES)
     if messages:
-        return tuple(parse_message(message) for message in messages)
+        try:
+            return tuple(parse_openai_message(message) for message in messages)
+        except MessageParseError as err:
+            raise HomeAssistantError(str(err)) from err
 
     prompt = data.get(ATTR_PROMPT)
     if not prompt:

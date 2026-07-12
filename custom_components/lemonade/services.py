@@ -34,7 +34,7 @@ from .service_requests import (
     TextToSpeechRequest,
     TranscribeAudioRequest,
 )
-from .llm import response_assistant_content, serialize_message
+from .chat_messages import response_assistant_content, serialize_message
 from .speech import (
     SpeechSynthesisRequest,
     SpeechTranscriptionFailure,

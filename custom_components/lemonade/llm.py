@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import inspect
 import json
 from types import MappingProxyType
-from typing import Any, Literal, TypeAlias
+from typing import Any, Literal
 
 from homeassistant.components import conversation
 try:
@@ -39,98 +39,25 @@ except ImportError:  # pragma: no cover - Home Assistant always provides this
     json_loads = json.loads
 from voluptuous_openapi import convert
 
+from .chat_messages import (
+    AssistantMessage,
+    ImagePart,
+    Message,
+    MessageParseError,
+    SystemMessage,
+    ToolCall,
+    ToolResult,
+    ToolResultMessage,
+    UserMessage,
+    parse_openai_message,
+    response_assistant_content,
+    serialize_message,
+)
+
 MAX_TOOL_ITERATIONS = 10
 
 
 _IMAGES_MIME_PREFIX = "image/"
-
-
-@dataclass(frozen=True)
-class ImagePart:
-    """Normalized image attachment content for LLM messages."""
-
-    mime_type: str
-    url: str
-
-
-@dataclass(frozen=True)
-class ToolCall:
-    """Normalized tool call parsed from HA or OpenAI interop shapes."""
-
-    id: str | None
-    name: str
-    arguments: Any
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "arguments", _deep_freeze(self.arguments))
-
-
-@dataclass(frozen=True)
-class ToolResult:
-    """Normalized tool result parsed from HA interop shapes."""
-
-    value: Any
-    tool_call_id: str | None = None
-    name: str | None = None
-    content_format: Literal["json", "text"] = "json"
-
-    def __post_init__(self) -> None:
-        if self.content_format not in ("json", "text"):
-            raise ValueError(f"Unsupported tool result format: {self.content_format}")
-        if self.content_format == "text" and not isinstance(self.value, str):
-            raise ValueError("Text tool result requires a string value")
-        object.__setattr__(self, "value", _deep_freeze(self.value))
-
-
-@dataclass(frozen=True)
-class SystemMessage:
-    """Normalized system instruction."""
-
-    content: str
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.content, str):
-            raise ValueError("System message content must be a string")
-
-
-@dataclass(frozen=True)
-class UserMessage:
-    """Normalized user text with optional image attachments."""
-
-    content: str
-    parts: tuple[ImagePart, ...] = ()
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.content, str):
-            raise ValueError("User message content must be a string")
-        object.__setattr__(self, "parts", tuple(self.parts))
-
-
-@dataclass(frozen=True)
-class AssistantMessage:
-    """Normalized assistant text and tool calls."""
-
-    content: str | None
-    tool_calls: tuple[ToolCall, ...] = ()
-
-    def __post_init__(self) -> None:
-        if self.content is not None and not isinstance(self.content, str):
-            raise ValueError("Assistant message content must be a string or None")
-        object.__setattr__(self, "tool_calls", tuple(self.tool_calls))
-        if self.content is None and not self.tool_calls:
-            raise ValueError("Assistant message requires content or tool calls")
-
-
-@dataclass(frozen=True)
-class ToolResultMessage:
-    """Normalized tool result and its optional call identity."""
-
-    result: ToolResult
-
-
-Message: TypeAlias = (
-    SystemMessage | UserMessage | AssistantMessage | ToolResultMessage
-)
 
 
 @dataclass(frozen=True)
@@ -298,28 +225,6 @@ def _image_part_from_attachment(attachment: Any) -> ImagePart:
     )
 
 
-def _image_part_to_openai(image_part: ImagePart) -> dict[str, Any]:
-    """Convert a normalized image part into an OpenAI content part."""
-    return {"type": "image_url", "image_url": {"url": image_part.url}}
-
-
-def _image_part_from_openai(part: Mapping[str, Any]) -> ImagePart:
-    """Parse an OpenAI image content part into normalized image data."""
-    image_url = part.get("image_url")
-    url = _value(image_url, "url")
-    if not isinstance(url, str) or not url:
-        raise HomeAssistantError("Unsupported image content part: missing URL")
-    mime_type = "image/unknown"
-    if url.startswith("data:image/"):
-        mime_type = url[5:].split(";", 1)[0]
-    return ImagePart(mime_type, url)
-
-
-def _attachment_to_content_part(attachment: Any) -> dict[str, Any]:
-    """Convert a user attachment into an OpenAI content part."""
-    return _image_part_to_openai(_image_part_from_attachment(attachment))
-
-
 def _tool_call_record_from_interop(tool_call: Any) -> ToolCall:
     """Parse an OpenAI/HA tool call into a normalized record."""
     tool_call_id = _value(tool_call, "id", "tool_call_id")
@@ -342,42 +247,6 @@ def _parse_tool_arguments(arguments: Any) -> Any:
         return json_loads(arguments)
     except (TypeError, ValueError):
         return arguments
-
-
-def _extract_tool_call(tool_call: Any) -> tuple[str | None, str | None, Any]:
-    """Return an OpenAI/HA tool call's id, name, and arguments."""
-    parsed = (
-        tool_call if isinstance(tool_call, ToolCall)
-        else _tool_call_record_from_interop(tool_call)
-    )
-    return parsed.id, parsed.name, parsed.arguments
-
-
-def _arguments_to_json(arguments: Any) -> str:
-    """Return tool-call arguments encoded as an OpenAI JSON string."""
-    if isinstance(arguments, str):
-        return arguments
-    if arguments is None:
-        arguments = {}
-    return json_dumps(_jsonable_value(arguments))
-
-
-def _tool_call_to_openai(tool_call: Any) -> dict[str, Any]:
-    """Convert a Home Assistant tool call to an OpenAI tool_call object."""
-    parsed = (
-        tool_call if isinstance(tool_call, ToolCall)
-        else _tool_call_record_from_interop(tool_call)
-    )
-    converted = {
-        "type": "function",
-        "function": {
-            "name": parsed.name,
-            "arguments": _arguments_to_json(parsed.arguments),
-        },
-    }
-    if parsed.id:
-        converted["id"] = parsed.id
-    return converted
 
 
 def _arguments_to_dict(arguments: Any) -> dict[str, Any]:
@@ -420,69 +289,10 @@ def _tool_call_to_tool_input(tool_call: Any) -> Any:
 def parse_message(content: Any) -> Message:
     """Parse Home Assistant conversation content into a normalized message."""
     if isinstance(content, Mapping):
-        role = content.get("role")
-        message_content = content.get("content")
-        if role == "system":
-            if not isinstance(message_content, str):
-                raise HomeAssistantError(
-                    "Unsupported OpenAI system message content"
-                )
-            return SystemMessage(message_content)
-        if role == "user":
-            if isinstance(message_content, str) or message_content is None:
-                return UserMessage("" if message_content is None else message_content)
-            if not isinstance(message_content, (list, tuple)):
-                raise HomeAssistantError("Unsupported OpenAI user message content")
-            text_parts: list[str] = []
-            image_parts: list[ImagePart] = []
-            for part in message_content:
-                if not isinstance(part, Mapping):
-                    raise HomeAssistantError("Unsupported OpenAI user content part")
-                if part.get("type") == "text":
-                    text = part.get("text")
-                    if not isinstance(text, str):
-                        raise HomeAssistantError(
-                            "Unsupported OpenAI user text content part"
-                        )
-                    text_parts.append(text)
-                    continue
-                if part.get("type") == "image_url":
-                    image_parts.append(_image_part_from_openai(part))
-                    continue
-                raise HomeAssistantError("Unsupported OpenAI user content part")
-            return UserMessage("".join(text_parts), image_parts)
-        if role == "assistant":
-            tool_calls = content.get("tool_calls") or ()
-            if message_content is not None and not isinstance(message_content, str):
-                raise HomeAssistantError(
-                    "Unsupported OpenAI assistant message content"
-                )
-            try:
-                return AssistantMessage(
-                    message_content,
-                    tuple(_tool_call_record_from_interop(call) for call in tool_calls),
-                )
-            except ValueError as err:
-                raise HomeAssistantError(
-                    "Unsupported OpenAI assistant message content"
-                ) from err
-        if role == "tool":
-            value = message_content
-            content_format: Literal["json", "text"] = "json"
-            if isinstance(value, str):
-                try:
-                    value = json_loads(value)
-                except (TypeError, ValueError):
-                    content_format = "text"
-            return ToolResultMessage(
-                ToolResult(
-                    value,
-                    tool_call_id=_value(content, "tool_call_id", "id"),
-                    name=_value(content, "name", "tool_name"),
-                    content_format=content_format,
-                )
-            )
-        raise HomeAssistantError(f"Unsupported OpenAI message role: {role}")
+        try:
+            return parse_openai_message(content)
+        except MessageParseError as err:
+            raise HomeAssistantError(str(err)) from err
 
     if _is_content(content, SystemContent, "SystemContent"):
         return SystemMessage(_value(content, "content", default="") or "")
@@ -526,60 +336,6 @@ def parse_message(content: Any) -> Message:
     )
 
 
-def serialize_message(message: Message) -> dict[str, Any]:
-    """Convert a normalized message into an OpenAI message."""
-    if isinstance(message, SystemMessage):
-        return {"role": "system", "content": message.content}
-
-    if isinstance(message, UserMessage):
-        if not message.parts:
-            return {
-                "role": "user",
-                "content": message.content if message.content is not None else "",
-            }
-
-        parts: list[dict[str, Any]] = []
-        if message.content:
-            parts.append({"type": "text", "text": message.content})
-        parts.extend(_image_part_to_openai(image_part) for image_part in message.parts)
-        return {"role": "user", "content": parts}
-
-    if isinstance(message, AssistantMessage):
-        converted: dict[str, Any] = {
-            "role": "assistant",
-            "content": (
-                ""
-                if message.content is None and not message.tool_calls
-                else message.content
-            ),
-        }
-        if message.tool_calls:
-            converted["tool_calls"] = [
-                _tool_call_to_openai(tool_call) for tool_call in message.tool_calls
-            ]
-        return converted
-
-    if isinstance(message, ToolResultMessage):
-        tool_result = message.result
-        converted = {
-            "role": "tool",
-            "content": (
-                tool_result.value
-                if tool_result.content_format == "text"
-                else json_dumps(_jsonable_value(tool_result.value))
-            ),
-        }
-        if tool_result.tool_call_id:
-            converted["tool_call_id"] = tool_result.tool_call_id
-        if tool_result.name:
-            converted["name"] = tool_result.name
-        return converted
-
-    raise HomeAssistantError(
-        f"Unsupported normalized message: {message.__class__.__name__}"
-    )
-
-
 def content_to_message(content: Any) -> dict[str, Any]:
     """Convert Home Assistant conversation content to an OpenAI message."""
     return serialize_message(parse_message(content))
@@ -595,15 +351,6 @@ def _response_message(response: Mapping[str, Any]) -> Mapping[str, Any] | None:
         return None
     message = first.get("message") or first.get("delta")
     return message if isinstance(message, Mapping) else None
-
-
-def response_assistant_content(response: Mapping[str, Any]) -> str | None:
-    """Project assistant text from the first OpenAI response message."""
-    message = _response_message(response)
-    if message is None:
-        return None
-    content = message.get("content")
-    return content if isinstance(content, str) else None
 
 
 def response_to_delta(
