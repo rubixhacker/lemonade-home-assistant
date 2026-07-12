@@ -103,13 +103,28 @@ class ToolResultMessage:
 Message: TypeAlias = SystemMessage | UserMessage | AssistantMessage | ToolResultMessage
 
 
+def _mapping_value(
+    value: Mapping[str, Any], *names: str, default: Any = None
+) -> Any:
+    """Return the first present mapping value, preserving explicit nulls."""
+    for name in names:
+        if name in value:
+            return value[name]
+    return default
+
+
 def _tool_call(raw: Any) -> ToolCall:
     if not isinstance(raw, Mapping):
         raise MessageParseError("Unsupported OpenAI tool call")
     function = raw.get("function")
     source = function if isinstance(function, Mapping) else raw
-    name = source.get("name", source.get("tool_name", ""))
-    arguments = source.get("arguments", source.get("tool_args", {}))
+    name = _mapping_value(source, "name", "tool_name", default="")
+    argument_names = (
+        ("arguments", "args", "tool_args")
+        if isinstance(function, Mapping)
+        else ("arguments", "args", "tool_args", "input")
+    )
+    arguments = _mapping_value(source, *argument_names, default={})
     if isinstance(arguments, str):
         try:
             arguments = json.loads(arguments)
@@ -231,8 +246,8 @@ def serialize_message(message: Message) -> dict[str, Any]:
     assert_never(message)
 
 
-def response_assistant_content(response: Mapping[str, Any]) -> str | None:
-    """Project first-message assistant text without parsing optional metadata."""
+def response_message(response: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    """Return the first OpenAI response message or delta mapping."""
     choices = response.get("choices")
     if not isinstance(choices, list) or not choices:
         return None
@@ -240,7 +255,13 @@ def response_assistant_content(response: Mapping[str, Any]) -> str | None:
     if not isinstance(first, Mapping):
         return None
     message = first.get("message") or first.get("delta")
-    if not isinstance(message, Mapping):
+    return message if isinstance(message, Mapping) else None
+
+
+def response_assistant_content(response: Mapping[str, Any]) -> str | None:
+    """Project first-message assistant text without parsing optional metadata."""
+    message = response_message(response)
+    if message is None:
         return None
     content = message.get("content")
     return content if isinstance(content, str) else None

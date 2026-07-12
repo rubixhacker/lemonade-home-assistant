@@ -2776,9 +2776,48 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaises(ValueError):
             llm_module.AssistantMessage(None)
-
         self.assertEqual("", llm_module.AssistantMessage("").content)
 
+    def test_llm_tool_call_argument_aliases_round_trip_to_canonical_arguments(self) -> None:
+        llm_module = _require_module("lemonade.llm")
+        expected_arguments = {"entity_id": "light.kitchen"}
+        cases = (
+            (
+                "nested arguments",
+                {"function": {"name": "turn_on", "arguments": expected_arguments}},
+            ),
+            (
+                "nested args",
+                {"function": {"name": "turn_on", "args": expected_arguments}},
+            ),
+            (
+                "nested tool_args",
+                {"function": {"name": "turn_on", "tool_args": expected_arguments}},
+            ),
+            (
+                "top-level arguments",
+                {"name": "turn_on", "arguments": expected_arguments},
+            ),
+            ("top-level args", {"name": "turn_on", "args": expected_arguments}),
+            (
+                "top-level tool_args",
+                {"name": "turn_on", "tool_args": expected_arguments},
+            ),
+            ("top-level input", {"name": "turn_on", "input": expected_arguments}),
+        )
+
+        for label, tool_call in cases:
+            with self.subTest(alias=label):
+                message = llm_module.parse_message(
+                    {"role": "assistant", "content": None, "tool_calls": [tool_call]}
+                )
+                serialized = llm_module.serialize_message(message)
+
+                self.assertEqual(expected_arguments, message.tool_calls[0].arguments)
+                self.assertEqual(
+                    expected_arguments,
+                    json.loads(serialized["tool_calls"][0]["function"]["arguments"]),
+                )
     def test_llm_message_constructors_reject_non_string_content(self) -> None:
         llm_module = _require_module("lemonade.llm")
 

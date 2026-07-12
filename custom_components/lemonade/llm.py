@@ -51,6 +51,7 @@ from .chat_messages import (
     UserMessage,
     parse_openai_message,
     response_assistant_content,
+    response_message,
     serialize_message,
 )
 
@@ -341,23 +342,11 @@ def content_to_message(content: Any) -> dict[str, Any]:
     return serialize_message(parse_message(content))
 
 
-def _response_message(response: Mapping[str, Any]) -> Mapping[str, Any] | None:
-    """Return the first OpenAI response message from a chat completion."""
-    choices = response.get("choices")
-    if not isinstance(choices, list) or not choices:
-        return None
-    first = choices[0]
-    if not isinstance(first, Mapping):
-        return None
-    message = first.get("message") or first.get("delta")
-    return message if isinstance(message, Mapping) else None
-
-
 def response_to_delta(
     response: Mapping[str, Any],
 ) -> AssistantContentDeltaDict | None:
     """Return an HA assistant delta from a non-streaming OpenAI chat response."""
-    message = _response_message(response)
+    message = response_message(response)
     if message is None:
         return None
 
