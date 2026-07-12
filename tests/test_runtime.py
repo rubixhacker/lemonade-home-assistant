@@ -10,6 +10,7 @@ import sys
 from types import MappingProxyType, ModuleType, SimpleNamespace
 from typing import Any
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "custom_components"))
 
@@ -881,7 +882,7 @@ class ServerCapabilityViewTest(unittest.TestCase):
         self.assertEqual(1, view.model_count(CAPABILITY_IMAGE))
         self.assertTrue(view.has_models(CAPABILITY_IMAGE))
         self.assertEqual(3, view.total_model_count)
-        self.assertIs(runtime_state.model_view, view)
+        self.assertIs(runtime_state.catalog, view.catalog)
 
     def test_entry_default_model_ignores_stale_fallback_option(
         self,
@@ -956,10 +957,55 @@ class ServerCapabilityViewTest(unittest.TestCase):
         coordinator.data = data
 
         self.assertIsInstance(data, LemonadeRuntimeState)
-        self.assertEqual({"status": "ok"}, data.health)
-        self.assertEqual("voice-model", data.raw_models["data"][0]["id"])
+        self.assertEqual("ok", data.server_status)
+        self.assertIs(data.catalog, data.model_view.catalog)
         self.assertEqual(["voice-model"], coordinator.model_view.model_ids(CAPABILITY_TTS))
         self.assertEqual(1, coordinator.model_view.model_count(CAPABILITY_TTS))
+
+    def test_runtime_state_parses_semantic_health_status(self) -> None:
+        from lemonade.coordinator import LemonadeRuntimeState
+
+        for health, expected in (
+            ({"status": "ok"}, "ok"),
+            ({}, None),
+            ({"status": 200}, None),
+        ):
+            with self.subTest(health=health):
+                state = LemonadeRuntimeState.from_server_payload(health, {})
+
+                self.assertEqual(expected, state.server_status)
+
+    def test_runtime_state_has_no_raw_or_duplicate_model_fields(self) -> None:
+        from lemonade.coordinator import LemonadeRuntimeState
+
+        state = LemonadeRuntimeState.from_server_payload(
+            {"status": "ok"},
+            {"data": [{"id": "chat", "recipe": "llamacpp"}]},
+        )
+
+        self.assertNotIn("raw_models", LemonadeRuntimeState.__dataclass_fields__)
+        self.assertNotIn("model_view", LemonadeRuntimeState.__dataclass_fields__)
+        self.assertIs(state.catalog, state.model_view.catalog)
+        production_sources = (
+            Path(__file__).resolve().parents[1] / "custom_components" / "lemonade"
+        ).glob("*.py")
+        self.assertFalse(
+            any(".raw_models" in source.read_text() for source in production_sources)
+        )
+
+    def test_runtime_state_parses_model_payload_once(self) -> None:
+        from lemonade.coordinator import LemonadeRuntimeState
+        from lemonade.models import parse_models_response
+
+        payload = {"data": [{"id": "chat", "recipe": "llamacpp"}]}
+        with patch(
+            "lemonade.coordinator.parse_models_response",
+            wraps=parse_models_response,
+        ) as parse:
+            state = LemonadeRuntimeState.from_server_payload({"status": "ok"}, payload)
+
+        parse.assert_called_once_with(payload)
+        self.assertEqual(["chat"], state.catalog.all_model_ids)
 
 
 class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
@@ -4599,10 +4645,9 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         coordinator.data = data
 
         self.assertIsInstance(data, LemonadeRuntimeState)
-        self.assertEqual({"status": "ok"}, data.health)
-        self.assertEqual("voice-model", data.raw_models["data"][0]["id"])
+        self.assertEqual("ok", data.server_status)
+        self.assertIs(data.catalog, data.model_view.catalog)
         self.assertEqual(["voice-model"], data.catalog.model_ids(CAPABILITY_TTS))
-        self.assertEqual({"status": "ok"}, coordinator.health)
         self.assertEqual(["voice-model"], coordinator.catalog.model_ids(CAPABILITY_TTS))
         self.assertEqual("ok", coordinator.server_status)
         self.assertEqual(

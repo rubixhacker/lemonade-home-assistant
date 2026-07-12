@@ -23,10 +23,13 @@ _LOGGER = logging.getLogger(__name__)
 class LemonadeRuntimeState:
     """Runtime state for a configured Lemonade Server Entry."""
 
-    health: dict[str, Any]
-    raw_models: Any
+    server_status: str | None
     catalog: LemonadeModelCatalog
-    model_view: RuntimeModelView
+
+    @property
+    def model_view(self) -> RuntimeModelView:
+        """Derive the runtime model view from the canonical catalog."""
+        return RuntimeModelView(self.catalog)
 
     @classmethod
     def from_server_payload(
@@ -35,12 +38,10 @@ class LemonadeRuntimeState:
         raw_models: Any,
     ) -> "LemonadeRuntimeState":
         """Build runtime state from Lemonade Server responses."""
-        catalog = parse_models_response(raw_models)
+        status = health.get("status")
         return cls(
-            health=health,
-            raw_models=raw_models,
-            catalog=catalog,
-            model_view=RuntimeModelView(catalog),
+            server_status=status if isinstance(status, str) else None,
+            catalog=parse_models_response(raw_models),
         )
 
 
@@ -75,11 +76,6 @@ class LemonadeCoordinator(DataUpdateCoordinator[LemonadeRuntimeState]):
         return self.data if isinstance(self.data, LemonadeRuntimeState) else None
 
     @property
-    def health(self) -> dict[str, Any]:
-        """Return the latest Lemonade Server health."""
-        return self.runtime_state.health if self.runtime_state is not None else {}
-
-    @property
     def catalog(self) -> LemonadeModelCatalog:
         """Return the latest parsed Lemonade model catalog."""
         if self.runtime_state is not None:
@@ -96,5 +92,6 @@ class LemonadeCoordinator(DataUpdateCoordinator[LemonadeRuntimeState]):
     @property
     def server_status(self) -> str | None:
         """Return the latest Lemonade Server status string."""
-        status = self.health.get("status")
-        return status if isinstance(status, str) else None
+        if self.runtime_state is not None:
+            return self.runtime_state.server_status
+        return None
