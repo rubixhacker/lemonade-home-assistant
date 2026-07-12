@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from types import MappingProxyType
 from typing import Any
 
 from .const import (
@@ -94,7 +95,6 @@ class LemonadeModel:
     labels: frozenset[str]
     recipe: str
     downloaded: bool
-    raw: Mapping[str, Any]
 
     @property
     def is_llm(self) -> bool:
@@ -107,7 +107,22 @@ class LemonadeModelCatalog:
     """Parsed Lemonade models grouped by capability."""
 
     models: tuple[LemonadeModel, ...]
-    by_capability: Mapping[Capability, tuple[LemonadeModel, ...]]
+
+    def __post_init__(self) -> None:
+        """Detach the canonical model sequence from caller-owned containers."""
+        object.__setattr__(self, "models", tuple(self.models))
+
+    @property
+    def by_capability(self) -> Mapping[Capability, tuple[LemonadeModel, ...]]:
+        """Derive an immutable capability index from canonical models."""
+        return MappingProxyType(
+            {
+                capability: tuple(
+                    model for model in self.models if capability in _capabilities(model)
+                )
+                for capability in CAPABILITY_ORDER
+            }
+        )
 
     @property
     def all_model_ids(self) -> list[str]:
@@ -199,9 +214,6 @@ def _capabilities(model: LemonadeModel) -> tuple[Capability, ...]:
 def parse_models_response(response: Any) -> LemonadeModelCatalog:
     """Parse a Lemonade models response into a capability catalog."""
     models: list[LemonadeModel] = []
-    by_capability: dict[Capability, list[LemonadeModel]] = {
-        capability: [] for capability in CAPABILITY_ORDER
-    }
 
     for raw in _raw_models(response):
         if not isinstance(raw, Mapping):
@@ -220,17 +232,7 @@ def parse_models_response(response: Any) -> LemonadeModelCatalog:
             labels=_labels(raw),
             recipe=_recipe(raw),
             downloaded=True,
-            raw=raw,
         )
         models.append(model)
 
-        for capability in _capabilities(model):
-            by_capability[capability].append(model)
-
-    return LemonadeModelCatalog(
-        models=tuple(models),
-        by_capability={
-            capability: tuple(capability_models)
-            for capability, capability_models in by_capability.items()
-        },
-    )
+    return LemonadeModelCatalog(models=tuple(models))

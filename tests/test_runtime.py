@@ -526,6 +526,7 @@ from lemonade.const import (  # noqa: E402
     CAPABILITY_CONVERSATION,
     CAPABILITY_IMAGE,
     CAPABILITY_STT,
+    CAPABILITY_TOOL_CALLING,
     CAPABILITY_TTS,
     CONF_DEFAULT_AI_TASK_MODEL,
     CONF_DEFAULT_CONVERSATION_MODEL,
@@ -977,21 +978,50 @@ class ServerCapabilityViewTest(unittest.TestCase):
 
     def test_runtime_state_has_no_raw_or_duplicate_model_fields(self) -> None:
         from lemonade.coordinator import LemonadeRuntimeState
+        from lemonade.models import LemonadeModel
 
         state = LemonadeRuntimeState.from_server_payload(
             {"status": "ok"},
             {"data": [{"id": "chat", "recipe": "llamacpp"}]},
         )
 
+        self.assertNotIn("health", LemonadeRuntimeState.__dataclass_fields__)
         self.assertNotIn("raw_models", LemonadeRuntimeState.__dataclass_fields__)
         self.assertNotIn("model_view", LemonadeRuntimeState.__dataclass_fields__)
+        self.assertNotIn("raw", LemonadeModel.__dataclass_fields__)
         self.assertIs(state.catalog, state.model_view.catalog)
-        production_sources = (
-            Path(__file__).resolve().parents[1] / "custom_components" / "lemonade"
-        ).glob("*.py")
-        self.assertFalse(
-            any(".raw_models" in source.read_text() for source in production_sources)
+        production_text = "\n".join(
+            source.read_text()
+            for source in (
+                Path(__file__).resolve().parents[1]
+                / "custom_components"
+                / "lemonade"
+            ).glob("*.py")
         )
+        self.assertNotIn(".raw_models", production_text)
+        self.assertNotIn("runtime_state.health", production_text)
+        self.assertNotIn("coordinator.health", production_text)
+
+    def test_runtime_state_is_unchanged_when_server_payload_mutates(self) -> None:
+        from lemonade.coordinator import LemonadeRuntimeState
+
+        model = {
+            "id": "chat",
+            "recipe": "llamacpp",
+            "labels": ["tool-calling"],
+        }
+        payload = {"data": [model]}
+        state = LemonadeRuntimeState.from_server_payload({"status": "ok"}, payload)
+
+        model["id"] = "changed"
+        model["labels"].append("image")
+        payload["data"].clear()
+
+        self.assertEqual(["chat"], state.catalog.all_model_ids)
+        self.assertEqual(["chat"], state.model_view.model_ids(CAPABILITY_TOOL_CALLING))
+        self.assertEqual([], state.model_view.model_ids(CAPABILITY_IMAGE))
+        with self.assertRaises(TypeError):
+            state.catalog.by_capability[CAPABILITY_IMAGE] = ()
 
     def test_runtime_state_parses_model_payload_once(self) -> None:
         from lemonade.coordinator import LemonadeRuntimeState
