@@ -774,11 +774,25 @@ class ServerCapabilityViewTest(unittest.TestCase):
     def test_runtime_model_view_distinguishes_empty_catalog_from_bad_wiring(self) -> None:
         from lemonade.server_capabilities import runtime_model_view
 
-        empty_view = runtime_model_view(model_catalog({}))
+        empty_view = runtime_model_view(
+            SimpleNamespace(
+                runtime_data=SimpleNamespace(
+                    coordinator=SimpleNamespace(catalog=model_catalog({}))
+                )
+            )
+        )
         self.assertEqual([], empty_view.all_model_ids)
 
         with self.assertRaisesRegex(TypeError, "runtime model source"):
             runtime_model_view(SimpleNamespace())
+        with self.assertRaisesRegex(TypeError, "runtime model source"):
+            runtime_model_view(SimpleNamespace(runtime_data=SimpleNamespace()))
+        with self.assertRaisesRegex(TypeError, "runtime model source"):
+            runtime_model_view(
+                SimpleNamespace(
+                    runtime_data=SimpleNamespace(coordinator=None),
+                )
+            )
 
     def test_runtime_model_view_owns_entry_selection_and_current_option_policy(
         self,
@@ -4042,7 +4056,12 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
         ai_task_module.parse_ai_task_profile = fake_parse_profile
 
-        entry = SimpleNamespace(runtime_data=SimpleNamespace(client=object()))
+        entry = SimpleNamespace(
+            runtime_data=SimpleNamespace(
+                client=object(),
+                coordinator=SimpleNamespace(catalog=model_catalog({})),
+            )
+        )
         entity = ai_task_module.LemonadeAITaskEntity(
             entry,
             SimpleNamespace(subentry_id="task-1", data={}),

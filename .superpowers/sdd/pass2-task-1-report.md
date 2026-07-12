@@ -9,13 +9,13 @@ Implementation commit: `533b42a`
 - `RuntimeCapabilityView` now owns `LemonadeModelCatalog` and delegates directly to its canonical operations.
 - Removed duck-typed `model_ids`, `models_for`, `models`, and `all_model_ids` compatibility adapters.
 - Preserved production source adaptation through runtime views, config-entry runtime data/coordinators, runtime state, coordinators, and canonical catalogs.
-- Preserved the legitimate entry lifecycle state where runtime data exists before a coordinator is attached as an explicit empty canonical catalog.
+- Preserved legitimate empty state only through a real coordinator owning an empty canonical catalog.
 - Invalid source wiring now raises a deterministic `TypeError` rather than silently behaving as an empty catalog.
 - Replaced catalog test doubles with immutable `LemonadeModelCatalog` fixtures.
 
 ## TDD evidence
 
-The new empty-versus-malformed source test failed first because malformed wiring still silently returned an empty catalog. It passed after narrowing `runtime_model_view` to canonical source shapes and an explicit lifecycle-empty case.
+The new empty-versus-malformed source test failed first because malformed wiring still silently returned an empty catalog. Reviewer follow-up added regression coverage proving that missing and `None` coordinators fail deterministically, while a real coordinator with an empty canonical catalog remains valid.
 
 ## Verification
 

@@ -324,10 +324,7 @@ def runtime_model_view(source: object) -> RuntimeCapabilityView:
 
     runtime_data = getattr(source, "runtime_data", None)
     if runtime_data is not None:
-        coordinator = getattr(runtime_data, "coordinator", None)
-        if coordinator is None:
-            return RuntimeCapabilityView(LemonadeModelCatalog(()))
-        return runtime_model_view(coordinator)
+        return runtime_model_view(getattr(runtime_data, "coordinator", None))
 
     runtime_state = getattr(source, "runtime_state", None)
     if runtime_state is not None:
