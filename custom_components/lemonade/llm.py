@@ -599,10 +599,10 @@ def _response_message(response: Mapping[str, Any]) -> Mapping[str, Any] | None:
 
 def response_assistant_content(response: Mapping[str, Any]) -> str | None:
     """Project assistant text from the first OpenAI response message."""
-    delta = response_to_delta(response)
-    if delta is None:
+    message = _response_message(response)
+    if message is None:
         return None
-    content = delta.get("content")
+    content = message.get("content")
     return content if isinstance(content, str) else None
 
 

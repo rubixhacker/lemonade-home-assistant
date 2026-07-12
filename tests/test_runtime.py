@@ -2932,6 +2932,31 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, len(seen_tool_calls))
         self.assertIsInstance(seen_tool_calls[0], llm_module.ToolCall)
 
+    def test_llm_response_assistant_content_ignores_malformed_tool_calls(self) -> None:
+        llm_module = _require_module("lemonade.llm")
+
+        class UnsupportedToolCall(dict[str, Any]):
+            def __contains__(self, key: object) -> bool:
+                return True
+
+            def get(self, key: str, default: Any = None) -> Any:
+                raise ValueError(f"unsupported tool-call field: {key}")
+
+        content = llm_module.response_assistant_content(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": "Direct answer",
+                            "tool_calls": [UnsupportedToolCall()],
+                        }
+                    }
+                ]
+            }
+        )
+
+        self.assertEqual("Direct answer", content)
+
     def test_llm_response_to_delta_thaws_mapping_tool_arguments_for_ha(self) -> None:
         llm_module = _require_module("lemonade.llm")
 
