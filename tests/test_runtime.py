@@ -3165,14 +3165,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             },
             payload,
         )
-        self.assertEqual(
-            payload,
-            llm_module._build_chat_completion_payload(
-                "chat-model",
-                chat_log,
-                {"type": "json_object"},
-            ),
-        )
+        self.assertFalse(hasattr(llm_module, "_build_chat_completion_payload"))
 
     def test_llm_limits_chat_history_and_passes_keep_alive(self) -> None:
         from homeassistant.components.conversation import (
@@ -3260,12 +3253,14 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         chat_log = SimpleNamespace(content=[], llm_api=None)
         structure = vol.Schema({"answer": str})
 
-        payload = llm_module._build_chat_completion_payload(
+        payload_record = llm_module.build_chat_turn_payload(
             "chat-model",
             chat_log,
             structure,
         )
+        payload = payload_record.to_chat_completion_kwargs()
 
+        self.assertIsInstance(payload_record, llm_module.ChatTurnPayload)
         self.assertIsNot(structure, payload["response_format"])
         self.assertEqual(
             {

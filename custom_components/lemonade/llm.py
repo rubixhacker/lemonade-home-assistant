@@ -490,23 +490,6 @@ def build_chat_turn_payload(
     )
 
 
-def _build_chat_completion_payload(
-    model: str,
-    chat_log: Any,
-    structure: Any | None = None,
-    max_history: int | None = None,
-    keep_alive: int | None = None,
-) -> dict[str, Any]:
-    """Return the OpenAI chat completion payload for a chat log turn."""
-    return build_chat_turn_payload(
-        model,
-        chat_log,
-        structure,
-        max_history,
-        keep_alive,
-    ).to_chat_completion_kwargs()
-
-
 async def _apply_chat_response_to_chat_log(
     chat_log: Any,
     entity_id: str,
