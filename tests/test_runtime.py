@@ -3330,7 +3330,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             chat_log.yielded_content,
         )
 
-    async def test_llm_handle_chat_log_adds_response_delta_and_passes_tools(self) -> None:
+    async def test_llm_execute_chat_log_turn_adds_response_delta_and_passes_tools(self) -> None:
         from homeassistant.components.conversation import SystemContent, UserContent
         from homeassistant.helpers.llm import ToolInput
 
@@ -3389,14 +3389,17 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         client = Client()
         chat_log = ChatLog()
 
-        await llm_module.async_handle_chat_log(
-            "conversation.lemonade",
-            client,
-            "chat-model",
-            chat_log,
+        outcome = await llm_module.async_execute_chat_log_turn(
+            entity_id="conversation.lemonade",
+            client=client,
+            model="chat-model",
+            chat_log=chat_log,
             structure={"type": "json_object"},
         )
 
+        self.assertIsInstance(outcome, llm_module.ChatTurnOutcome)
+        self.assertEqual(1, outcome.iterations)
+        self.assertEqual("Done", outcome.final_assistant_content)
         self.assertEqual(["conversation.lemonade"], chat_log.agent_ids)
         self.assertEqual("chat-model", client.calls[0]["model"])
         self.assertEqual(
@@ -3437,6 +3440,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             ],
             chat_log.deltas,
         )
+        self.assertFalse(hasattr(llm_module, "async_handle_chat_log"))
 
     async def test_llm_execute_chat_log_turn_returns_outcome_after_tool_loop(self) -> None:
         from homeassistant.components.conversation import (

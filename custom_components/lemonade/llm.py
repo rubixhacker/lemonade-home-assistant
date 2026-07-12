@@ -609,24 +609,3 @@ async def async_generate_chat_log_data(
         keep_alive=keep_alive,
     )
     return chat_turn_data(outcome, structure)
-
-
-async def async_handle_chat_log(
-    entity_id: str,
-    client: Any,
-    model: str,
-    chat_log: Any,
-    structure: Any | None = None,
-    max_history: int | None = None,
-    keep_alive: int | None = None,
-) -> None:
-    """Run Lemonade chat completion turns until tool results are answered."""
-    await async_execute_chat_log_turn(
-        entity_id=entity_id,
-        client=client,
-        model=model,
-        chat_log=chat_log,
-        structure=structure,
-        max_history=max_history,
-        keep_alive=keep_alive,
-    )
