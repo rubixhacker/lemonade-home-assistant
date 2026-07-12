@@ -964,6 +964,17 @@ class ServerCapabilityViewTest(unittest.TestCase):
         self.assertEqual(["voice-model"], coordinator.model_view.model_ids(CAPABILITY_TTS))
         self.assertEqual(1, coordinator.model_view.model_count(CAPABILITY_TTS))
 
+    def test_runtime_capability_view_has_no_compatibility_aliases(self) -> None:
+        from lemonade import server_capabilities
+
+        self.assertFalse(hasattr(server_capabilities, "RuntimeModelView"))
+        self.assertFalse(
+            hasattr(
+                server_capabilities.RuntimeCapabilityView,
+                "has_capability_models",
+            )
+        )
+
     def test_runtime_state_parses_semantic_health_status(self) -> None:
         from lemonade.coordinator import LemonadeRuntimeState
 
@@ -3899,6 +3910,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
     def test_ai_task_final_assistant_content_requires_assistant_role(self) -> None:
         ai_task_module = _require_module("lemonade.ai_task")
+        llm_module = _require_module("lemonade.llm")
         chat_log = SimpleNamespace(
             content=[
                 SimpleNamespace(role="assistant", content="assistant text"),
@@ -3909,8 +3921,9 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(
             "assistant text",
-            ai_task_module._final_assistant_content(chat_log),
+            llm_module.final_assistant_content(chat_log),
         )
+        self.assertFalse(hasattr(ai_task_module, "_final_assistant_content"))
 
     async def test_ai_task_generate_data_uses_chat_log_data_interface(self) -> None:
         from homeassistant.components.conversation import SystemContent

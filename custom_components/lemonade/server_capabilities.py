@@ -172,10 +172,6 @@ class RuntimeCapabilityView:
         """Return true when the capability has at least one model."""
         return bool(self.model_ids(capability))
 
-    def has_capability_models(self, capability: Capability | str) -> bool:
-        """Return true when the capability has at least one model."""
-        return self.has_models(capability)
-
     def first_model_id(self, capability: Capability | str) -> str | None:
         """Return the first available model for a capability."""
         return self.catalog.first_model_id(capability)
@@ -292,9 +288,6 @@ class RuntimeCapabilityView:
         if configured in options:
             return configured
         return options[0] if options else None
-
-
-RuntimeModelView = RuntimeCapabilityView
 
 
 def runtime_model_view(source: object) -> RuntimeCapabilityView:

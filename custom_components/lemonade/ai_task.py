@@ -26,7 +26,6 @@ from .image_result import (
     ImageGenerationRequest,
     generate_image,
 )
-from .llm import final_assistant_content as _llm_final_assistant_content
 from .profiles import (
     AITaskProfile,
     async_add_profile_entity,
@@ -60,11 +59,6 @@ async def async_setup_entry(
         )
 
 
-def _final_assistant_content(chat_log: Any) -> str:
-    """Return the latest assistant text from a chat log."""
-    return _llm_final_assistant_content(chat_log)
-
-
 class LemonadeAITaskEntity(ai_task.AITaskEntity):
     """AI task entity backed by a Lemonade AI task profile."""
 
@@ -93,7 +87,7 @@ class LemonadeAITaskEntity(ai_task.AITaskEntity):
     def _supported_features(self) -> Any:
         """Return current AI Task features for the Server Entry capabilities."""
         features = self._base_supported_features
-        if runtime_model_view(self.entry).has_capability_models(CAPABILITY_IMAGE):
+        if runtime_model_view(self.entry).has_models(CAPABILITY_IMAGE):
             features |= ai_task.AITaskEntityFeature.GENERATE_IMAGE
         return features
 
