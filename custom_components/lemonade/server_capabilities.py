@@ -71,16 +71,6 @@ class MissingCapabilityRepairIssueIdentity:
 
 
 @dataclass(frozen=True, slots=True)
-class CapabilityPresentation:
-    """Compatibility presentation metadata for a Lemonade model capability."""
-
-    capability: Capability
-    default_option_key: str | None = None
-    model_count_translation_key: str | None = None
-    repair_issue: bool = False
-
-
-@dataclass(frozen=True, slots=True)
 class CapabilityDescription:
     """Semantic Home Assistant presentation for one known capability."""
 
@@ -92,16 +82,6 @@ class CapabilityDescription:
     degraded_policy: ModelSelectorDegradedPolicy = (
         ModelSelectorDegradedPolicy.FALLBACK_TO_ALL_MODELS
     )
-
-    def to_presentation(self) -> CapabilityPresentation:
-        """Project compatibility presentation metadata."""
-        return CapabilityPresentation(
-            self.capability,
-            self.default_option_key,
-            self.model_count_translation_key,
-            self.repair_issue,
-        )
-
 
 CAPABILITY_DESCRIPTIONS = (
     CapabilityDescription(
@@ -360,15 +340,6 @@ def default_model_selector_definition(
     )
 
 
-def default_model_capability_presentations() -> Iterable[CapabilityPresentation]:
-    """Iterate capabilities configurable as default model options."""
-    return (
-        description.to_presentation()
-        for description in CAPABILITY_DESCRIPTIONS
-        if description.default_option_key is not None
-    )
-
-
 def default_model_selector_definitions() -> Iterable[DefaultModelSelectorDefinition]:
     """Iterate Server Entry default Model Selector definitions."""
     return (
@@ -390,15 +361,6 @@ def model_count_sensor_policies() -> Iterable[ModelCountSensorPolicy]:
             description.capability,
             description.model_count_translation_key,
         )
-        for description in CAPABILITY_DESCRIPTIONS
-        if description.model_count_translation_key is not None
-    )
-
-
-def model_count_capability_presentations() -> Iterable[CapabilityPresentation]:
-    """Iterate capabilities shown as model count sensors."""
-    return (
-        description.to_presentation()
         for description in CAPABILITY_DESCRIPTIONS
         if description.model_count_translation_key is not None
     )

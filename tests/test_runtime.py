@@ -1168,15 +1168,13 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(CAPABILITY_AI_TASK, ai_task_definition.model_policy.capability)
         self.assertTrue(ai_task_definition.model_policy.include_all_models)
 
-    def test_capability_presentation_metadata_groups_callers(self) -> None:
+    def test_capability_descriptions_project_canonical_production_policies(self) -> None:
         import lemonade.const as lemonade_const
+        import lemonade.server_capabilities as server_capabilities
         from lemonade.server_capabilities import (
             CAPABILITY_DESCRIPTIONS,
             CapabilityDescription,
-            CapabilityPresentation,
-            default_model_capability_presentations,
             default_model_selector_definitions,
-            model_count_capability_presentations,
             repair_issue_capabilities,
             MissingCapabilityRepairIssueIdentity,
             ModelCountSensorPolicy,
@@ -1195,9 +1193,7 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
             "MissingCapabilityRepairIssueIdentity",
             "ModelCountSensorPolicy",
             "ModelSelectorDegradedPolicy",
-            "default_model_capability_presentations",
             "default_model_selector_definitions",
-            "model_count_capability_presentations",
             "model_count_sensor_policies",
             "repair_issue_capabilities",
             "repair_issue_identities",
@@ -1205,18 +1201,14 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
             with self.subTest(name=name):
                 self.assertFalse(hasattr(lemonade_const, name))
 
-        default_records = tuple(default_model_capability_presentations())
+        for name in (
+            "CapabilityPresentation",
+            "default_model_capability_presentations",
+            "model_count_capability_presentations",
+        ):
+            with self.subTest(retired_name=name):
+                self.assertFalse(hasattr(server_capabilities, name))
 
-        self.assertEqual(
-            (
-                (CAPABILITY_TTS, CONF_DEFAULT_TTS_MODEL),
-                (CAPABILITY_STT, CONF_DEFAULT_STT_MODEL),
-            ),
-            tuple(
-                (record.capability, record.default_option_key)
-                for record in default_records
-            ),
-        )
         self.assertEqual(
             tuple(Capability),
             tuple(record.capability for record in CAPABILITY_DESCRIPTIONS),
@@ -1267,15 +1259,6 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
             ("fallback_to_all_models",) * len(expected_descriptions),
             tuple(record.degraded_policy for record in CAPABILITY_DESCRIPTIONS),
         )
-        self.assertEqual(
-            tuple(
-                CapabilityPresentation(capability, option_key, sensor_key, repair)
-                for capability, option_key, _name, sensor_key, repair in (
-                    expected_descriptions
-                )
-            ),
-            tuple(record.to_presentation() for record in CAPABILITY_DESCRIPTIONS),
-        )
         selector_definitions = tuple(default_model_selector_definitions())
         self.assertEqual(
             (
@@ -1307,18 +1290,6 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
                 definition.degraded_policy == "fallback_to_all_models"
                 for definition in selector_definitions
             )
-        )
-        self.assertEqual(
-            (
-                (CAPABILITY_CONVERSATION, "conversation_model_count"),
-                (CAPABILITY_IMAGE, "image_model_count"),
-                (CAPABILITY_TTS, "tts_model_count"),
-                (CAPABILITY_STT, "stt_model_count"),
-            ),
-            tuple(
-                (record.capability, record.model_count_translation_key)
-                for record in model_count_capability_presentations()
-            ),
         )
         self.assertEqual(
             (CAPABILITY_IMAGE, CAPABILITY_TTS, CAPABILITY_STT),
@@ -6822,7 +6793,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
     async def test_select_platform_adds_default_model_selects_and_updates_options(self) -> None:
         from lemonade.server_capabilities import (
             DefaultModelSelectorDefinition,
-            default_model_capability_presentations,
+            default_model_selector_definitions,
         )
 
         select_module = _require_module("lemonade.select")
@@ -6850,9 +6821,8 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         entities = {entity._attr_translation_key: entity for entity in added}
         self.assertEqual(
             {
-                presentation.default_option_key
-                for presentation in default_model_capability_presentations()
-                if presentation.default_option_key is not None
+                definition.option_key
+                for definition in default_model_selector_definitions()
             },
             set(entities),
         )
