@@ -32,13 +32,10 @@ from .const import (
     SUBENTRY_TYPE_CONVERSATION,
 )
 from .profiles import (
-    LLMAPIProfileField,
-    ModelProfileField,
-    NumberProfileField,
-    ProfileFieldDefinition,
     ProfileDefinition,
-    PromptProfileField,
-    TextProfileField,
+    ProfileFieldInterpretation,
+    ProfileFieldPresentation,
+    interpret_profile_field,
     profile_definition,
     profile_definitions,
 )
@@ -336,21 +333,16 @@ class LemonadeProfileSubentryFlow(config_entries.ConfigSubentryFlow):
     ) -> vol.Schema:
         """Return the schema for a Lemonade profile."""
 
-        def marker(field: ProfileFieldDefinition) -> Any:
-            factory = (
-                vol.Required
-                if isinstance(field, TextProfileField) and field.required
-                else vol.Optional
-            )
+        def marker(field: ProfileFieldInterpretation) -> Any:
+            factory = vol.Required if field.required else vol.Optional
             default = profile_data.get(field.key)
-            if field.key not in profile_data and isinstance(field, NumberProfileField):
+            if field.key not in profile_data:
                 default = field.default
             if default is not None:
                 return factory(field.key, default=default)
             prompt = None
             if (
-                isinstance(field, PromptProfileField)
-                and field.suggest_default_instructions
+                field.suggest_default_instructions
                 and field.key not in profile_data
             ):
                 prompt = _default_instructions_prompt()
@@ -363,22 +355,26 @@ class LemonadeProfileSubentryFlow(config_entries.ConfigSubentryFlow):
 
         schema: dict[Any, Any] = {}
         for field in definition.fields:
-            if isinstance(field, TextProfileField):
-                schema[marker(field)] = str
-            elif isinstance(field, ModelProfileField):
-                schema[marker(field)] = _model_select_selector(model_ids)
-            elif isinstance(field, PromptProfileField):
-                schema[marker(field)] = selector.TemplateSelector()
-            elif isinstance(field, LLMAPIProfileField):
-                schema[marker(field)] = selector.SelectSelector(
+            interpreted = interpret_profile_field(field)
+            if interpreted.presentation is ProfileFieldPresentation.TEXT:
+                schema[marker(interpreted)] = str
+            elif interpreted.presentation is ProfileFieldPresentation.MODEL:
+                schema[marker(interpreted)] = _model_select_selector(model_ids)
+            elif interpreted.presentation is ProfileFieldPresentation.PROMPT:
+                schema[marker(interpreted)] = selector.TemplateSelector()
+            elif interpreted.presentation is ProfileFieldPresentation.LLM_API:
+                schema[marker(interpreted)] = selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=_llm_api_options(self.hass),
                     )
                 )
-            elif isinstance(field, NumberProfileField):
-                schema[marker(field)] = _number_box_selector(minimum=field.minimum)
+            elif interpreted.presentation is ProfileFieldPresentation.NUMBER:
+                assert interpreted.minimum is not None
+                schema[marker(interpreted)] = _number_box_selector(
+                    minimum=interpreted.minimum
+                )
             else:
-                assert_never(field)
+                assert_never(interpreted.presentation)
 
         return vol.Schema(schema)
 

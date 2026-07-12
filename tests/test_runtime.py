@@ -1951,12 +1951,36 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(["omni-model"], fields[CONF_MODEL][1].config.options)
 
     def test_profile_field_presentation_matrix_is_complete(self) -> None:
-        from lemonade.config_flow import LemonadeProfileSubentryFlow
-        from lemonade.profiles import profile_definitions
+        from lemonade.profiles import (
+            ProfileFieldPresentation,
+            interpret_profile_field,
+            normalize_profile_field,
+            profile_definitions,
+        )
 
         matrix = (
-            (SUBENTRY_TYPE_CONVERSATION, CONF_NAME, True, "text", None, None, None),
-            (SUBENTRY_TYPE_CONVERSATION, CONF_MODEL, False, "model", None, None, None),
+            (
+                SUBENTRY_TYPE_CONVERSATION,
+                CONF_NAME,
+                True,
+                "text",
+                None,
+                None,
+                None,
+                " Name ",
+                "Name",
+            ),
+            (
+                SUBENTRY_TYPE_CONVERSATION,
+                CONF_MODEL,
+                False,
+                "model",
+                None,
+                None,
+                None,
+                " model-a ",
+                "model-a",
+            ),
             (
                 SUBENTRY_TYPE_CONVERSATION,
                 CONF_PROMPT,
@@ -1965,6 +1989,8 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 None,
                 None,
                 "Default Home Assistant instructions",
+                " Prompt ",
+                "Prompt",
             ),
             (
                 SUBENTRY_TYPE_CONVERSATION,
@@ -1974,6 +2000,8 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 None,
                 None,
                 None,
+                " assist ",
+                "assist",
             ),
             (
                 SUBENTRY_TYPE_CONVERSATION,
@@ -1983,6 +2011,8 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 DEFAULT_MAX_HISTORY,
                 0,
                 None,
+                "-3",
+                0,
             ),
             (
                 SUBENTRY_TYPE_CONVERSATION,
@@ -1992,10 +2022,42 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 None,
                 -1,
                 None,
+                "-2",
+                None,
             ),
-            (SUBENTRY_TYPE_AI_TASK, CONF_NAME, True, "text", None, None, None),
-            (SUBENTRY_TYPE_AI_TASK, CONF_MODEL, False, "model", None, None, None),
-            (SUBENTRY_TYPE_AI_TASK, CONF_PROMPT, False, "prompt", None, None, None),
+            (
+                SUBENTRY_TYPE_AI_TASK,
+                CONF_NAME,
+                True,
+                "text",
+                None,
+                None,
+                None,
+                " Task ",
+                "Task",
+            ),
+            (
+                SUBENTRY_TYPE_AI_TASK,
+                CONF_MODEL,
+                False,
+                "model",
+                None,
+                None,
+                None,
+                123,
+                None,
+            ),
+            (
+                SUBENTRY_TYPE_AI_TASK,
+                CONF_PROMPT,
+                False,
+                "prompt",
+                None,
+                None,
+                None,
+                "   ",
+                None,
+            ),
             (
                 SUBENTRY_TYPE_AI_TASK,
                 CONF_MAX_HISTORY,
@@ -2004,6 +2066,8 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 DEFAULT_MAX_HISTORY,
                 0,
                 None,
+                "bad",
+                DEFAULT_MAX_HISTORY,
             ),
             (
                 SUBENTRY_TYPE_AI_TASK,
@@ -2013,6 +2077,8 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 None,
                 -1,
                 None,
+                "-1",
+                -1,
             ),
         )
         expected_pairs = {(row[0], row[1]) for row in matrix}
@@ -2027,56 +2093,21 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             {row[3] for row in matrix},
         )
 
-        flow = LemonadeProfileSubentryFlow()
-        llm_apis = [{"value": "assist", "label": "Assist"}]
-        flow.hass = SimpleNamespace(llm_apis=llm_apis)
-        definitions_by_type = {
-            definition.profile_type: definition
+        fields = {
+            (definition.profile_type, field.key): field
             for definition in profile_definitions()
+            for field in definition.fields
         }
-        schemas = {
-            profile_type: _schema_fields(
-                flow._profile_schema(
-                    definitions_by_type[profile_type],
-                    ["model-a", "model-b"],
-                    {},
-                )
-            )
-            for profile_type in (
-                SUBENTRY_TYPE_CONVERSATION,
-                SUBENTRY_TYPE_AI_TASK,
-            )
-        }
-
-        for profile_type, key, required, kind, default, minimum, suggestion in matrix:
+        for profile_type, key, required, kind, default, minimum, suggestion, raw, normalized in matrix:
             with self.subTest(profile_type=profile_type, key=key):
-                marker, rendered = schemas[profile_type][key]
-                self.assertEqual(required, isinstance(marker, _VolRequiredMarker))
-                self.assertEqual(default, marker.default)
-                self.assertEqual(
-                    suggestion,
-                    None
-                    if marker.description is None
-                    else marker.description.get("suggested_value"),
-                )
-                if kind == "text":
-                    self.assertIs(rendered, str)
-                elif kind == "model":
-                    self.assertIsInstance(rendered, _SelectSelector)
-                    self.assertEqual(["model-a", "model-b"], rendered.config.options)
-                elif kind == "prompt":
-                    self.assertIsInstance(rendered, _TemplateSelector)
-                elif kind == "llm_api":
-                    self.assertIsInstance(rendered, _SelectSelector)
-                    self.assertEqual(llm_apis, rendered.config.options)
-                    self.assertFalse(rendered.config.multiple)
-                elif kind == "number":
-                    self.assertIsInstance(rendered, _NumberSelector)
-                    self.assertEqual(minimum, rendered.config.min)
-                    self.assertEqual(1, rendered.config.step)
-                    self.assertEqual("box", rendered.config.mode)
-                else:
-                    self.fail(f"Unasserted presentation kind: {kind}")
+                field = fields[(profile_type, key)]
+                interpreted = interpret_profile_field(field)
+                self.assertEqual(required, interpreted.required)
+                self.assertEqual(ProfileFieldPresentation(kind), interpreted.presentation)
+                self.assertEqual(default, interpreted.default)
+                self.assertEqual(minimum, interpreted.minimum)
+                self.assertEqual(suggestion is not None, interpreted.suggest_default_instructions)
+                self.assertEqual(normalized, normalize_profile_field(field, raw))
 
     async def test_conversation_profile_subentry_flow_builds_schema(self) -> None:
         from lemonade.config_flow import LemonadeProfileSubentryFlow

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 import inspect
 from types import MappingProxyType
-from typing import Any, Protocol, TypeAlias
+from typing import Any, Protocol, TypeAlias, assert_never
 
 from homeassistant.const import CONF_MODEL, CONF_NAME
 try:
@@ -137,11 +137,6 @@ class LLMAPIProfileField:
 
     key: str
 
-    def parse(self, data: Mapping[str, Any]) -> str | None:
-        """Return the normalized Home Assistant LLM API ID."""
-        return _optional_str(data.get(self.key))
-
-
 ProfileFieldDefinition: TypeAlias = (
     TextProfileField
     | ModelProfileField
@@ -149,6 +144,108 @@ ProfileFieldDefinition: TypeAlias = (
     | PromptProfileField
     | LLMAPIProfileField
 )
+
+
+class ProfileFieldPresentation(StrEnum):
+    """Adapter-neutral presentation treatments for profile fields."""
+
+    TEXT = "text"
+    MODEL = "model"
+    PROMPT = "prompt"
+    LLM_API = "llm_api"
+    NUMBER = "number"
+
+
+class _ProfileFieldParser(StrEnum):
+    """Closed persisted-value normalization treatments."""
+
+    OPTIONAL_STRING = "optional_string"
+    MODEL_ID = "model_id"
+    INTEGER = "integer"
+
+
+@dataclass(frozen=True, slots=True)
+class ProfileFieldInterpretation:
+    """Complete adapter-neutral meaning of one profile field definition."""
+
+    key: str
+    required: bool
+    presentation: ProfileFieldPresentation
+    parser: _ProfileFieldParser
+    default: int | None = None
+    minimum: int | None = None
+    suggest_default_instructions: bool = False
+
+
+def interpret_profile_field(
+    field: ProfileFieldDefinition,
+) -> ProfileFieldInterpretation:
+    """Exhaustively project a closed field case into its complete semantics."""
+    match field:
+        case TextProfileField(key=key, required=required):
+            return ProfileFieldInterpretation(
+                key, required, ProfileFieldPresentation.TEXT,
+                _ProfileFieldParser.OPTIONAL_STRING,
+            )
+        case ModelProfileField(key=key):
+            return ProfileFieldInterpretation(
+                key, False, ProfileFieldPresentation.MODEL,
+                _ProfileFieldParser.MODEL_ID,
+            )
+        case NumberProfileField(key=key, minimum=minimum, default=default):
+            return ProfileFieldInterpretation(
+                key, False, ProfileFieldPresentation.NUMBER,
+                _ProfileFieldParser.INTEGER, default, minimum,
+            )
+        case PromptProfileField(
+            key=key,
+            suggest_default_instructions=suggest_default_instructions,
+        ):
+            return ProfileFieldInterpretation(
+                key, False, ProfileFieldPresentation.PROMPT,
+                _ProfileFieldParser.OPTIONAL_STRING,
+                suggest_default_instructions=suggest_default_instructions,
+            )
+        case LLMAPIProfileField(key=key):
+            return ProfileFieldInterpretation(
+                key, False, ProfileFieldPresentation.LLM_API,
+                _ProfileFieldParser.OPTIONAL_STRING,
+            )
+        case _:
+            assert_never(field)
+
+
+def normalize_profile_field(field: ProfileFieldDefinition, value: Any) -> Any:
+    """Normalize one persisted value according to interpreted field meaning."""
+    interpretation = interpret_profile_field(field)
+    if interpretation.parser is _ProfileFieldParser.OPTIONAL_STRING:
+        return _optional_str(value)
+    if interpretation.parser is _ProfileFieldParser.MODEL_ID:
+        model_id = ModelId.parse(value)
+        return str(model_id) if model_id is not None else None
+    if interpretation.parser is _ProfileFieldParser.INTEGER:
+        if value is None:
+            return interpretation.default
+        try:
+            normalized = int(value)
+        except (TypeError, ValueError):
+            return interpretation.default
+        minimum = interpretation.minimum
+        if minimum is not None and normalized < minimum:
+            return minimum if interpretation.default is not None else None
+        return normalized
+    assert_never(interpretation.parser)
+
+
+def normalize_profile_data(
+    definition: ProfileDefinition,
+    data: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Normalize all supported persisted values for a profile definition."""
+    return {
+        field.key: normalize_profile_field(field, data.get(field.key))
+        for field in definition.fields
+    }
 
 
 @dataclass(frozen=True, slots=True)
@@ -251,63 +348,6 @@ def _profile_id(value: Any) -> str | None:
     return _optional_str(value)
 
 
-def _model_option(data: Mapping[str, Any]) -> str | None:
-    """Return a normalized optional Lemonade model ID."""
-    model_id = ModelId.parse(data.get(CONF_MODEL))
-    return str(model_id) if model_id is not None else None
-
-
-def _prompt_option(data: Mapping[str, Any]) -> str | None:
-    """Return a normalized optional profile prompt."""
-    return _optional_str(data.get(CONF_PROMPT))
-
-
-def _llm_hass_api_option(
-    data: Mapping[str, Any], definition: ProfileDefinition
-) -> str | None:
-    """Return a normalized optional Home Assistant LLM API ID."""
-    field = next(
-        (
-            field
-            for field in definition.fields
-            if isinstance(field, LLMAPIProfileField)
-        ),
-        None,
-    )
-    return field.parse(data) if field is not None else None
-
-
-def _int_profile_option(
-    data: Mapping[str, Any],
-    key: str,
-    default: int | None = None,
-) -> int | None:
-    """Return an optional integer profile option."""
-    value = data.get(key, default)
-    if value is None:
-        return None
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def _max_history_option(data: Mapping[str, Any]) -> int:
-    """Return the profile history limit."""
-    value = _int_profile_option(data, CONF_MAX_HISTORY, DEFAULT_MAX_HISTORY)
-    if value is None:
-        return DEFAULT_MAX_HISTORY
-    return max(0, value)
-
-
-def _keep_alive_option(data: Mapping[str, Any]) -> int | None:
-    """Return a normalized optional keep-alive override."""
-    value = _int_profile_option(data, CONF_KEEP_ALIVE)
-    if value is None or value < -1:
-        return None
-    return value
-
-
 def parse_profile(
     subentry: Any,
     profile_type: ProfileKind | str | None = None,
@@ -318,23 +358,25 @@ def parse_profile(
     profile_id = _profile_id(getattr(subentry, "subentry_id", None))
     definition = profile_definition(resolved_profile_type)
     if definition == CONVERSATION_PROFILE_DEFINITION:
+        normalized = normalize_profile_data(definition, data)
         return ConversationProfile(
             id=profile_id,
             profile_type=definition.profile_type,
-            model=_model_option(data),
-            prompt=_prompt_option(data),
-            hass_api=_llm_hass_api_option(data, definition),
-            max_history=_max_history_option(data),
-            keep_alive=_keep_alive_option(data),
+            model=normalized[CONF_MODEL],
+            prompt=normalized[CONF_PROMPT],
+            hass_api=normalized[CONF_LLM_HASS_API],
+            max_history=normalized[CONF_MAX_HISTORY],
+            keep_alive=normalized[CONF_KEEP_ALIVE],
         )
     if definition == AI_TASK_PROFILE_DEFINITION:
+        normalized = normalize_profile_data(definition, data)
         return AITaskProfile(
             id=profile_id,
             profile_type=definition.profile_type,
-            model=_model_option(data),
-            prompt=_prompt_option(data),
-            max_history=_max_history_option(data),
-            keep_alive=_keep_alive_option(data),
+            model=normalized[CONF_MODEL],
+            prompt=normalized[CONF_PROMPT],
+            max_history=normalized[CONF_MAX_HISTORY],
+            keep_alive=normalized[CONF_KEEP_ALIVE],
         )
     return UnknownProfile(
         id=profile_id,
