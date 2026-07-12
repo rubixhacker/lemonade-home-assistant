@@ -183,10 +183,7 @@ from lemonade.const import (  # noqa: E402
     CAPABILITY_VISION,
 )
 import lemonade.models as lemonade_models  # noqa: E402
-from lemonade.server_capabilities import (  # noqa: E402
-    RuntimeCapabilityView,
-    catalog_model_ids,
-)
+from lemonade.server_capabilities import RuntimeCapabilityView  # noqa: E402
 from lemonade.models import parse_models_response  # noqa: E402
 
 
@@ -269,7 +266,7 @@ class ParseModelsResponseTest(unittest.TestCase):
 
         self.assertEqual(
             ["Bonsai-8B-gguf", "Qwen3.6-27B-GGUF"],
-            catalog_model_ids(catalog, Capability.CONVERSATION),
+            catalog.model_ids(Capability.CONVERSATION),
         )
         self.assertEqual(
             "Bonsai-8B-gguf",
@@ -277,7 +274,7 @@ class ParseModelsResponseTest(unittest.TestCase):
         )
         self.assertEqual(
             ["Bonsai-8B-gguf", "Qwen3.6-27B-GGUF"],
-            catalog_model_ids(catalog, CAPABILITY_CONVERSATION),
+            catalog.model_ids(CAPABILITY_CONVERSATION),
         )
 
     def test_maps_downloaded_models_to_capabilities(self) -> None:

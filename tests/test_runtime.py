@@ -546,6 +546,11 @@ from lemonade.const import (  # noqa: E402
     SUBENTRY_TYPE_CONVERSATION,
 )
 from lemonade.data import LemonadeRuntimeData  # noqa: E402
+from lemonade.models import (  # noqa: E402
+    LemonadeModel,
+    LemonadeModelCatalog,
+    ModelId,
+)
 
 
 class FakeConfigEntries:
@@ -692,67 +697,40 @@ def _profile_flow(entry: Any, subentry_type: str, subentry: Any | None = None) -
     return flow
 
 
-class FakeCatalog:
-    def __init__(self, model_ids: dict[str, list[str]]) -> None:
-        self._model_ids = model_ids
-        all_model_ids = dict.fromkeys(
-            model_id for ids in model_ids.values() for model_id in ids
+def model_catalog(model_ids: dict[str, list[str]]) -> LemonadeModelCatalog:
+    """Build a real immutable catalog with the requested test capabilities."""
+    capabilities_by_id: dict[str, set[str]] = {}
+    for capability, ids in model_ids.items():
+        for model_id in ids:
+            capabilities_by_id.setdefault(model_id, set()).add(capability)
+
+    models = []
+    for model_id, capabilities in capabilities_by_id.items():
+        labels = set(capabilities)
+        recipe = (
+            "llamacpp"
+            if capabilities & {CAPABILITY_CONVERSATION, CAPABILITY_AI_TASK}
+            else ""
         )
-        self.models = tuple(SimpleNamespace(id=model_id) for model_id in all_model_ids)
-
-    def model_ids(self, capability: str) -> list[str]:
-        return list(self._model_ids.get(capability, []))
-
-    def models_for(self, capability: str) -> tuple[Any, ...]:
-        return tuple(
-            SimpleNamespace(id=model_id) for model_id in self._model_ids.get(capability, [])
+        if CAPABILITY_CONVERSATION in capabilities:
+            labels.discard(CAPABILITY_CONVERSATION)
+        models.append(
+            LemonadeModel(ModelId(model_id), frozenset(labels), recipe, downloaded=True)
         )
-
-    def first_model_id(self, capability: str) -> str | None:
-        model_ids = self.model_ids(capability)
-        return model_ids[0] if model_ids else None
-
-
-class ModelIdsOnlyCatalog:
-    def __init__(self, model_ids: dict[str, list[str]]) -> None:
-        self._model_ids = model_ids
-        all_model_ids = dict.fromkeys(
-            model_id for ids in model_ids.values() for model_id in ids
-        )
-        self.models = tuple(SimpleNamespace(id=model_id) for model_id in all_model_ids)
-
-    def model_ids(self, capability: str) -> list[str]:
-        return list(self._model_ids.get(capability, []))
-
-
-class ModelsForOnlyCatalog:
-    def __init__(self, model_ids: dict[str, list[str]]) -> None:
-        self._model_ids = model_ids
-        all_model_ids = dict.fromkeys(
-            model_id for ids in model_ids.values() for model_id in ids
-        )
-        self.models = tuple(SimpleNamespace(id=model_id) for model_id in all_model_ids)
-
-    def models_for(self, capability: str) -> tuple[Any, ...]:
-        return tuple(
-            SimpleNamespace(id=model_id) for model_id in self._model_ids.get(capability, [])
-        )
+    return LemonadeModelCatalog(tuple(models))
 
 
 class ServerCapabilityViewTest(unittest.TestCase):
 
     def test_resolve_model_prefers_explicit_profile_default_then_catalog(self) -> None:
-        from lemonade.server_capabilities import (
-            RuntimeCapabilityView,
-            catalog_model_ids,
-        )
+        from lemonade.server_capabilities import RuntimeCapabilityView
 
-        catalog = ModelsForOnlyCatalog({CAPABILITY_CONVERSATION: ["catalog-chat"]})
+        catalog = model_catalog({CAPABILITY_CONVERSATION: ["catalog-chat"]})
         view = RuntimeCapabilityView(catalog)
 
         self.assertEqual(
             ["catalog-chat"],
-            catalog_model_ids(catalog, CAPABILITY_CONVERSATION),
+            catalog.model_ids(CAPABILITY_CONVERSATION),
         )
         self.assertEqual(
             "request-chat",
@@ -788,10 +766,19 @@ class ServerCapabilityViewTest(unittest.TestCase):
             ),
         )
         self.assertIsNone(
-            RuntimeCapabilityView(FakeCatalog({})).resolve_model(
+            RuntimeCapabilityView(model_catalog({})).resolve_model(
                 CAPABILITY_CONVERSATION
             )
         )
+
+    def test_runtime_model_view_distinguishes_empty_catalog_from_bad_wiring(self) -> None:
+        from lemonade.server_capabilities import runtime_model_view
+
+        empty_view = runtime_model_view(model_catalog({}))
+        self.assertEqual([], empty_view.all_model_ids)
+
+        with self.assertRaisesRegex(TypeError, "runtime model source"):
+            runtime_model_view(SimpleNamespace())
 
     def test_runtime_model_view_owns_entry_selection_and_current_option_policy(
         self,
@@ -829,7 +816,7 @@ class ServerCapabilityViewTest(unittest.TestCase):
             runtime_data=SimpleNamespace(
                 coordinator=SimpleNamespace(
                     runtime_state=runtime_state,
-                    catalog=FakeCatalog({CAPABILITY_CONVERSATION: ["stale-chat"]}),
+                    catalog=model_catalog({CAPABILITY_CONVERSATION: ["stale-chat"]}),
                 )
             ),
         )
@@ -895,7 +882,7 @@ class ServerCapabilityViewTest(unittest.TestCase):
             data={},
             runtime_data=SimpleNamespace(
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog(
+                    catalog=model_catalog(
                         {
                             CAPABILITY_CONVERSATION: ["chat-a"],
                             CAPABILITY_TTS: ["tts-a"],
@@ -1713,7 +1700,7 @@ def _service_entry(
     )
     entry.runtime_data = LemonadeRuntimeData(
         client=client,
-        coordinator=SimpleNamespace(catalog=FakeCatalog(catalog_models)),
+        coordinator=SimpleNamespace(catalog=model_catalog(catalog_models)),
     )
     return entry
 
@@ -1908,7 +1895,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             state="loaded",
             runtime_data=SimpleNamespace(
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog(
+                    catalog=model_catalog(
                         {
                             CAPABILITY_CONVERSATION: ["chat-a"],
                             CAPABILITY_AI_TASK: ["task-a"],
@@ -1937,7 +1924,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             state="loaded",
             runtime_data=SimpleNamespace(
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog({CAPABILITY_AI_TASK: ["omni-model"]})
+                    catalog=model_catalog({CAPABILITY_AI_TASK: ["omni-model"]})
                 )
             ),
         )
@@ -2116,7 +2103,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             state="loaded",
             runtime_data=SimpleNamespace(
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog(
+                    catalog=model_catalog(
                         {CAPABILITY_CONVERSATION: ["chat-a", "chat-b"]}
                     )
                 )
@@ -2169,7 +2156,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             state="loaded",
             runtime_data=SimpleNamespace(
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog(
+                    catalog=model_catalog(
                         {CAPABILITY_CONVERSATION: ["chat-a", "chat-b"]}
                     )
                 )
@@ -2213,7 +2200,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             },
             runtime_data=SimpleNamespace(
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog(
+                    catalog=model_catalog(
                         {
                             CAPABILITY_CONVERSATION: ["chat-a", "chat-b"],
                             CAPABILITY_AI_TASK: ["task-a"],
@@ -2254,7 +2241,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             options={CONF_DEFAULT_TTS_MODEL: "chat-a"},
             runtime_data=SimpleNamespace(
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog(
+                    catalog=model_catalog(
                         {
                             CAPABILITY_CONVERSATION: ["chat-a"],
                             CAPABILITY_TTS: ["tts-a"],
@@ -2278,7 +2265,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             data={CONF_API_KEY: "secret", CONF_TIMEOUT: 12.0},
             options={},
             runtime_data=SimpleNamespace(
-                coordinator=SimpleNamespace(catalog=FakeCatalog({}))
+                coordinator=SimpleNamespace(catalog=model_catalog({}))
             ),
         )
         submitted = {
@@ -2302,7 +2289,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             data={CONF_API_KEY: "secret", CONF_TIMEOUT: 12.0},
             options={},
             runtime_data=SimpleNamespace(
-                coordinator=SimpleNamespace(catalog=FakeCatalog({}))
+                coordinator=SimpleNamespace(catalog=model_catalog({}))
             ),
         )
         submitted = {CONF_API_KEY: "   ", CONF_TIMEOUT: 9.5}
@@ -2321,7 +2308,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             data={CONF_API_KEY: "secret", CONF_TIMEOUT: 12.0},
             options={CONF_API_KEY: "override"},
             runtime_data=SimpleNamespace(
-                coordinator=SimpleNamespace(catalog=FakeCatalog({}))
+                coordinator=SimpleNamespace(catalog=model_catalog({}))
             ),
         )
         submitted = {CONF_API_KEY: "", CONF_TIMEOUT: 9.5}
@@ -3619,7 +3606,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             title="Lemonade Server",
             runtime_data=SimpleNamespace(
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog({CAPABILITY_IMAGE: ["image-a"]})
+                    catalog=model_catalog({CAPABILITY_IMAGE: ["image-a"]})
                 )
             ),
             subentries={
@@ -3671,7 +3658,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
         ai_task_module = _require_module("lemonade.ai_task")
         coordinator = SimpleNamespace(
-            catalog=FakeCatalog({CAPABILITY_IMAGE: ["image-a"]})
+            catalog=model_catalog({CAPABILITY_IMAGE: ["image-a"]})
         )
         entry = SimpleNamespace(
             entry_id="entry-1",
@@ -3690,7 +3677,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(
             entity.supported_features & ai_task.AITaskEntityFeature.GENERATE_IMAGE
         )
-        coordinator.catalog = FakeCatalog({})
+        coordinator.catalog = model_catalog({})
         self.assertFalse(
             entity.supported_features & ai_task.AITaskEntityFeature.GENERATE_IMAGE
         )
@@ -3734,7 +3721,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             runtime_data=SimpleNamespace(
                 client=client,
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog({CAPABILITY_AI_TASK: ["catalog-task"]})
+                    catalog=model_catalog({CAPABILITY_AI_TASK: ["catalog-task"]})
                 ),
             ),
         )
@@ -3781,7 +3768,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             runtime_data=SimpleNamespace(
                 client=client,
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog(
+                    catalog=model_catalog(
                         {CAPABILITY_IMAGE: ["profile-image", "catalog-image"]}
                     )
                 ),
@@ -3855,7 +3842,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             options={CONF_DEFAULT_IMAGE_MODEL: "entry-image"},
             runtime_data=SimpleNamespace(
                 client=object(),
-                coordinator=SimpleNamespace(catalog=FakeCatalog({CAPABILITY_IMAGE: []})),
+                coordinator=SimpleNamespace(catalog=model_catalog({CAPABILITY_IMAGE: []})),
             ),
         )
         entity = ai_task_module.LemonadeAITaskEntity(
@@ -3909,7 +3896,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             runtime_data=SimpleNamespace(
                 client=Client(),
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog({CAPABILITY_IMAGE: ["catalog-image"]})
+                    catalog=model_catalog({CAPABILITY_IMAGE: ["catalog-image"]})
                 ),
             ),
         )
@@ -3965,7 +3952,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             runtime_data=SimpleNamespace(
                 client=object(),
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog({CAPABILITY_AI_TASK: ["catalog-task"]})
+                    catalog=model_catalog({CAPABILITY_AI_TASK: ["catalog-task"]})
                 ),
             ),
         )
@@ -4095,7 +4082,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             options={CONF_DEFAULT_AI_TASK_MODEL: "stale-entry-task"},
             runtime_data=SimpleNamespace(
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog({CAPABILITY_AI_TASK: ["catalog-task"]})
+                    catalog=model_catalog({CAPABILITY_AI_TASK: ["catalog-task"]})
                 )
             ),
         )
@@ -4134,7 +4121,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             options={},
             runtime_data=SimpleNamespace(
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog({CAPABILITY_IMAGE: ["catalog-image"]})
+                    catalog=model_catalog({CAPABILITY_IMAGE: ["catalog-image"]})
                 )
             ),
         )
@@ -4150,7 +4137,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             options={},
             runtime_data=SimpleNamespace(
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog(
+                    catalog=model_catalog(
                         {
                             CAPABILITY_AI_TASK: ["vision-task"],
                             CAPABILITY_IMAGE: ["catalog-image"],
@@ -4178,7 +4165,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             runtime_data=SimpleNamespace(
                 client=object(),
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog({CAPABILITY_AI_TASK: []})
+                    catalog=model_catalog({CAPABILITY_AI_TASK: []})
                 ),
             ),
         )
@@ -4201,7 +4188,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             options={},
             runtime_data=SimpleNamespace(
                 client=object(),
-                coordinator=SimpleNamespace(catalog=FakeCatalog({CAPABILITY_IMAGE: []})),
+                coordinator=SimpleNamespace(catalog=model_catalog({CAPABILITY_IMAGE: []})),
             ),
         )
         entity = ai_task_module.LemonadeAITaskEntity(
@@ -4226,7 +4213,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             options={CONF_DEFAULT_IMAGE_MODEL: "entry-image"},
             runtime_data=SimpleNamespace(
                 client=Client(),
-                coordinator=SimpleNamespace(catalog=FakeCatalog({CAPABILITY_IMAGE: []})),
+                coordinator=SimpleNamespace(catalog=model_catalog({CAPABILITY_IMAGE: []})),
             ),
         )
         entity = ai_task_module.LemonadeAITaskEntity(
@@ -4252,7 +4239,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             options={CONF_DEFAULT_IMAGE_MODEL: "entry-image"},
             runtime_data=SimpleNamespace(
                 client=Client(),
-                coordinator=SimpleNamespace(catalog=FakeCatalog({CAPABILITY_IMAGE: []})),
+                coordinator=SimpleNamespace(catalog=model_catalog({CAPABILITY_IMAGE: []})),
             ),
         )
         entity = ai_task_module.LemonadeAITaskEntity(
@@ -4299,7 +4286,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             runtime_data=SimpleNamespace(
                 client=Client(),
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog({CAPABILITY_AI_TASK: ["catalog-task"]})
+                    catalog=model_catalog({CAPABILITY_AI_TASK: ["catalog-task"]})
                 ),
             ),
         )
@@ -4346,7 +4333,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             runtime_data=SimpleNamespace(
                 client=Client(),
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog({CAPABILITY_AI_TASK: ["catalog-task"]})
+                    catalog=model_catalog({CAPABILITY_AI_TASK: ["catalog-task"]})
                 ),
             ),
         )
@@ -4376,7 +4363,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             runtime_data=SimpleNamespace(
                 client=Client(),
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog({CAPABILITY_AI_TASK: ["catalog-task"]})
+                    catalog=model_catalog({CAPABILITY_AI_TASK: ["catalog-task"]})
                 ),
             ),
         )
@@ -4407,7 +4394,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             runtime_data=SimpleNamespace(
                 client=Client(),
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog({CAPABILITY_AI_TASK: ["catalog-task"]})
+                    catalog=model_catalog({CAPABILITY_AI_TASK: ["catalog-task"]})
                 ),
             ),
         )
@@ -4437,7 +4424,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             runtime_data=SimpleNamespace(
                 client=Client(),
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog({CAPABILITY_AI_TASK: ["catalog-task"]})
+                    catalog=model_catalog({CAPABILITY_AI_TASK: ["catalog-task"]})
                 ),
             ),
         )
@@ -4467,7 +4454,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             options={CONF_DEFAULT_IMAGE_MODEL: "entry-image"},
             runtime_data=SimpleNamespace(
                 client=Client(),
-                coordinator=SimpleNamespace(catalog=FakeCatalog({CAPABILITY_IMAGE: []})),
+                coordinator=SimpleNamespace(catalog=model_catalog({CAPABILITY_IMAGE: []})),
             ),
         )
         entity = ai_task_module.LemonadeAITaskEntity(
@@ -4496,7 +4483,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             options={CONF_DEFAULT_IMAGE_MODEL: "entry-image"},
             runtime_data=SimpleNamespace(
                 client=Client(),
-                coordinator=SimpleNamespace(catalog=FakeCatalog({CAPABILITY_IMAGE: []})),
+                coordinator=SimpleNamespace(catalog=model_catalog({CAPABILITY_IMAGE: []})),
             ),
         )
         entity = ai_task_module.LemonadeAITaskEntity(
@@ -4524,7 +4511,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             options={CONF_DEFAULT_IMAGE_MODEL: "entry-image"},
             runtime_data=SimpleNamespace(
                 client=Client(),
-                coordinator=SimpleNamespace(catalog=FakeCatalog({CAPABILITY_IMAGE: []})),
+                coordinator=SimpleNamespace(catalog=model_catalog({CAPABILITY_IMAGE: []})),
             ),
         )
         entity = ai_task_module.LemonadeAITaskEntity(
@@ -4580,7 +4567,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             runtime_data=SimpleNamespace(
                 client=client,
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog({CAPABILITY_CONVERSATION: ["catalog-chat"]})
+                    catalog=model_catalog({CAPABILITY_CONVERSATION: ["catalog-chat"]})
                 ),
             ),
         )
@@ -4649,7 +4636,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             options={},
             runtime_data=SimpleNamespace(
                 client=object(),
-                coordinator=SimpleNamespace(catalog=FakeCatalog({CAPABILITY_CONVERSATION: []})),
+                coordinator=SimpleNamespace(catalog=model_catalog({CAPABILITY_CONVERSATION: []})),
             ),
         )
         entity = conversation_module.LemonadeConversationEntity(
@@ -4678,7 +4665,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             runtime_data=SimpleNamespace(
                 client=object(),
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog({CAPABILITY_CONVERSATION: ["catalog-chat"]})
+                    catalog=model_catalog({CAPABILITY_CONVERSATION: ["catalog-chat"]})
                 ),
             ),
         )
@@ -4762,7 +4749,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             state="not_loaded",
             runtime_data=SimpleNamespace(
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog({CAPABILITY_CONVERSATION: ["chat-a"]})
+                    catalog=model_catalog({CAPABILITY_CONVERSATION: ["chat-a"]})
                 )
             ),
         )
@@ -4779,7 +4766,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             state="loaded",
             runtime_data=SimpleNamespace(
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog({CAPABILITY_CONVERSATION: []})
+                    catalog=model_catalog({CAPABILITY_CONVERSATION: []})
                 )
             ),
         )
@@ -4794,7 +4781,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             state="loaded",
             runtime_data=SimpleNamespace(
                 coordinator=SimpleNamespace(
-                    catalog=FakeCatalog({CAPABILITY_CONVERSATION: ["chat-a"]})
+                    catalog=model_catalog({CAPABILITY_CONVERSATION: ["chat-a"]})
                 )
             ),
         )
@@ -6290,7 +6277,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         hass = FakeHass()
         coordinator = SimpleNamespace(
             hass=hass,
-            catalog=FakeCatalog({}),
+            catalog=model_catalog({}),
             last_update_success=True,
         )
         entry = FakeEntry()
@@ -6313,7 +6300,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         coordinator = SimpleNamespace(
             hass=hass,
             last_update_success=True,
-            catalog=FakeCatalog(
+            catalog=model_catalog(
                 {
                     CAPABILITY_CONVERSATION: ["chat-a", "chat-b"],
                     CAPABILITY_IMAGE: ["image-a"],
@@ -6389,7 +6376,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         coordinator = SimpleNamespace(
             hass=FakeHass(),
             last_update_success=True,
-            catalog=ModelIdsOnlyCatalog(
+            catalog=model_catalog(
                 {
                     CAPABILITY_CONVERSATION: ["chat-a", "chat-b"],
                     CAPABILITY_IMAGE: ["image-a"],
@@ -6423,7 +6410,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
         client = Client()
         coordinator = SimpleNamespace(
-            catalog=FakeCatalog({CAPABILITY_TTS: ["catalog-tts"]}),
+            catalog=model_catalog({CAPABILITY_TTS: ["catalog-tts"]}),
             last_update_success=True,
         )
         entry = FakeEntry()
@@ -6495,7 +6482,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 entry.runtime_data = SimpleNamespace(
                     client=Client(),
                     coordinator=SimpleNamespace(
-                        catalog=FakeCatalog({CAPABILITY_TTS: ["catalog-tts"]})
+                        catalog=model_catalog({CAPABILITY_TTS: ["catalog-tts"]})
                     ),
                 )
                 entity = tts_module.LemonadeTTSEntity(entry)
@@ -6511,7 +6498,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         entry.options = {}
         entry.runtime_data = SimpleNamespace(
             client=object(),
-            coordinator=SimpleNamespace(catalog=FakeCatalog({CAPABILITY_TTS: []})),
+            coordinator=SimpleNamespace(catalog=model_catalog({CAPABILITY_TTS: []})),
         )
         entity = tts_module.LemonadeTTSEntity(entry)
 
@@ -6538,7 +6525,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         entry.runtime_data = SimpleNamespace(
             client=client,
             coordinator=SimpleNamespace(
-                catalog=FakeCatalog({CAPABILITY_TTS: ["catalog-tts", "entry-tts"]})
+                catalog=model_catalog({CAPABILITY_TTS: ["catalog-tts", "entry-tts"]})
             ),
         )
         entity = tts_module.LemonadeTTSEntity(entry)
@@ -6572,7 +6559,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
         client = Client()
         coordinator = SimpleNamespace(
-            catalog=FakeCatalog({CAPABILITY_STT: ["catalog-stt", "entry-stt"]}),
+            catalog=model_catalog({CAPABILITY_STT: ["catalog-stt", "entry-stt"]}),
             last_update_success=True,
         )
         entry = FakeEntry()
@@ -6627,7 +6614,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         entry.runtime_data = SimpleNamespace(
             client=object(),
             coordinator=SimpleNamespace(
-                catalog=FakeCatalog({CAPABILITY_STT: []}),
+                catalog=model_catalog({CAPABILITY_STT: []}),
                 last_update_success=True,
             ),
         )
@@ -6673,7 +6660,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 entry.runtime_data = SimpleNamespace(
                     client=Client(),
                     coordinator=SimpleNamespace(
-                        catalog=FakeCatalog({CAPABILITY_STT: ["catalog-stt"]})
+                        catalog=model_catalog({CAPABILITY_STT: ["catalog-stt"]})
                     ),
                 )
                 entity = stt_module.LemonadeSTTEntity(entry)
@@ -6704,7 +6691,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         entry.runtime_data = SimpleNamespace(
             client=Client(),
             coordinator=SimpleNamespace(
-                catalog=FakeCatalog({CAPABILITY_STT: ["catalog-stt"]})
+                catalog=model_catalog({CAPABILITY_STT: ["catalog-stt"]})
             ),
         )
         entity = stt_module.LemonadeSTTEntity(entry)
@@ -6735,7 +6722,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         entry.runtime_data = SimpleNamespace(
             client=Client(),
             coordinator=SimpleNamespace(
-                catalog=FakeCatalog({CAPABILITY_STT: ["catalog-stt"]})
+                catalog=model_catalog({CAPABILITY_STT: ["catalog-stt"]})
             ),
         )
         entity = stt_module.LemonadeSTTEntity(entry)
@@ -6769,7 +6756,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         entry.runtime_data = SimpleNamespace(
             client=Client(),
             coordinator=SimpleNamespace(
-                catalog=FakeCatalog({CAPABILITY_STT: ["catalog-stt"]})
+                catalog=model_catalog({CAPABILITY_STT: ["catalog-stt"]})
             ),
         )
         entity = stt_module.LemonadeSTTEntity(entry)
@@ -6824,7 +6811,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         coordinator = SimpleNamespace(
             hass=hass,
             last_update_success=True,
-            catalog=FakeCatalog(
+            catalog=model_catalog(
                 {
                     CAPABILITY_CONVERSATION: ["chat-a", "chat-b"],
                     CAPABILITY_AI_TASK: ["task-a"],

@@ -11,7 +11,7 @@ from .const import (
     CONF_DEFAULT_STT_MODEL,
     CONF_DEFAULT_TTS_MODEL,
 )
-from .models import Capability, ModelId, parse_models_response
+from .models import Capability, LemonadeModelCatalog, ModelId
 
 
 class ModelSelectorDegradedPolicy(StrEnum):
@@ -141,69 +141,6 @@ def _model_id(value: Any) -> str | None:
     return str(model_id) if model_id is not None else None
 
 
-def _capability(value: Any) -> Capability | None:
-    """Return a known model capability."""
-    return Capability.parse(value)
-
-
-def catalog_model_ids(catalog: Any, capability: Capability | str) -> list[str]:
-    """Return catalog model IDs for a capability."""
-    parsed_capability = _capability(capability)
-    if parsed_capability is None:
-        return []
-
-    if hasattr(catalog, "model_ids"):
-        return [
-            str(model_id)
-            for model_id in (
-                ModelId.parse(model_id)
-                for model_id in catalog.model_ids(parsed_capability)
-            )
-            if model_id is not None
-        ]
-    if hasattr(catalog, "models_for"):
-        return [
-            model_id
-            for model in catalog.models_for(parsed_capability)
-            if (model_id := _model_id(getattr(model, "id", None))) is not None
-        ]
-    return []
-
-
-def catalog_all_model_ids(catalog: Any) -> list[str]:
-    """Return every usable model ID in catalog order."""
-    if hasattr(catalog, "all_model_ids"):
-        return [
-            str(model_id)
-            for model_id in (
-                ModelId.parse(model_id) for model_id in catalog.all_model_ids
-            )
-            if model_id is not None
-        ]
-
-    models = getattr(catalog, "models", ())
-    return [
-        model_id
-        for model in models
-        if (model_id := _model_id(getattr(model, "id", None))) is not None
-    ]
-
-
-def first_catalog_model_id(catalog: Any, capability: Capability | str) -> str | None:
-    """Return the first compatible model ID for a capability."""
-    parsed_capability = _capability(capability)
-    if parsed_capability is None:
-        return None
-
-    if hasattr(catalog, "first_model_id"):
-        model = _model_id(catalog.first_model_id(parsed_capability))
-        if model is not None:
-            return model
-
-    model_ids = catalog_model_ids(catalog, parsed_capability)
-    return model_ids[0] if model_ids else None
-
-
 def _entry_default_model(entry: Any, option_key: str | None) -> str | None:
     """Return the configured entry default model from options or data."""
     if option_key is None:
@@ -231,25 +168,21 @@ def _is_default_model_selector_option(option_key: str | None) -> bool:
 class RuntimeCapabilityView:
     """Runtime model and selection view for a Lemonade Server Entry."""
 
-    catalog: Any
+    catalog: LemonadeModelCatalog
 
     @property
     def total_model_count(self) -> int:
         """Return the total number of parsed runtime models."""
-        models = getattr(self.catalog, "models", ())
-        try:
-            return len(models)
-        except TypeError:
-            return 0
+        return len(self.catalog.models)
 
     def model_ids(self, capability: Capability | str) -> list[str]:
         """Return model IDs available for a capability."""
-        return catalog_model_ids(self.catalog, capability)
+        return self.catalog.model_ids(capability)
 
     @property
     def all_model_ids(self) -> list[str]:
         """Return all model IDs available from Lemonade."""
-        return catalog_all_model_ids(self.catalog)
+        return self.catalog.all_model_ids
 
     def model_count(self, capability: Capability | str) -> int:
         """Return the number of models available for a capability."""
@@ -265,7 +198,7 @@ class RuntimeCapabilityView:
 
     def first_model_id(self, capability: Capability | str) -> str | None:
         """Return the first available model for a capability."""
-        return first_catalog_model_id(self.catalog, capability)
+        return self.catalog.first_model_id(capability)
 
     def default_model_selector_options(
         self,
@@ -384,14 +317,17 @@ class RuntimeCapabilityView:
 RuntimeModelView = RuntimeCapabilityView
 
 
-def runtime_model_view(source: Any) -> RuntimeCapabilityView:
+def runtime_model_view(source: object) -> RuntimeCapabilityView:
     """Return a runtime capability view for an entry, coordinator, catalog, or view."""
     if isinstance(source, RuntimeCapabilityView):
         return source
 
     runtime_data = getattr(source, "runtime_data", None)
     if runtime_data is not None:
-        return runtime_model_view(getattr(runtime_data, "coordinator", None))
+        coordinator = getattr(runtime_data, "coordinator", None)
+        if coordinator is None:
+            return RuntimeCapabilityView(LemonadeModelCatalog(()))
+        return runtime_model_view(coordinator)
 
     runtime_state = getattr(source, "runtime_state", None)
     if runtime_state is not None:
@@ -403,11 +339,14 @@ def runtime_model_view(source: Any) -> RuntimeCapabilityView:
     if isinstance(view, RuntimeCapabilityView):
         return view
 
+    if isinstance(source, LemonadeModelCatalog):
+        return RuntimeCapabilityView(source)
+
     catalog = getattr(source, "catalog", None)
-    if catalog is not None:
+    if isinstance(catalog, LemonadeModelCatalog):
         return RuntimeCapabilityView(catalog)
 
-    return RuntimeCapabilityView(parse_models_response({}))
+    raise TypeError(f"Invalid Lemonade runtime model source: {type(source).__name__}")
 
 
 def default_model_selector_definition(
