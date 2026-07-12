@@ -3,6 +3,7 @@
 ## Changed files
 
 - `custom_components/lemonade/coordinator.py`
+- `custom_components/lemonade/models.py`
 - `tests/test_runtime.py`
 
 ## Representation decisions
@@ -25,7 +26,7 @@
 
 ## Concerns
 
-- The required combined unittest command has a pre-existing/inherited Home Assistant stub import failure in `tests.test_models`; Task 3 runtime tests and both non-test verification gates pass.
+- None. The combined-suite import coupling was fixed by Task 1 and the controller subsequently ran the combined suite successfully.
 
 ## Reviewer fix
 
@@ -36,3 +37,4 @@
 - Commit: `09bb038` — Freeze canonical runtime model catalog.
 - Verification: `python3 -m unittest tests.test_runtime -q` ran 144 tests, OK; `python3 -m compileall -q custom_components/lemonade` and `git diff --check` exited 0.
 - The required combined command ran 145 tests but retained the inherited `tests.test_models` import error (`homeassistant.components` missing); the same import error reproduces with `tests.test_models` alone.
+- Final integrated evidence after Task 1's import-coupling fix: the controller ran the combined suite successfully with 153 tests.

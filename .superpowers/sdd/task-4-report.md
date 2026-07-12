@@ -42,8 +42,7 @@
 ## Commit
 
 - Implementation: `9fb3a693176e3722e2b5774545400617108c9c55`
-- This report is committed separately so it can record the exact implementation
-  SHA; its exact SHA is returned to the controller on completion.
+- Report: `f82d590735bb6adfd38bb848a77156d509fe56dd`
 
 ## Concerns
 
