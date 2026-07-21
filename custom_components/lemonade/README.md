@@ -44,6 +44,8 @@ The proxy must pass through Lemonade's OpenAI-compatible API paths, including `/
 
 Leave **Verify SSL certificate** enabled for public CA certificates such as Let's Encrypt. Disable it only for private/self-signed certificates that Home Assistant cannot validate.
 
+Lemonade may need extra time to load a model on its first request. New Server Entries default to a 120-second request timeout. Existing entries keep their saved timeout; increase it under the Server Entry options when image, speech, or larger language models cannot finish a cold start within the previous value. If Lemonade Server itself returns a `model_load_error`, retry once after the model backend finishes starting and check the Lemonade Server logs if it repeats.
+
 ## Assist and AI task profiles
 
 The integration creates default model controls for text-to-speech and speech-to-text. Conversation, AI task, and image-capable task models are configured on explicit profiles:

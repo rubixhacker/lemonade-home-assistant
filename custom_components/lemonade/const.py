@@ -7,7 +7,7 @@ from homeassistant.const import Platform
 DOMAIN = "lemonade"
 DEFAULT_NAME = "Lemonade Server"
 DEFAULT_URL = "http://localhost:13305"
-DEFAULT_TIMEOUT = 30.0
+DEFAULT_TIMEOUT = 120.0
 DEFAULT_SCAN_INTERVAL_SECONDS = 60
 
 CONF_TIMEOUT = "timeout"

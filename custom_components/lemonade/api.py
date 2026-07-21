@@ -9,6 +9,7 @@ from typing import Any
 import aiohttp
 
 from .const import (
+    DEFAULT_TIMEOUT,
     ENDPOINT_AUDIO_SPEECH,
     ENDPOINT_AUDIO_TRANSCRIPTIONS,
     ENDPOINT_CHAT,
@@ -34,7 +35,7 @@ class LemonadeClient:
         session: aiohttp.ClientSession,
         url: str,
         api_key: str | None = None,
-        timeout: float = 30.0,
+        timeout: float = DEFAULT_TIMEOUT,
         verify_ssl: bool = True,
     ) -> None:
         """Initialize the client."""

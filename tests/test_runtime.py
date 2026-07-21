@@ -1882,6 +1882,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("form", result["type"])
         fields = _schema_fields(result["data_schema"])
         self.assertNotIn(CONF_MODEL, fields)
+        self.assertEqual(120.0, fields[CONF_TIMEOUT][0].default)
         self.assertTrue(fields[CONF_VERIFY_SSL][0].default)
 
     async def test_ai_task_profile_subentry_flow_uses_ai_task_models(self) -> None:

@@ -10,6 +10,9 @@
           "api_key": "API key",
           "timeout": "Request timeout (seconds)",
           "verify_ssl": "Verify SSL certificate"
+        },
+        "data_description": {
+          "timeout": "Allow enough time for Lemonade Server to load a cold model. The default is 120 seconds."
         }
       }
     },
@@ -37,6 +40,9 @@
           "verify_ssl": "Verify SSL certificate",
           "default_tts_model": "Default text-to-speech model",
           "default_stt_model": "Default speech-to-text model"
+        },
+        "data_description": {
+          "timeout": "Allow enough time for Lemonade Server to load a cold model. Existing entries can be increased to 120 seconds here."
         }
       }
     }

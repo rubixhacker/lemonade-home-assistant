@@ -9,6 +9,7 @@ from typing import Any
 import aiohttp
 
 from .api import LemonadeAuthError, LemonadeClient, LemonadeError
+from .const import DEFAULT_TIMEOUT
 
 
 @dataclass(frozen=True)
@@ -17,7 +18,7 @@ class ConnectionSettings:
 
     url: str
     api_key: str | None = None
-    timeout: float = 30.0
+    timeout: float = DEFAULT_TIMEOUT
     verify_ssl: bool = True
 
     def __post_init__(self) -> None:
