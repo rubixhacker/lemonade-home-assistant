@@ -157,6 +157,8 @@ class LemonadeClient:
         tools: list[dict[str, Any]] | None = None,
         response_format: dict[str, Any] | None = None,
         keep_alive: int | None = None,
+        route_trace: bool | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Create a chat completion."""
         payload: dict[str, Any] = {
@@ -174,6 +176,10 @@ class LemonadeClient:
             payload["response_format"] = response_format
         if keep_alive is not None:
             payload["keep_alive"] = keep_alive
+        if route_trace is not None:
+            payload["route_trace"] = route_trace
+        if metadata is not None:
+            payload["metadata"] = metadata
         return await self._request_json("POST", ENDPOINT_CHAT, json=payload)
 
     async def generate_image(

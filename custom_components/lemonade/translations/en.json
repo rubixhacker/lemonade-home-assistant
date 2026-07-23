@@ -57,34 +57,38 @@
       "step": {
         "user": {
           "title": "Add conversation profile",
-          "description": "Create a Lemonade conversation profile.",
+          "description": "Create a Lemonade conversation profile. Router Models may send request content and tool schemas to cloud candidates according to Lemonade Server policy.",
           "data": {
             "name": "Profile name",
             "model": "Model",
             "prompt": "Prompt",
             "llm_hass_api": "Home Assistant LLM APIs",
             "max_history": "Max history messages",
-            "keep_alive": "Keep alive"
+            "keep_alive": "Keep alive",
+            "router_metadata": "Router metadata"
           },
           "data_description": {
             "max_history": "Maximum number of non-system chat history messages to send to Lemonade each turn. 0 sends all history.",
-            "keep_alive": "Duration in seconds for Lemonade to keep the model active. Leave blank for the Lemonade server default. -1 = indefinite, 0 = never."
+            "keep_alive": "Duration in seconds for Lemonade to keep the model active. Leave blank for the Lemonade server default. -1 = indefinite, 0 = never.",
+            "router_metadata": "Optional mapping passed unchanged to a Router Model. It is separate from the prompt; Home Assistant does not add identities, entity context, or profile details."
           }
         },
         "reconfigure": {
           "title": "Reconfigure conversation profile",
-          "description": "Update this Lemonade conversation profile.",
+          "description": "Update this Lemonade conversation profile. Router Models may send request content and tool schemas to cloud candidates according to Lemonade Server policy.",
           "data": {
             "name": "Profile name",
             "model": "Model",
             "prompt": "Prompt",
             "llm_hass_api": "Home Assistant LLM APIs",
             "max_history": "Max history messages",
-            "keep_alive": "Keep alive"
+            "keep_alive": "Keep alive",
+            "router_metadata": "Router metadata"
           },
           "data_description": {
             "max_history": "Maximum number of non-system chat history messages to send to Lemonade each turn. 0 sends all history.",
-            "keep_alive": "Duration in seconds for Lemonade to keep the model active. Leave blank for the Lemonade server default. -1 = indefinite, 0 = never."
+            "keep_alive": "Duration in seconds for Lemonade to keep the model active. Leave blank for the Lemonade server default. -1 = indefinite, 0 = never.",
+            "router_metadata": "Optional mapping passed unchanged to a Router Model. It is separate from the prompt; Home Assistant does not add identities, entity context, or profile details."
           }
         }
       },
@@ -103,32 +107,36 @@
       "step": {
         "user": {
           "title": "Add AI task profile",
-          "description": "Create a Lemonade AI task profile.",
+          "description": "Create a Lemonade AI task profile. Router Models may send request content and tool schemas to cloud candidates according to Lemonade Server policy.",
           "data": {
             "name": "Profile name",
             "model": "Model",
             "prompt": "Prompt",
             "max_history": "Max history messages",
-            "keep_alive": "Keep alive"
+            "keep_alive": "Keep alive",
+            "router_metadata": "Router metadata"
           },
           "data_description": {
             "max_history": "Maximum number of non-system chat history messages to send to Lemonade each turn. 0 sends all history.",
-            "keep_alive": "Duration in seconds for Lemonade to keep the model active. Leave blank for the Lemonade server default. -1 = indefinite, 0 = never."
+            "keep_alive": "Duration in seconds for Lemonade to keep the model active. Leave blank for the Lemonade server default. -1 = indefinite, 0 = never.",
+            "router_metadata": "Optional mapping passed unchanged to a Router Model. It is separate from the prompt; Home Assistant does not add identities, entity context, or profile details."
           }
         },
         "reconfigure": {
           "title": "Reconfigure AI task profile",
-          "description": "Update this Lemonade AI task profile.",
+          "description": "Update this Lemonade AI task profile. Router Models may send request content and tool schemas to cloud candidates according to Lemonade Server policy.",
           "data": {
             "name": "Profile name",
             "model": "Model",
             "prompt": "Prompt",
             "max_history": "Max history messages",
-            "keep_alive": "Keep alive"
+            "keep_alive": "Keep alive",
+            "router_metadata": "Router metadata"
           },
           "data_description": {
             "max_history": "Maximum number of non-system chat history messages to send to Lemonade each turn. 0 sends all history.",
-            "keep_alive": "Duration in seconds for Lemonade to keep the model active. Leave blank for the Lemonade server default. -1 = indefinite, 0 = never."
+            "keep_alive": "Duration in seconds for Lemonade to keep the model active. Leave blank for the Lemonade server default. -1 = indefinite, 0 = never.",
+            "router_metadata": "Optional mapping passed unchanged to a Router Model. It is separate from the prompt; Home Assistant does not add identities, entity context, or profile details."
           }
         }
       },

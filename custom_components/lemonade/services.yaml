@@ -45,6 +45,16 @@ chat_completion:
           max: 32768
           step: 1
           mode: box
+    route_trace:
+      name: Route trace
+      description: Request an opt-in Router Model route decision from Lemonade Server 11.5.0 or later. The raw Lemonade response returns it; Home Assistant does not retain route history or emit events.
+      selector:
+        boolean:
+    router_metadata:
+      name: Router metadata
+      description: Optional mapping passed unchanged to a Router Model. Do not use it for inferred Home Assistant identity or entity context. Router Models may send request content and tool schemas to cloud candidates according to Lemonade Server policy.
+      selector:
+        object:
 
 classify_text:
   name: Classify text

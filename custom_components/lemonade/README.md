@@ -117,6 +117,14 @@ The response contains the selected `model` and the complete `labels` score mappi
 
 Older Server Entries remain usable. If no Classification Model is advertised, or the server does not support the classification endpoint, only this service call fails with a classification-specific error.
 
+### Router Models and routing diagnostics
+
+Lemonade Server 11.5.0 or later can expose Router Models through the ordinary chat model selector. `lemonade.chat_completion` accepts optional `route_trace: true` and `router_metadata` inputs. Route decisions remain in the returned raw Lemonade response alongside `content`; Home Assistant does not create a route sensor, event, or history.
+
+Router metadata is an explicit mapping and is passed unchanged. The integration never adds Home Assistant identities, entity context, or profile details. Conversation and AI Task Profiles can store the same optional mapping separately from their prompts.
+
+Lemonade Server owns execution locality. Its mutable routing policy may send request content, Home Assistant tool schemas, and supplied metadata to cloud candidates. Home Assistant does not offer an `allow_cloud` switch or infer a router's locality.
+
 ## Generated image media
 
 `lemonade.generate_image` supports `save: true`. When enabled, decoded image bytes from Lemonade image responses are saved under Home Assistant's `/media/lemonade` directory and the service response includes:

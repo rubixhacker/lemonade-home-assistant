@@ -17,6 +17,8 @@ from .const import (
     ATTR_MAX_TOKENS,
     ATTR_MESSAGES,
     ATTR_PROMPT,
+    ATTR_ROUTE_TRACE,
+    ATTR_ROUTER_METADATA,
     ATTR_RESPONSE_FORMAT,
     ATTR_SAVE,
     ATTR_SIZE,
@@ -50,6 +52,8 @@ class ChatCompletionRequest:
     messages: tuple[Message, ...]
     temperature: Any
     max_tokens: Any
+    route_trace: bool | None
+    router_metadata: dict[str, Any] | None
 
     @classmethod
     def from_service_call(cls, call: ServiceCall) -> "ChatCompletionRequest":
@@ -60,6 +64,8 @@ class ChatCompletionRequest:
             messages=_chat_messages(call.data),
             temperature=call.data.get(ATTR_TEMPERATURE),
             max_tokens=call.data.get(ATTR_MAX_TOKENS),
+            route_trace=call.data.get(ATTR_ROUTE_TRACE),
+            router_metadata=call.data.get(ATTR_ROUTER_METADATA),
         )
 
 

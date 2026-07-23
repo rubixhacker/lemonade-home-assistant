@@ -137,6 +137,10 @@ class _TemplateSelector:
     pass
 
 
+class _ObjectSelector:
+    pass
+
+
 def _install_homeassistant_stubs() -> None:
     """Install minimal Home Assistant dependency stubs for unit tests."""
     aiohttp = ModuleType("aiohttp")
@@ -437,6 +441,7 @@ def _install_homeassistant_stubs() -> None:
     selector.NumberSelectorConfig = _NumberSelectorConfig
     selector.NumberSelectorMode = SimpleNamespace(BOX="box")
     selector.TemplateSelector = _TemplateSelector
+    selector.ObjectSelector = _ObjectSelector
     sys.modules.setdefault("homeassistant.helpers.selector", selector)
 
     issue_registry = ModuleType("homeassistant.helpers.issue_registry")
@@ -536,6 +541,7 @@ from lemonade.const import (  # noqa: E402
     CONF_KEEP_ALIVE,
     CONF_LLM_HASS_API,
     CONF_MAX_HISTORY,
+    CONF_ROUTER_METADATA,
     CONF_TIMEOUT,
     CONF_VERIFY_SSL,
     DEFAULT_MAX_HISTORY,
@@ -1055,6 +1061,7 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
     def test_profile_runtime_filters_profiles_and_maps_capabilities(self) -> None:
         from lemonade.profiles import (
             LLMAPIProfileField,
+            MappingProfileField,
             ModelProfileField,
             NumberProfileField,
             ProfileKind,
@@ -1132,6 +1139,7 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
                 CONF_LLM_HASS_API,
                 CONF_MAX_HISTORY,
                 CONF_KEEP_ALIVE,
+                CONF_ROUTER_METADATA,
             ),
             tuple(fields_by_key),
         )
@@ -1142,6 +1150,7 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
             CONF_LLM_HASS_API: LLMAPIProfileField,
             CONF_MAX_HISTORY: NumberProfileField,
             CONF_KEEP_ALIVE: NumberProfileField,
+            CONF_ROUTER_METADATA: MappingProfileField,
         }
         for key, expected_type in expected_field_types.items():
             with self.subTest(key=key):
@@ -1965,6 +1974,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(expected_models, fields[CONF_MODEL][1].config.options)
 
     def test_profile_field_presentation_matrix_is_complete(self) -> None:
+        from lemonade.const import CONF_ROUTER_METADATA
         from lemonade.profiles import (
             ProfileFieldPresentation,
             interpret_profile_field,
@@ -2040,6 +2050,17 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 None,
             ),
             (
+                SUBENTRY_TYPE_CONVERSATION,
+                CONF_ROUTER_METADATA,
+                False,
+                "mapping",
+                None,
+                None,
+                None,
+                {"zone": "kitchen"},
+                {"zone": "kitchen"},
+            ),
+            (
                 SUBENTRY_TYPE_AI_TASK,
                 CONF_NAME,
                 True,
@@ -2094,6 +2115,17 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 "-1",
                 -1,
             ),
+            (
+                SUBENTRY_TYPE_AI_TASK,
+                CONF_ROUTER_METADATA,
+                False,
+                "mapping",
+                None,
+                None,
+                None,
+                {"task": {"kind": "summary"}},
+                {"task": {"kind": "summary"}},
+            ),
         )
         expected_pairs = {(row[0], row[1]) for row in matrix}
         actual_pairs = {
@@ -2103,7 +2135,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         }
         self.assertEqual(expected_pairs, actual_pairs)
         self.assertEqual(
-            {"text", "model", "prompt", "llm_api", "number"},
+            {"text", "model", "prompt", "llm_api", "number", "mapping"},
             {row[3] for row in matrix},
         )
 
@@ -2124,6 +2156,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(normalized, normalize_profile_field(field, raw))
 
     async def test_conversation_profile_subentry_flow_builds_schema(self) -> None:
+        from lemonade.const import CONF_ROUTER_METADATA
         from lemonade.config_flow import LemonadeProfileSubentryFlow
 
         entry = SimpleNamespace(
@@ -2165,8 +2198,10 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             fields[CONF_LLM_HASS_API][1].config.options,
         )
         self.assertFalse(fields[CONF_LLM_HASS_API][1].config.multiple)
+        self.assertIsInstance(fields[CONF_ROUTER_METADATA][1], _ObjectSelector)
 
     async def test_profile_subentry_flow_reconfigures_existing_profile(self) -> None:
+        from lemonade.const import CONF_ROUTER_METADATA
         from lemonade.config_flow import LemonadeProfileSubentryFlow
 
         subentry = SimpleNamespace(
@@ -2177,6 +2212,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 CONF_LLM_HASS_API: "assist",
                 CONF_MAX_HISTORY: 6,
                 CONF_KEEP_ALIVE: 60,
+                CONF_ROUTER_METADATA: {"old": "metadata"},
             }
         )
         entry = SimpleNamespace(
@@ -2201,11 +2237,15 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("assist", fields[CONF_LLM_HASS_API][0].default)
         self.assertEqual(6, fields[CONF_MAX_HISTORY][0].default)
         self.assertEqual(60, fields[CONF_KEEP_ALIVE][0].default)
+        self.assertEqual(
+            {"old": "metadata"}, fields[CONF_ROUTER_METADATA][0].default
+        )
 
         submitted = {
             CONF_NAME: "New profile",
             CONF_MODEL: "chat-a",
             CONF_MAX_HISTORY: 2,
+            CONF_ROUTER_METADATA: {"new": "metadata"},
         }
         result = await flow.async_step_reconfigure(submitted)
 
@@ -2497,6 +2537,23 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response_format, payload["response_format"])
         self.assertEqual(300, payload["keep_alive"])
 
+    async def test_chat_completion_serializes_router_options_only_when_requested(self) -> None:
+        session = FakeSession({"route_decision": {"model": "local"}})
+        client = LemonadeClient(session, "http://server")
+        metadata = {"request_class": "automation", "nested": {"keep": True}}
+
+        response = await client.chat_completion(
+            model="router-model",
+            messages=[{"role": "user", "content": "Hi"}],
+            route_trace=True,
+            metadata=metadata,
+        )
+
+        payload = session.requests[-1][2]["json"]
+        self.assertTrue(payload["route_trace"])
+        self.assertEqual(metadata, payload["metadata"])
+        self.assertEqual({"route_decision": {"model": "local"}}, response)
+
     async def test_chat_completion_omits_tool_payload_when_absent(self) -> None:
         session = FakeSession({"choices": []})
         client = LemonadeClient(session, "http://server")
@@ -2509,6 +2566,8 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("tools", payload)
         self.assertNotIn("response_format", payload)
         self.assertNotIn("keep_alive", payload)
+        self.assertNotIn("route_trace", payload)
+        self.assertNotIn("metadata", payload)
 
     async def test_api_requests_use_default_ssl_verification(self) -> None:
         session = FakeHttpSession(FakeHttpResponse(status=200, payload={"ok": True}))
@@ -4008,6 +4067,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             prompt="Return only valid JSON",
             max_history=3,
             keep_alive=120,
+            router_metadata={"source": "ai_task"},
         )
 
         result = await profile_chat_module.async_generate_ai_task_profile_data(
@@ -4026,6 +4086,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual({"type": "json_object"}, requests[0]["structure"])
         self.assertEqual(3, requests[0]["max_history"])
         self.assertEqual(120, requests[0]["keep_alive"])
+        self.assertEqual({"source": "ai_task"}, requests[0]["router_metadata"])
         self.assertIsInstance(requests[0]["chat_log"].content[0], SystemContent)
         self.assertEqual(
             "Return only valid JSON",
@@ -4041,6 +4102,33 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(invocation, profile_chat_module.ProfileChatTurn)
         self.assertEqual("catalog-task", invocation.model)
         self.assertEqual("Return only valid JSON", invocation.prompt)
+        self.assertEqual({"source": "ai_task"}, invocation.router_metadata)
+
+    def test_conversation_profile_turn_propagates_only_explicit_router_metadata(self) -> None:
+        profile_chat_module = _require_module("lemonade.profile_chat")
+        entry = SimpleNamespace(
+            runtime_data=SimpleNamespace(
+                client=object(),
+                coordinator=SimpleNamespace(
+                    catalog=model_catalog({CAPABILITY_CONVERSATION: ["router"]})
+                ),
+            )
+        )
+        profile = profile_chat_module.ConversationProfile(
+            id="conversation-1",
+            profile_type=SUBENTRY_TYPE_CONVERSATION,
+            model="router",
+            router_metadata={"audience": "household"},
+        )
+
+        turn = profile_chat_module.conversation_profile_chat_turn(
+            entry=entry,
+            profile=profile,
+            entity_id="conversation.lemonade",
+            chat_log=object(),
+        )
+
+        self.assertEqual({"audience": "household"}, turn.router_metadata)
 
     async def test_ai_task_entity_data_adapter_uses_one_profile_snapshot(self) -> None:
         from homeassistant.components import ai_task
@@ -5363,7 +5451,13 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
         from homeassistant.const import CONF_MODEL
         from homeassistant.exceptions import HomeAssistantError
-        from lemonade.const import ATTR_MESSAGES, ATTR_PROMPT, ATTR_SYSTEM_PROMPT
+        from lemonade.const import (
+            ATTR_MESSAGES,
+            ATTR_PROMPT,
+            ATTR_ROUTE_TRACE,
+            ATTR_ROUTER_METADATA,
+            ATTR_SYSTEM_PROMPT,
+        )
         from lemonade.llm import SystemMessage, UserMessage
         from lemonade.service_requests import ChatCompletionRequest
 
@@ -5375,6 +5469,8 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                     ATTR_PROMPT: "Hello",
                     "temperature": 0.25,
                     "max_tokens": 64,
+                    ATTR_ROUTE_TRACE: True,
+                    ATTR_ROUTER_METADATA: {"target": "local"},
                 }
             )
         )
@@ -5390,6 +5486,8 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(0.25, request.temperature)
         self.assertEqual(64, request.max_tokens)
+        self.assertTrue(request.route_trace)
+        self.assertEqual({"target": "local"}, request.router_metadata)
         with self.assertRaises(FrozenInstanceError):
             request.model = "other-model"  # type: ignore[misc]
         with self.assertRaisesRegex(
@@ -5741,6 +5839,45 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 )
 
         self.assertEqual(["router-policy", "omni-orchestrator"], client.models)
+
+    async def test_chat_service_preserves_route_decision_and_passes_router_options(self) -> None:
+        from lemonade.const import (
+            ATTR_PROMPT,
+            ATTR_ROUTE_TRACE,
+            ATTR_ROUTER_METADATA,
+            CAPABILITY_CONVERSATION,
+        )
+        from lemonade.services import _async_chat_completion
+
+        class Client:
+            def __init__(self) -> None:
+                self.call: dict[str, Any] | None = None
+
+            async def chat_completion(self, **kwargs: Any) -> dict[str, Any]:
+                self.call = kwargs
+                return {
+                    "choices": [{"message": {"content": "hello"}}],
+                    "route_decision": {"selected_model": "local"},
+                }
+
+        client = Client()
+        entry = _service_entry(client, {CAPABILITY_CONVERSATION: ["router"]})
+        result = await _async_chat_completion(
+            FakeServiceHass(entry),
+            SimpleNamespace(
+                data={
+                    ATTR_PROMPT: "Hello",
+                    ATTR_ROUTE_TRACE: True,
+                    ATTR_ROUTER_METADATA: {"audience": "home"},
+                }
+            ),
+        )
+
+        self.assertEqual("hello", result["content"])
+        self.assertEqual("local", result["response"]["route_decision"]["selected_model"])
+        assert client.call is not None
+        self.assertTrue(client.call["route_trace"])
+        self.assertEqual({"audience": "home"}, client.call["metadata"])
 
     async def test_direct_services_error_when_no_compatible_model_exists(self) -> None:
         import tempfile

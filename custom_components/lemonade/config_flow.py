@@ -373,6 +373,8 @@ class LemonadeProfileSubentryFlow(config_entries.ConfigSubentryFlow):
                 schema[marker(interpreted)] = _number_box_selector(
                     minimum=interpreted.minimum
                 )
+            elif interpreted.presentation is ProfileFieldPresentation.MAPPING:
+                schema[marker(interpreted)] = selector.ObjectSelector()
             else:
                 assert_never(interpreted.presentation)
 

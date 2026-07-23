@@ -19,6 +19,7 @@ from .const import (
     CONF_KEEP_ALIVE,
     CONF_LLM_HASS_API,
     CONF_MAX_HISTORY,
+    CONF_ROUTER_METADATA,
     DEFAULT_MAX_HISTORY,
     SUBENTRY_TYPE_AI_TASK,
     SUBENTRY_TYPE_CONVERSATION,
@@ -56,6 +57,7 @@ class ConversationProfile:
     hass_api: str | None = None
     max_history: int = DEFAULT_MAX_HISTORY
     keep_alive: int | None = None
+    router_metadata: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +70,7 @@ class AITaskProfile:
     prompt: str | None = None
     max_history: int = DEFAULT_MAX_HISTORY
     keep_alive: int | None = None
+    router_metadata: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,12 +140,21 @@ class LLMAPIProfileField:
 
     key: str
 
+
+@dataclass(frozen=True, slots=True)
+class MappingProfileField:
+    """Optional mapping passed unchanged to a Lemonade Router Model."""
+
+    key: str
+
+
 ProfileFieldDefinition: TypeAlias = (
     TextProfileField
     | ModelProfileField
     | NumberProfileField
     | PromptProfileField
     | LLMAPIProfileField
+    | MappingProfileField
 )
 
 
@@ -154,6 +166,7 @@ class ProfileFieldPresentation(StrEnum):
     PROMPT = "prompt"
     LLM_API = "llm_api"
     NUMBER = "number"
+    MAPPING = "mapping"
 
 
 class _ProfileFieldParser(StrEnum):
@@ -162,6 +175,7 @@ class _ProfileFieldParser(StrEnum):
     OPTIONAL_STRING = "optional_string"
     MODEL_ID = "model_id"
     INTEGER = "integer"
+    MAPPING = "mapping"
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,6 +225,11 @@ def interpret_profile_field(
                 key, False, ProfileFieldPresentation.LLM_API,
                 _ProfileFieldParser.OPTIONAL_STRING,
             )
+        case MappingProfileField(key=key):
+            return ProfileFieldInterpretation(
+                key, False, ProfileFieldPresentation.MAPPING,
+                _ProfileFieldParser.MAPPING,
+            )
         case _:
             assert_never(field)
 
@@ -234,6 +253,8 @@ def normalize_profile_field(field: ProfileFieldDefinition, value: Any) -> Any:
         if minimum is not None and normalized < minimum:
             return minimum if interpretation.default is not None else None
         return normalized
+    if interpretation.parser is _ProfileFieldParser.MAPPING:
+        return dict(value) if isinstance(value, Mapping) else None
     assert_never(interpretation.parser)
 
 
@@ -273,6 +294,7 @@ CONVERSATION_PROFILE_DEFINITION = ProfileDefinition(
         LLMAPIProfileField(CONF_LLM_HASS_API),
         NumberProfileField(CONF_MAX_HISTORY, minimum=0, default=DEFAULT_MAX_HISTORY),
         NumberProfileField(CONF_KEEP_ALIVE, minimum=-1),
+        MappingProfileField(CONF_ROUTER_METADATA),
     ),
     model_policy=ProfileModelPolicy(Capability.CONVERSATION),
 )
@@ -285,6 +307,7 @@ AI_TASK_PROFILE_DEFINITION = ProfileDefinition(
         PromptProfileField(CONF_PROMPT),
         NumberProfileField(CONF_MAX_HISTORY, minimum=0, default=DEFAULT_MAX_HISTORY),
         NumberProfileField(CONF_KEEP_ALIVE, minimum=-1),
+        MappingProfileField(CONF_ROUTER_METADATA),
     ),
     model_policy=ProfileModelPolicy(Capability.AI_TASK),
 )
@@ -367,6 +390,7 @@ def parse_profile(
             hass_api=normalized[CONF_LLM_HASS_API],
             max_history=normalized[CONF_MAX_HISTORY],
             keep_alive=normalized[CONF_KEEP_ALIVE],
+            router_metadata=normalized[CONF_ROUTER_METADATA],
         )
     if definition == AI_TASK_PROFILE_DEFINITION:
         normalized = normalize_profile_data(definition, data)
@@ -377,6 +401,7 @@ def parse_profile(
             prompt=normalized[CONF_PROMPT],
             max_history=normalized[CONF_MAX_HISTORY],
             keep_alive=normalized[CONF_KEEP_ALIVE],
+            router_metadata=normalized[CONF_ROUTER_METADATA],
         )
     return UnknownProfile(
         id=profile_id,

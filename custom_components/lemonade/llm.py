@@ -72,6 +72,7 @@ class ChatTurnRequest:
     structure: Any | None = None
     max_history: int | None = None
     keep_alive: int | None = None
+    router_metadata: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -83,12 +84,16 @@ class ChatTurnPayload:
     tools: tuple[Mapping[str, Any], ...] | None = None
     response_format: Mapping[str, Any] | None = None
     keep_alive: int | None = None
+    router_metadata: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "messages", _deep_freeze(self.messages))
         object.__setattr__(self, "tools", _deep_freeze(self.tools))
         object.__setattr__(
             self, "response_format", _deep_freeze(self.response_format)
+        )
+        object.__setattr__(
+            self, "router_metadata", _deep_freeze(self.router_metadata)
         )
 
     def to_chat_completion_kwargs(self) -> dict[str, Any]:
@@ -103,6 +108,8 @@ class ChatTurnPayload:
             payload["response_format"] = _jsonable_value(self.response_format)
         if self.keep_alive is not None:
             payload["keep_alive"] = self.keep_alive
+        if self.router_metadata is not None:
+            payload["metadata"] = _jsonable_value(self.router_metadata)
         return payload
 
 
@@ -475,6 +482,7 @@ def build_chat_turn_payload(
     structure: Any | None = None,
     max_history: int | None = None,
     keep_alive: int | None = None,
+    router_metadata: Mapping[str, Any] | None = None,
 ) -> ChatTurnPayload:
     """Return a normalized payload record for a chat log turn."""
     tools = _format_llm_api_tools(getattr(chat_log, "llm_api", None))
@@ -487,6 +495,7 @@ def build_chat_turn_payload(
         tools=tuple(tools) if tools is not None else None,
         response_format=response_format,
         keep_alive=keep_alive,
+        router_metadata=router_metadata,
     )
 
 
@@ -542,6 +551,7 @@ async def async_execute_chat_turn(request: ChatTurnRequest) -> ChatTurnOutcome:
             request.structure,
             request.max_history,
             request.keep_alive,
+            request.router_metadata,
         )
         response = await request.client.chat_completion(
             **payload.to_chat_completion_kwargs()
@@ -573,6 +583,7 @@ async def async_execute_chat_log_turn(
     structure: Any | None = None,
     max_history: int | None = None,
     keep_alive: int | None = None,
+    router_metadata: Mapping[str, Any] | None = None,
 ) -> ChatTurnOutcome:
     """Execute one Lemonade chat log turn, including any required tool loop."""
     return await async_execute_chat_turn(
@@ -584,6 +595,7 @@ async def async_execute_chat_log_turn(
             structure=structure,
             max_history=max_history,
             keep_alive=keep_alive,
+            router_metadata=router_metadata,
         )
     )
 
@@ -597,6 +609,7 @@ async def async_generate_chat_log_data(
     structure: Any | None = None,
     max_history: int | None = None,
     keep_alive: int | None = None,
+    router_metadata: Mapping[str, Any] | None = None,
 ) -> Any:
     """Execute a Lemonade chat log turn and return parsed task data."""
     outcome = await async_execute_chat_log_turn(
@@ -607,5 +620,6 @@ async def async_generate_chat_log_data(
         structure=structure,
         max_history=max_history,
         keep_alive=keep_alive,
+        router_metadata=router_metadata,
     )
     return chat_turn_data(outcome, structure)

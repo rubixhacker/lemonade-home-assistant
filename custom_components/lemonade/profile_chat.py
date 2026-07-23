@@ -33,6 +33,7 @@ class ProfileChatTurn:
     prompt: str | None = None
     max_history: int | None = None
     keep_alive: int | None = None
+    router_metadata: Any | None = None
 
 
 class ProfilePromptedChatLog:
@@ -101,6 +102,7 @@ def conversation_profile_chat_turn(
         prompt=profile.prompt,
         max_history=profile.max_history,
         keep_alive=profile.keep_alive,
+        router_metadata=profile.router_metadata,
     )
 
 
@@ -122,6 +124,7 @@ def ai_task_profile_data_turn(
         prompt=profile.prompt,
         max_history=profile.max_history,
         keep_alive=profile.keep_alive,
+        router_metadata=profile.router_metadata,
     )
 
 
@@ -154,6 +157,7 @@ async def async_execute_conversation_profile_turn(
             chat_log=turn.chat_log,
             max_history=turn.max_history,
             keep_alive=turn.keep_alive,
+            router_metadata=turn.router_metadata,
         )
     except LEMONADE_CLIENT_EXCEPTIONS as err:
         raise lemonade_home_assistant_error(
@@ -188,6 +192,7 @@ async def async_generate_ai_task_profile_data(
             structure=turn.structure,
             max_history=turn.max_history,
             keep_alive=turn.keep_alive,
+            router_metadata=turn.router_metadata,
         )
     except LEMONADE_CLIENT_EXCEPTIONS as err:
         raise lemonade_home_assistant_error(

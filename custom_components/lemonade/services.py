@@ -53,6 +53,8 @@ from .const import (
     ATTR_MEDIA_PATH,
     ATTR_MESSAGES,
     ATTR_PROMPT,
+    ATTR_ROUTE_TRACE,
+    ATTR_ROUTER_METADATA,
     ATTR_RESPONSE_FORMAT,
     ATTR_SAVE,
     ATTR_SIZE,
@@ -94,6 +96,8 @@ CHAT_COMPLETION_SCHEMA = vol.Schema(
         vol.Optional(ATTR_MESSAGES): [dict],
         vol.Optional(ATTR_TEMPERATURE): vol.Coerce(float),
         vol.Optional(ATTR_MAX_TOKENS): vol.Coerce(int),
+        vol.Optional(ATTR_ROUTE_TRACE): cv.boolean,
+        vol.Optional(ATTR_ROUTER_METADATA): dict,
     }
 )
 
@@ -266,6 +270,8 @@ async def _invoke_chat_completion(
         messages=[serialize_message(message) for message in request.messages],
         temperature=request.temperature,
         max_tokens=request.max_tokens,
+        route_trace=request.route_trace,
+        metadata=request.router_metadata,
     )
 
 
