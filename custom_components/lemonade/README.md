@@ -40,7 +40,7 @@ For a reverse proxy, use the externally reachable base URL without a trailing sl
 https://lemonade.lan.example
 ```
 
-The proxy must pass through Lemonade's OpenAI-compatible API paths, including `/v1/health`, `/v1/models`, `/v1/chat/completions`, `/v1/images/generations`, `/v1/audio/speech`, and `/v1/audio/transcriptions`. If setup fails, check the Home Assistant log for the exact Lemonade connection or HTTP error.
+The proxy must pass through Lemonade's OpenAI-compatible API paths, including `/v1/health`, `/v1/models`, `/v1/chat/completions`, `/v1/images/generations`, `/v1/audio/speech`, `/v1/audio/transcriptions`, and `/v1/classify`. If setup fails, check the Home Assistant log for the exact Lemonade connection or HTTP error.
 
 Leave **Verify SSL certificate** enabled for public CA certificates such as Let's Encrypt. Disable it only for private/self-signed certificates that Home Assistant cannot validate.
 
@@ -103,10 +103,19 @@ The integration registers these direct services:
 - `lemonade.generate_image`
 - `lemonade.transcribe_audio`
 - `lemonade.text_to_speech`
+- `lemonade.classify_text`
 
 Direct service model resolution uses the explicit `model` in the service call first, then any configured default model for that capability, then the first compatible model advertised by Lemonade.
 
 Service calls support response data. For `text_to_speech`, audio is returned as base64.
+
+### Text classification
+
+`lemonade.classify_text` requires Lemonade Server v11.5.0 or later. It accepts required `text`, optional Server Entry (`entry_id`), optional Classification Model (`model`), and optional positive `top_k`. The service uses an explicit model first; otherwise it uses the first Classification Model advertised by that Server Entry. It intentionally has no configurable classification default.
+
+The response contains the selected `model` and the complete `labels` score mapping returned by Lemonade Server. Model cards define what those labels mean. Home Assistant does not select a threshold, interpret the labels, or store a classification result.
+
+Older Server Entries remain usable. If no Classification Model is advertised, or the server does not support the classification endpoint, only this service call fails with a classification-specific error.
 
 ## Generated image media
 

@@ -46,6 +46,35 @@ chat_completion:
           step: 1
           mode: box
 
+classify_text:
+  name: Classify text
+  description: Classify text with a Lemonade encoder model and return its complete label-score mapping. Requires Lemonade Server v11.5.0 or later.
+  fields:
+    entry_id:
+      name: Server Entry
+      description: Optional Lemonade Server config entry ID. If omitted, the first loaded entry is used.
+      selector:
+        text:
+    model:
+      name: Classification Model
+      description: Optional advertised Classification Model ID. If omitted, the first compatible advertised model is used; this service has no configurable default model.
+      selector:
+        text:
+    text:
+      name: Text
+      required: true
+      selector:
+        text:
+          multiline: true
+    top_k:
+      name: Top K
+      description: Optional positive limit on labels returned by Lemonade Server.
+      selector:
+        number:
+          min: 1
+          step: 1
+          mode: box
+
 generate_image:
   name: Generate image
   description: Generate an image using Lemonade Server. When save is enabled, decoded image bytes are written to /media/lemonade and the response includes a media_source path.

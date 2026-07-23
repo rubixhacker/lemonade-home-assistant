@@ -11,6 +11,7 @@ import aiohttp
 from .const import (
     DEFAULT_TIMEOUT,
     ENDPOINT_AUDIO_SPEECH,
+    ENDPOINT_CLASSIFY_TEXT,
     ENDPOINT_AUDIO_TRANSCRIPTIONS,
     ENDPOINT_CHAT,
     ENDPOINT_HEALTH,
@@ -229,3 +230,16 @@ class LemonadeClient:
         if language:
             form.add_field("language", language)
         return await self._request_json("POST", ENDPOINT_AUDIO_TRANSCRIPTIONS, data=form)
+
+    async def classify_text(
+        self,
+        *,
+        text: str,
+        model: str,
+        top_k: int | None = None,
+    ) -> dict[str, Any]:
+        """Classify text with a Lemonade encoder model."""
+        payload: dict[str, Any] = {"text": text, "model": model}
+        if top_k is not None:
+            payload["top_k"] = top_k
+        return await self._request_json("POST", ENDPOINT_CLASSIFY_TEXT, json=payload)

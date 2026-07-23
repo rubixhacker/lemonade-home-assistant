@@ -22,6 +22,7 @@ from .const import (
     ATTR_SIZE,
     ATTR_SYSTEM_PROMPT,
     ATTR_TEXT,
+    ATTR_TOP_K,
     ATTR_TEMPERATURE,
     ATTR_VOICE,
     CONF_ENTRY_ID,
@@ -127,6 +128,31 @@ class TextToSpeechRequest:
             text=call.data[ATTR_TEXT],
             voice=call.data.get(ATTR_VOICE),
             response_format=call.data.get(ATTR_RESPONSE_FORMAT),
+        )
+
+
+@dataclass(frozen=True)
+class ClassifyTextRequest:
+    """Parsed request for lemonade.classify_text."""
+
+    entry_id: str | None
+    model: str | None
+    text: str
+    top_k: int | None
+
+    @classmethod
+    def from_service_call(cls, call: ServiceCall) -> "ClassifyTextRequest":
+        """Parse a Home Assistant service call into a classification request."""
+        top_k = call.data.get(ATTR_TOP_K)
+        if top_k is not None and (
+            isinstance(top_k, bool) or not isinstance(top_k, int) or top_k < 1
+        ):
+            raise HomeAssistantError("top_k must be a positive integer")
+        return cls(
+            entry_id=call.data.get(CONF_ENTRY_ID),
+            model=call.data.get(CONF_MODEL),
+            text=call.data[ATTR_TEXT],
+            top_k=top_k,
         )
 
 

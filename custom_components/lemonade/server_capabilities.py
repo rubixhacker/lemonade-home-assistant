@@ -112,6 +112,7 @@ CAPABILITY_DESCRIPTIONS = (
         repair_issue=True,
     ),
     CapabilityDescription(Capability.EMBEDDINGS),
+    CapabilityDescription(Capability.CLASSIFICATION),
 )
 
 

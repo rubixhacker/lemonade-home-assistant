@@ -173,6 +173,7 @@ _install_homeassistant_stubs()
 
 from lemonade.const import (  # noqa: E402
     CAPABILITY_AI_TASK,
+    CAPABILITY_CLASSIFICATION,
     CAPABILITY_CONVERSATION,
     CAPABILITY_EMBEDDINGS,
     CAPABILITY_IMAGE,
@@ -362,6 +363,32 @@ class ParseModelsResponseTest(unittest.TestCase):
         self.assertNotIn(
             "not-downloaded-router",
             catalog.profile_model_ids(CAPABILITY_CONVERSATION),
+        )
+
+    def test_discovers_text_classification_models_from_advertised_labels(self) -> None:
+        catalog = parse_models_response(
+            {
+                "data": [
+                    {
+                        "id": "classifier-first",
+                        "recipe": "encoder",
+                        "labels": ["classification"],
+                    },
+                    {
+                        "id": "classifier-second",
+                        "recipe": "encoder",
+                        "labels": ["text-classification"],
+                    },
+                ]
+            }
+        )
+
+        self.assertEqual(
+            ["classifier-first", "classifier-second"],
+            catalog.model_ids(CAPABILITY_CLASSIFICATION),
+        )
+        self.assertEqual(
+            "classifier-first", catalog.first_model_id(CAPABILITY_CLASSIFICATION)
         )
 
     def test_tool_calling_accepts_label_aliases(self) -> None:

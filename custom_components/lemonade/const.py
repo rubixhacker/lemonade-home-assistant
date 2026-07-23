@@ -35,6 +35,7 @@ CAPABILITY_IMAGE_EDIT = "image_edit"
 CAPABILITY_TTS = "tts"
 CAPABILITY_STT = "stt"
 CAPABILITY_EMBEDDINGS = "embeddings"
+CAPABILITY_CLASSIFICATION = "classification"
 CAPABILITIES = (
     CAPABILITY_CONVERSATION,
     CAPABILITY_AI_TASK,
@@ -45,6 +46,7 @@ CAPABILITIES = (
     CAPABILITY_TTS,
     CAPABILITY_STT,
     CAPABILITY_EMBEDDINGS,
+    CAPABILITY_CLASSIFICATION,
 )
 MODEL_COUNT_SENSOR_NAMES = {
     "server_status": "Server status",
@@ -59,6 +61,7 @@ SERVICE_CHAT_COMPLETION = "chat_completion"
 SERVICE_GENERATE_IMAGE = "generate_image"
 SERVICE_TRANSCRIBE_AUDIO = "transcribe_audio"
 SERVICE_TEXT_TO_SPEECH = "text_to_speech"
+SERVICE_CLASSIFY_TEXT = "classify_text"
 
 ATTR_MESSAGES = "messages"
 ATTR_PROMPT = "prompt"
@@ -67,6 +70,7 @@ ATTR_TEXT = "text"
 ATTR_FILE_PATH = "file_path"
 ATTR_LANGUAGE = "language"
 ATTR_VOICE = "voice"
+ATTR_TOP_K = "top_k"
 ATTR_RESPONSE_FORMAT = "response_format"
 ATTR_TEMPERATURE = "temperature"
 ATTR_MAX_TOKENS = "max_tokens"
@@ -83,6 +87,7 @@ ENDPOINT_CHAT = "/v1/chat/completions"
 ENDPOINT_IMAGES_GENERATIONS = "/v1/images/generations"
 ENDPOINT_AUDIO_TRANSCRIPTIONS = "/v1/audio/transcriptions"
 ENDPOINT_AUDIO_SPEECH = "/v1/audio/speech"
+ENDPOINT_CLASSIFY_TEXT = "/v1/classify"
 
 PLATFORMS = (
     Platform.SENSOR,

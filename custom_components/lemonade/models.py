@@ -11,6 +11,7 @@ from typing import Any
 from .const import (
     CAPABILITIES,
     CAPABILITY_AI_TASK,
+    CAPABILITY_CLASSIFICATION,
     CAPABILITY_CONVERSATION,
     CAPABILITY_EMBEDDINGS,
     CAPABILITY_IMAGE,
@@ -39,6 +40,7 @@ class Capability(StrEnum):
     TTS = CAPABILITY_TTS
     STT = CAPABILITY_STT
     EMBEDDINGS = CAPABILITY_EMBEDDINGS
+    CLASSIFICATION = CAPABILITY_CLASSIFICATION
 
     @classmethod
     def parse(cls, value: Any) -> "Capability | None":
@@ -231,6 +233,8 @@ def _capabilities(model: LemonadeModel) -> tuple[Capability, ...]:
         capabilities.append(Capability.STT)
     if CAPABILITY_EMBEDDINGS in model.labels:
         capabilities.append(Capability.EMBEDDINGS)
+    if model.labels & {CAPABILITY_CLASSIFICATION, "text-classification"}:
+        capabilities.append(Capability.CLASSIFICATION)
 
     return tuple(
         capability for capability in CAPABILITY_ORDER if capability in capabilities

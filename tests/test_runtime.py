@@ -346,7 +346,7 @@ def _install_homeassistant_stubs() -> None:
     core.HomeAssistant = type("HomeAssistant", (), {})
     core.ServiceCall = type("ServiceCall", (), {})
     core.callback = lambda func: func
-    core.SupportsResponse = SimpleNamespace(OPTIONAL="optional")
+    core.SupportsResponse = SimpleNamespace(OPTIONAL="optional", ONLY="only")
     sys.modules.setdefault("homeassistant.core", core)
 
     data_entry_flow = ModuleType("homeassistant.data_entry_flow")
@@ -1252,6 +1252,7 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
                 True,
             ),
             (Capability.EMBEDDINGS, None, None, None, False),
+            (Capability.CLASSIFICATION, None, None, None, False),
         )
         self.assertEqual(
             expected_descriptions,
@@ -2354,6 +2355,24 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         models = await client.models()
 
         self.assertEqual([{"id": "raw-model"}], models)
+
+    async def test_api_classify_text_uses_lemonade_classification_payload(self) -> None:
+        session = FakeSession({"labels": {"urgent": 0.91}})
+        client = LemonadeClient(session, "http://server")
+
+        response = await client.classify_text(
+            text="Please help today", model="classifier", top_k=3
+        )
+
+        self.assertEqual({"labels": {"urgent": 0.91}}, response)
+        self.assertEqual(
+            (
+                "POST",
+                "http://server/v1/classify",
+                {"headers": {}, "json": {"text": "Please help today", "model": "classifier", "top_k": 3}},
+            ),
+            session.requests[-1],
+        )
 
     async def test_api_json_and_bytes_requests_share_status_classification(self) -> None:
         calls: list[int] = []
@@ -6154,6 +6173,101 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                             else f"{prefix}: {error_detail}"
                         )
                         self.assertEqual(expected_message, str(raised.exception))
+
+    async def test_classify_text_preserves_server_scores_and_resolves_explicit_then_catalog_model(
+        self,
+    ) -> None:
+        from homeassistant.const import CONF_MODEL
+        from lemonade.const import ATTR_TEXT, ATTR_TOP_K, CAPABILITY_CLASSIFICATION
+        from lemonade.services import _async_classify_text
+
+        response = {"labels": {"support_request": 0.87, "spam": 0.13}}
+
+        class Client:
+            def __init__(self) -> None:
+                self.calls: list[dict[str, Any]] = []
+
+            async def classify_text(self, **kwargs: Any) -> dict[str, Any]:
+                self.calls.append(kwargs)
+                return response
+
+        client = Client()
+        entry = _service_entry(
+            client,
+            {CAPABILITY_CLASSIFICATION: ["catalog-classifier"]},
+        )
+        hass = FakeServiceHass(entry)
+
+        explicit = await _async_classify_text(
+            hass,
+            SimpleNamespace(
+                data={
+                    ATTR_TEXT: "Please help with my order",
+                    CONF_MODEL: "explicit-classifier",
+                    ATTR_TOP_K: 2,
+                }
+            ),
+        )
+        fallback = await _async_classify_text(
+            hass,
+            SimpleNamespace(data={ATTR_TEXT: "Please help with my order"}),
+        )
+
+        self.assertEqual(
+            {"model": "explicit-classifier", "labels": response["labels"]}, explicit
+        )
+        self.assertEqual(
+            {"model": "catalog-classifier", "labels": response["labels"]}, fallback
+        )
+        self.assertEqual(
+            [
+                {
+                    "text": "Please help with my order",
+                    "model": "explicit-classifier",
+                    "top_k": 2,
+                },
+                {
+                    "text": "Please help with my order",
+                    "model": "catalog-classifier",
+                    "top_k": None,
+                },
+            ],
+            client.calls,
+        )
+
+    async def test_classify_text_has_feature_specific_validation_and_failures(self) -> None:
+        from homeassistant.exceptions import HomeAssistantError
+        from lemonade.api import LemonadeError
+        from lemonade.const import ATTR_TEXT, ATTR_TOP_K
+        from lemonade.services import _async_classify_text
+
+        class Client:
+            async def classify_text(self, **kwargs: Any) -> dict[str, Any]:
+                raise LemonadeError("classification endpoint is unavailable")
+
+        no_model_hass = FakeServiceHass(_service_entry(Client(), {}))
+        with self.assertRaisesRegex(
+            HomeAssistantError, "No Lemonade classification model is available"
+        ):
+            await _async_classify_text(
+                no_model_hass, SimpleNamespace(data={ATTR_TEXT: "hello"})
+            )
+
+        entry = _service_entry(Client(), {"classification": ["classifier"]})
+        hass = FakeServiceHass(entry)
+        with self.assertRaisesRegex(
+            HomeAssistantError, "top_k must be a positive integer"
+        ):
+            await _async_classify_text(
+                hass, SimpleNamespace(data={ATTR_TEXT: "hello", ATTR_TOP_K: 0})
+            )
+        with self.assertRaisesRegex(
+            HomeAssistantError,
+            "Error classifying text with Lemonade: classification endpoint is unavailable",
+        ):
+            await _async_classify_text(
+                hass, SimpleNamespace(data={ATTR_TEXT: "hello"})
+            )
 
     async def test_generate_image_service_errors_when_save_response_has_no_image_bytes(self) -> None:
         import tempfile

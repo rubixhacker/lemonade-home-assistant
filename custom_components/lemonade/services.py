@@ -30,6 +30,7 @@ from .image_result import (
 )
 from .service_requests import (
     ChatCompletionRequest,
+    ClassifyTextRequest,
     GenerateImageRequest,
     TextToSpeechRequest,
     TranscribeAudioRequest,
@@ -58,7 +59,9 @@ from .const import (
     ATTR_SYSTEM_PROMPT,
     ATTR_TEMPERATURE,
     ATTR_TEXT,
+    ATTR_TOP_K,
     ATTR_VOICE,
+    CAPABILITY_CLASSIFICATION,
     CAPABILITY_CONVERSATION,
     CAPABILITY_IMAGE,
     CAPABILITY_STT,
@@ -69,6 +72,7 @@ from .const import (
     CONF_ENTRY_ID,
     DOMAIN,
     SERVICE_CHAT_COMPLETION,
+    SERVICE_CLASSIFY_TEXT,
     SERVICE_GENERATE_IMAGE,
     SERVICE_TEXT_TO_SPEECH,
     SERVICE_TRANSCRIBE_AUDIO,
@@ -117,6 +121,22 @@ TEXT_TO_SPEECH_SCHEMA = vol.Schema(
         vol.Required(ATTR_TEXT): cv.string,
         vol.Optional(ATTR_VOICE): cv.string,
         vol.Optional(ATTR_RESPONSE_FORMAT): cv.string,
+    }
+)
+
+
+def _positive_top_k(value: Any) -> int:
+    """Validate the optional classification result limit."""
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise vol.Invalid("top_k must be a positive integer")
+    return value
+
+
+CLASSIFY_TEXT_SCHEMA = vol.Schema(
+    {
+        **COMMON_SCHEMA,
+        vol.Required(ATTR_TEXT): cv.string,
+        vol.Optional(ATTR_TOP_K): _positive_top_k,
     }
 )
 
@@ -303,6 +323,18 @@ async def _invoke_text_to_speech(
     }
 
 
+async def _invoke_classify_text(
+    context: DirectServiceContext[ClassifyTextRequest],
+) -> dict[str, Any]:
+    """Classify text with the resolved Lemonade encoder model."""
+    request = context.request
+    return await context.client.classify_text(
+        text=request.text,
+        model=context.model,
+        top_k=request.top_k,
+    )
+
+
 CHAT_COMPLETION_RECIPE = DirectServiceRecipe[
     ChatCompletionRequest, dict[str, Any]
 ](
@@ -348,6 +380,15 @@ TEXT_TO_SPEECH_RECIPE = DirectServiceRecipe[
     resolve_model=lambda entry, request: require_speech_synthesis_model(
         entry, request.model
     ),
+)
+
+CLASSIFY_TEXT_RECIPE = DirectServiceRecipe[ClassifyTextRequest, dict[str, Any]](
+    request_factory=ClassifyTextRequest.from_service_call,
+    capability=CAPABILITY_CLASSIFICATION,
+    default_option=None,
+    model_label="classification",
+    error_action="Error classifying text with Lemonade",
+    invoke=_invoke_classify_text,
 )
 
 
@@ -426,6 +467,25 @@ async def _async_text_to_speech(
     return result.value
 
 
+async def _async_classify_text(
+    hass: HomeAssistant,
+    call: ServiceCall,
+) -> dict[str, Any]:
+    """Handle lemonade.classify_text."""
+    result = await _execute_direct_service(
+        hass,
+        call,
+        recipe=CLASSIFY_TEXT_RECIPE,
+    )
+    response = result.value
+    labels = response.get("labels")
+    if not isinstance(labels, dict):
+        raise HomeAssistantError(
+            "Lemonade classification response did not contain label scores"
+        )
+    return {"model": result.context.model, "labels": labels}
+
+
 def async_register_services(hass: HomeAssistant) -> None:
     """Register Lemonade custom services."""
 
@@ -440,6 +500,9 @@ def async_register_services(hass: HomeAssistant) -> None:
 
     async def handle_text_to_speech(call: ServiceCall) -> dict[str, Any]:
         return await _async_text_to_speech(hass, call)
+
+    async def handle_classify_text(call: ServiceCall) -> dict[str, Any]:
+        return await _async_classify_text(hass, call)
 
     if not hass.services.has_service(DOMAIN, SERVICE_CHAT_COMPLETION):
         hass.services.async_register(
@@ -475,4 +538,13 @@ def async_register_services(hass: HomeAssistant) -> None:
             handle_text_to_speech,
             schema=TEXT_TO_SPEECH_SCHEMA,
             supports_response=SupportsResponse.OPTIONAL,
+        )
+
+    if not hass.services.has_service(DOMAIN, SERVICE_CLASSIFY_TEXT):
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_CLASSIFY_TEXT,
+            handle_classify_text,
+            schema=CLASSIFY_TEXT_SCHEMA,
+            supports_response=SupportsResponse.ONLY,
         )
