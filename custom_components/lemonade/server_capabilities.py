@@ -176,6 +176,10 @@ class RuntimeCapabilityView:
         """Return the first available model for a capability."""
         return self.catalog.first_model_id(capability)
 
+    def profile_model_ids(self, capability: Capability | str) -> list[str]:
+        """Return explicit model choices for a profile capability."""
+        return self.catalog.profile_model_ids(capability)
+
     def default_model_selector_options(
         self,
         policy: DefaultModelSelectorDefinition,

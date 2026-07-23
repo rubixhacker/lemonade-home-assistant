@@ -60,6 +60,26 @@ The integration creates default model controls for text-to-speech and speech-to-
 
 Select a Lemonade conversation profile from your Assist pipeline or voice assistant settings. After creating an AI task profile, use Home Assistant AI suggestions, automations, scripts, or service calls that target AI task entities.
 
+### Router Models and Omni Models
+
+When Lemonade Server advertises a downloaded Router Model or Omni Model through
+`/v1/models` with the `router` or `omni` recipe, it is available as an explicit
+model choice for Conversation Profiles and AI Task Profiles. The selected ID is
+sent unchanged to Lemonade Server for Assist, AI task data generation, and
+`lemonade.chat_completion`.
+
+These collection models are never selected automatically as a conversation or
+AI task fallback. Router policy authoring and Omni component orchestration stay
+on Lemonade Server. An older server catalog remains supported; it simply does
+not offer collection-model choices. This feature therefore requires a
+Lemonade Server release that advertises downloaded collection models, without
+raising the integration-wide server requirement.
+
+An Omni response may contain image or audio representations. For chat and AI
+task data generation, the integration passes assistant content through its
+ordinary chat handling. It does not extract, store, or render those
+representations and makes no native media guarantee for them.
+
 ## Native Home Assistant platforms
 
 The integration exposes native platforms for:

@@ -74,6 +74,13 @@ After installing the integration, create profiles for Assist and AI suggestions:
 
 See [custom_components/lemonade/README.md](custom_components/lemonade/README.md) for setup details and reverse-proxy notes.
 
+Downloaded Router Models and Omni Models advertised by Lemonade Server are
+explicit Conversation Profile and AI Task Profile choices. Lemonade Server owns
+router policy and Omni component orchestration; the integration does not turn
+either collection type into an automatic fallback. See the component README
+for server requirements and the pass-through treatment of Omni image or audio
+assistant content.
+
 ## Features
 
 - Sensors for server status and model counts.

@@ -22,6 +22,7 @@ from .const import (
 )
 
 EXCLUDED_LLM_LABELS = {"image", "tts", "embeddings"}
+CHAT_COLLECTION_RECIPES = frozenset({"router", "omni"})
 TOOL_CALLING_LABELS = {"tool-calling", "tool_calling"}
 STT_LABELS = {"stt", "transcription", "speech-to-text"}
 
@@ -101,6 +102,11 @@ class LemonadeModel:
         """Return true when the model is a general Llama.cpp LLM."""
         return self.recipe == "llamacpp" and not (self.labels & EXCLUDED_LLM_LABELS)
 
+    @property
+    def is_chat_collection(self) -> bool:
+        """Return true when the model is a server-orchestrated chat collection."""
+        return self.recipe in CHAT_COLLECTION_RECIPES
+
 
 @dataclass(frozen=True)
 class LemonadeModelCatalog:
@@ -145,6 +151,20 @@ class LemonadeModelCatalog:
         models = self.models_for(capability)
         return str(models[0].id) if models else None
 
+    def profile_model_ids(self, capability: Capability | str) -> list[str]:
+        """Return advertised explicit profile choices for a chat capability.
+
+        Router Models and Omni Models are selected explicitly, rather than
+        becoming generic capability fallbacks. Their routing and component
+        orchestration remain Lemonade Server concerns. Profiles intentionally
+        retain the existing all-catalog selection behavior so that AI Task
+        Profiles can select image-capable models too.
+        """
+        parsed_capability = Capability.parse(capability)
+        if parsed_capability not in {Capability.CONVERSATION, Capability.AI_TASK}:
+            return self.model_ids(capability)
+        return self.all_model_ids
+
 
 def _raw_models(response: Any) -> Iterable[Any]:
     """Return raw model records from a Lemonade models response."""
@@ -180,6 +200,12 @@ def _recipe(raw: Mapping[str, Any]) -> str:
 
 def _capabilities(model: LemonadeModel) -> tuple[Capability, ...]:
     """Return capabilities exposed by a parsed model."""
+    if model.is_chat_collection:
+        # Router and Omni Models are explicit chat-profile choices. Lemonade
+        # Server owns their routing and media orchestration, so they must not
+        # become automatic fallbacks for any native capability.
+        return ()
+
     capabilities: list[Capability] = []
 
     if model.is_llm:

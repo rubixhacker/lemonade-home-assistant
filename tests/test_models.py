@@ -312,6 +312,58 @@ class ParseModelsResponseTest(unittest.TestCase):
         )
         self.assertNotIn("not-downloaded", catalog.all_model_ids)
 
+    def test_chat_collections_are_explicit_profile_choices_not_fallbacks(self) -> None:
+        catalog = parse_models_response(
+            {
+                "data": [
+                    {"id": "ordinary-chat", "recipe": "llamacpp"},
+                    {
+                        "id": "router-policy",
+                        "recipe": "router",
+                        "labels": ["tool-calling"],
+                    },
+                    {
+                        "id": "omni-orchestrator",
+                        "recipe": "omni",
+                        "labels": ["image", "tts"],
+                    },
+                    {
+                        "id": "image-task",
+                        "recipe": "diffusers",
+                        "labels": ["image"],
+                    },
+                    {
+                        "id": "not-downloaded-router",
+                        "recipe": "router",
+                        "downloaded": False,
+                    },
+                ]
+            }
+        )
+
+        for capability in (CAPABILITY_CONVERSATION, CAPABILITY_AI_TASK):
+            with self.subTest(capability=capability):
+                self.assertEqual(["ordinary-chat"], catalog.model_ids(capability))
+                self.assertEqual("ordinary-chat", catalog.first_model_id(capability))
+                self.assertEqual(
+                    [
+                        "ordinary-chat",
+                        "router-policy",
+                        "omni-orchestrator",
+                        "image-task",
+                    ],
+                    catalog.profile_model_ids(capability),
+                )
+
+        self.assertEqual(["image-task"], catalog.model_ids(CAPABILITY_IMAGE))
+        self.assertEqual([], catalog.model_ids(CAPABILITY_TTS))
+        self.assertEqual([], catalog.model_ids(CAPABILITY_TOOL_CALLING))
+
+        self.assertNotIn(
+            "not-downloaded-router",
+            catalog.profile_model_ids(CAPABILITY_CONVERSATION),
+        )
+
     def test_tool_calling_accepts_label_aliases(self) -> None:
         catalog = parse_models_response(
             {

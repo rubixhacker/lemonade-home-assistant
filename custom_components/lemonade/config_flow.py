@@ -104,7 +104,7 @@ def _profile_model_ids(
     """Return selectable model IDs for a profile definition."""
     model_view = runtime_model_view(config_entry)
     if definition.model_policy.include_all_models:
-        return model_view.all_model_ids
+        return model_view.profile_model_ids(definition.model_policy.capability)
     return model_view.model_ids(definition.model_policy.capability)
 
 

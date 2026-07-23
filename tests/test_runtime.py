@@ -1934,6 +1934,35 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         fields = _schema_fields(result["data_schema"])
         self.assertEqual(["omni-model"], fields[CONF_MODEL][1].config.options)
 
+    async def test_profile_flows_offer_downloaded_router_and_omni_models(self) -> None:
+        from lemonade.config_flow import LemonadeProfileSubentryFlow
+        from lemonade.models import parse_models_response
+
+        catalog = parse_models_response(
+            {
+                "data": [
+                    {"id": "ordinary-chat", "recipe": "llamacpp"},
+                    {"id": "router-policy", "recipe": "router"},
+                    {"id": "omni-orchestrator", "recipe": "omni"},
+                ]
+            }
+        )
+        entry = SimpleNamespace(
+            state="loaded",
+            runtime_data=SimpleNamespace(
+                coordinator=SimpleNamespace(catalog=catalog)
+            ),
+        )
+        expected_models = ["ordinary-chat", "router-policy", "omni-orchestrator"]
+
+        for profile_type in (SUBENTRY_TYPE_CONVERSATION, SUBENTRY_TYPE_AI_TASK):
+            with self.subTest(profile_type=profile_type):
+                flow = _profile_flow(entry, profile_type)
+                flow.hass = SimpleNamespace(llm_apis=[])
+                result = await flow.async_step_user()
+                fields = _schema_fields(result["data_schema"])
+                self.assertEqual(expected_models, fields[CONF_MODEL][1].config.options)
+
     def test_profile_field_presentation_matrix_is_complete(self) -> None:
         from lemonade.profiles import (
             ProfileFieldPresentation,
@@ -5652,6 +5681,47 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                             if call_service == service_name
                         ],
                     )
+
+    async def test_direct_chat_preserves_explicit_collection_model_ids(self) -> None:
+        from homeassistant.const import CONF_MODEL
+        from lemonade.const import ATTR_PROMPT
+        from lemonade.models import parse_models_response
+        from lemonade.services import _async_chat_completion
+
+        class Client:
+            def __init__(self) -> None:
+                self.models: list[str] = []
+
+            async def chat_completion(self, **kwargs: Any) -> dict[str, Any]:
+                self.models.append(kwargs["model"])
+                return {"choices": [{"message": {"content": "hello"}}]}
+
+        client = Client()
+        entry = SimpleNamespace(entry_id="entry-1", data={}, options={})
+        entry.runtime_data = LemonadeRuntimeData(
+            client=client,
+            coordinator=SimpleNamespace(
+                catalog=parse_models_response(
+                    {
+                        "data": [
+                            {"id": "ordinary-chat", "recipe": "llamacpp"},
+                            {"id": "router-policy", "recipe": "router"},
+                            {"id": "omni-orchestrator", "recipe": "omni"},
+                        ]
+                    }
+                )
+            ),
+        )
+        hass = FakeServiceHass(entry)
+
+        for model_id in ("router-policy", "omni-orchestrator"):
+            with self.subTest(model_id=model_id):
+                await _async_chat_completion(
+                    hass,
+                    SimpleNamespace(data={ATTR_PROMPT: "Hi", CONF_MODEL: model_id}),
+                )
+
+        self.assertEqual(["router-policy", "omni-orchestrator"], client.models)
 
     async def test_direct_services_error_when_no_compatible_model_exists(self) -> None:
         import tempfile
