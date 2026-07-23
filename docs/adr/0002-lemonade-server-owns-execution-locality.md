@@ -1,0 +1,3 @@
+# Lemonade Server owns execution locality
+
+Lemonade Server, not the Home Assistant integration, determines whether a model request executes locally or reaches a cloud candidate. The integration documents that Router Models may transmit request content, Home Assistant context, and tool schemas according to mutable server-side policy, but it does not provide an `allow_cloud` control or cache a router's apparent locality. Lemonade exposes no generic per-request locality constraint, so client-side enforcement would become stale when policies change or would depend on policy-specific metadata and offer false assurance.

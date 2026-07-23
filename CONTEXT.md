@@ -20,6 +20,30 @@ _Avoid_: Default profile, server entry
 A user-created Lemonade AI task target with its own model choice, optional prompt, chat history limit, optional model keep-alive override, and its own Home Assistant subentry device. Depending on the selected model and task, it can process images as input for data generation or generate images as output.
 _Avoid_: Default profile, server entry
 
+**Router Model**:
+A server-authored Lemonade model-selection policy that Home Assistant invokes through the ordinary chat model field. It can be selected for conversations and AI task data generation, while its candidates and routing policy remain managed by Lemonade Server.
+_Avoid_: Router profile, routing service, Home Assistant router
+
+**Route Decision**:
+Opt-in diagnostic data describing how a Router Model selected the model that handled a chat request. It is returned directly to the requesting automation and is not retained as Home Assistant entity state or emitted as an event.
+_Avoid_: Last route sensor, routing history, route event
+
+**Router Metadata**:
+An explicit caller- or profile-supplied mapping that a Router Model may use when selecting a candidate. The integration passes it unchanged and does not add inferred Home Assistant identities, entity context, or profile details.
+_Avoid_: Router context, automatic metadata, routing prompt
+
+**Classification Model**:
+A Lemonade encoder model that assigns scores to labels for supplied text. Home Assistant selects the model but does not define the meaning of its labels.
+_Avoid_: Router classifier, classification profile
+
+**Classification Result**:
+The model identifier and label-score mapping returned for one text-classification request. The requesting automation owns any threshold or domain interpretation applied to those scores.
+_Avoid_: Classification decision, classified state
+
+**Omni Model**:
+A Lemonade collection model that presents several component models through the ordinary chat interface. Home Assistant can select it explicitly for conversations and AI task data generation, while Lemonade Server owns component orchestration.
+_Avoid_: Omni profile, multimodal router, Home Assistant model collection
+
 **Context Length**:
 The model context window managed by Lemonade Server. Home Assistant profiles should not force this; they only control how many history messages are sent.
 _Avoid_: Max history, message limit

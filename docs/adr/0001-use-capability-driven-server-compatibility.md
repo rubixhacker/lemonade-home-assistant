@@ -1,0 +1,3 @@
+# Use capability-driven server compatibility
+
+The integration remains usable with older Lemonade Server releases instead of raising its global minimum version whenever an additive server capability appears. New capabilities are exposed from advertised server data or invoked only when explicitly requested, and feature-specific version requirements are documented; an unsupported feature call produces a clear error without preventing the Server Entry from loading. This preserves working installations and avoids brittle client-side version branches, at the cost of discovering some incompatibilities only when a user invokes the newer feature.
