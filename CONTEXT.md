@@ -8,6 +8,22 @@ The Lemonade Home Assistant context describes how a Lemonade Server is exposed t
 A configured Lemonade Server connection in Home Assistant. It represents shared server access and integration-wide defaults, not an assistant or a Home Assistant device.
 _Avoid_: Default profile, default assistant
 
+**Server Beacon**:
+A Lemonade Server announcement received through one of Home Assistant's enabled, directly connected network adapters, containing a hostname and advertised API URL. It identifies a possible Server Entry endpoint but does not establish a configured connection.
+_Avoid_: Server Entry, discovered entry, trusted server
+
+**Discovered Server**:
+A Server Entry candidate surfaced during user-initiated setup from a structurally valid Server Beacon whose advertised address is bound to the beacon source. It remains unverified until user confirmation and connection validation.
+_Avoid_: Auto-configured server, Server Entry
+
+**Server Endpoint**:
+The normalized URL that identifies a Discovered Server or Server Entry. A beacon hostname is a display label, not server identity.
+_Avoid_: Server hostname, machine identity
+
+**Endpoint Reconfiguration**:
+A user-confirmed change to a Server Entry's Server Endpoint that preserves its profiles and settings. It is never inferred from a hostname or applied automatically from a Server Beacon.
+_Avoid_: Automatic endpoint migration, rediscovery
+
 **Model Selector**:
 An entry-level model preference for speech capabilities such as text-to-speech or speech-to-text. It is a fallback preference, not a user-facing assistant, AI task, or image-generation setting.
 _Avoid_: Profile, assistant setting, AI task setting, image setting

@@ -3,17 +3,24 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from typing import Any, assert_never
 
 import voluptuous as vol
 
 from homeassistant import config_entries
+from homeassistant.components import network
 from homeassistant.const import CONF_API_KEY, CONF_MODEL, CONF_NAME, CONF_URL
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import config_validation as cv, llm, selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
+from .beacon import (
+    DiscoveredServer,
+    async_scan_server_beacons,
+    enabled_ipv4_networks,
+)
 from .connection import (
     ConnectionFailureKind,
     ConnectionProbeError,
@@ -119,6 +126,105 @@ DATA_SCHEMA = vol.Schema(
 )
 
 
+def _normalize_server_endpoint(value: Any) -> str:
+    """Normalize a Server Endpoint for identity and comparison."""
+    if not isinstance(value, str):
+        return ""
+    return value.strip().rstrip("/")
+
+
+def _unconfigured_candidates(
+    candidates: dict[str, DiscoveredServer],
+    entries: Iterable[config_entries.ConfigEntry],
+) -> dict[str, DiscoveredServer]:
+    """Remove candidates whose exact Server Endpoint is already configured."""
+    configured_endpoints = {
+        _normalize_server_endpoint(entry.data.get(CONF_URL)) for entry in entries
+    }
+    return {
+        endpoint: candidate
+        for endpoint, candidate in candidates.items()
+        if endpoint not in configured_endpoints
+    }
+
+
+def _endpoint_owned_by_other_entry(
+    entries: Iterable[config_entries.ConfigEntry],
+    current_entry: config_entries.ConfigEntry,
+    endpoint: str,
+) -> bool:
+    """Return whether another Server Entry owns the exact endpoint."""
+    return any(
+        entry is not current_entry
+        and _normalize_server_endpoint(entry.data.get(CONF_URL)) == endpoint
+        for entry in entries
+    )
+
+
+def _endpoint_selector(
+    candidates: Iterable[DiscoveredServer],
+) -> selector.SelectSelector:
+    """Return a selector that also retains manual Server Endpoint entry."""
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=[
+                {"value": candidate.endpoint, "label": candidate.title}
+                for candidate in candidates
+            ],
+            mode=selector.SelectSelectorMode.DROPDOWN,
+            custom_value=True,
+        )
+    )
+
+
+def _server_schema(
+    candidates: dict[str, DiscoveredServer],
+) -> vol.Schema:
+    """Return a setup schema with ephemeral discovery suggestions."""
+    if not candidates:
+        return DATA_SCHEMA
+
+    discovered = list(candidates.values())
+    name_default = discovered[0].title if len(discovered) == 1 else DEFAULT_NAME
+    url_marker: Any
+    if len(discovered) == 1:
+        url_marker = vol.Required(CONF_URL, default=discovered[0].endpoint)
+    else:
+        url_marker = vol.Required(CONF_URL)
+    return vol.Schema(
+        {
+            vol.Optional(CONF_NAME, default=name_default): str,
+            url_marker: _endpoint_selector(discovered),
+            vol.Optional(CONF_API_KEY): str,
+            vol.Optional(CONF_TIMEOUT, default=DEFAULT_TIMEOUT): vol.Coerce(float),
+            vol.Optional(CONF_VERIFY_SSL, default=True): cv.boolean,
+        }
+    )
+
+
+def _endpoint_reconfigure_schema(
+    candidates: dict[str, DiscoveredServer],
+) -> vol.Schema:
+    """Return a schema requiring deliberate replacement endpoint input."""
+    return vol.Schema(
+        {
+            vol.Required(CONF_URL): _endpoint_selector(candidates.values())
+        }
+    )
+
+
+async def _async_discover_servers(
+    hass: HomeAssistant,
+) -> dict[str, DiscoveredServer]:
+    """Discover safe Server Entry candidates on enabled adapters."""
+    try:
+        adapters = await network.async_get_adapters(hass)
+        return await async_scan_server_beacons(enabled_ipv4_networks(adapters))
+    except Exception:  # noqa: BLE001 - discovery must always degrade to manual entry
+        _LOGGER.debug("Lemonade Server beacon discovery failed", exc_info=True)
+        return {}
+
+
 async def _async_validate_connection(
     hass: HomeAssistant,
     url: str,
@@ -180,10 +286,18 @@ class LemonadeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Handle the initial step."""
         if user_input is None:
-            return self.async_show_form(step_id="user", data_schema=DATA_SCHEMA)
+            discovered = await _async_discover_servers(self.hass)
+            self._discovered_servers = _unconfigured_candidates(
+                discovered,
+                self._async_current_entries(),
+            )
+            return self.async_show_form(
+                step_id="user",
+                data_schema=_server_schema(self._discovered_servers),
+            )
 
         errors: dict[str, str] = {}
-        url = user_input[CONF_URL].strip().rstrip("/")
+        url = _normalize_server_endpoint(user_input[CONF_URL])
         api_key = user_input.get(CONF_API_KEY)
         if isinstance(api_key, str):
             api_key = api_key.strip() or None
@@ -207,9 +321,10 @@ class LemonadeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
 
         if errors:
+            schema = _server_schema(getattr(self, "_discovered_servers", {}))
             return self.async_show_form(
                 step_id="user",
-                data_schema=self.add_suggested_values_to_schema(DATA_SCHEMA, user_input),
+                data_schema=self.add_suggested_values_to_schema(schema, user_input),
                 errors=errors,
             )
 
@@ -225,6 +340,80 @@ class LemonadeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             title=user_input.get(CONF_NAME, DEFAULT_NAME),
             data=data,
         )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Deliberately replace and validate a Server Entry endpoint."""
+        config_entry = self._get_reconfigure_entry()
+        if user_input is None:
+            discovered = await _async_discover_servers(self.hass)
+            self._reconfigure_candidates = _unconfigured_candidates(
+                discovered,
+                self._async_current_entries(),
+            )
+            return self.async_show_form(
+                step_id="reconfigure",
+                data_schema=_endpoint_reconfigure_schema(
+                    self._reconfigure_candidates
+                ),
+            )
+
+        errors: dict[str, str] = {}
+        url = _normalize_server_endpoint(user_input[CONF_URL])
+        try:
+            url = cv.url(url)
+        except vol.Invalid:
+            errors["base"] = "invalid_url"
+
+        current_url = _normalize_server_endpoint(config_entry.data.get(CONF_URL))
+        if not errors and url == current_url:
+            errors["base"] = "endpoint_unchanged"
+
+        if not errors and _endpoint_owned_by_other_entry(
+            self._async_current_entries(),
+            config_entry,
+            url,
+        ):
+            errors["base"] = "endpoint_in_use"
+
+        if not errors:
+            api_key = _entry_current_value(config_entry, CONF_API_KEY)
+            timeout = _entry_current_value(
+                config_entry, CONF_TIMEOUT, DEFAULT_TIMEOUT
+            )
+            verify_ssl = _entry_current_value(config_entry, CONF_VERIFY_SSL, True)
+            errors = await _async_validate_connection(
+                self.hass,
+                url,
+                api_key,
+                timeout,
+                verify_ssl,
+            )
+            if not errors and _endpoint_owned_by_other_entry(
+                self._async_current_entries(),
+                config_entry,
+                url,
+            ):
+                errors["base"] = "endpoint_in_use"
+
+        if errors:
+            schema = _endpoint_reconfigure_schema(
+                getattr(self, "_reconfigure_candidates", {})
+            )
+            return self.async_show_form(
+                step_id="reconfigure",
+                data_schema=self.add_suggested_values_to_schema(schema, user_input),
+                errors=errors,
+            )
+
+        data = {**config_entry.data, CONF_URL: url}
+        self.hass.config_entries.async_update_entry(
+            config_entry,
+            data=data,
+            unique_id=url,
+        )
+        return self.async_abort(reason="reconfigure_successful")
 
 
 class LemonadeOptionsFlow(config_entries.OptionsFlow):

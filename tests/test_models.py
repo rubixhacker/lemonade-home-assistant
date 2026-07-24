@@ -57,6 +57,12 @@ class _ConfigFlowBase(_FlowBase):
     def _abort_if_unique_id_configured(self) -> None:
         return None
 
+    def _async_current_entries(self) -> list[Any]:
+        return getattr(self, "_current_entries", [])
+
+    def _get_reconfigure_entry(self) -> Any:
+        return self._reconfigure_entry
+
 
 class _ConfigSubentryFlowBase(_FlowBase):
     def _get_entry(self) -> Any:

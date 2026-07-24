@@ -10,7 +10,7 @@ import sys
 from types import MappingProxyType, ModuleType, SimpleNamespace
 from typing import Any
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "custom_components"))
 
@@ -71,6 +71,12 @@ class _ConfigFlowBase(_FlowBase):
     def _abort_if_unique_id_configured(self) -> None:
         return None
 
+    def _async_current_entries(self) -> list[Any]:
+        return getattr(self, "_current_entries", [])
+
+    def _get_reconfigure_entry(self) -> Any:
+        return self._reconfigure_entry
+
 
 class _OptionsFlowBase(_FlowBase):
     pass
@@ -102,10 +108,12 @@ class _SelectSelectorConfig:
         options: list[str] | None = None,
         multiple: bool = False,
         mode: str | None = None,
+        custom_value: bool = False,
     ) -> None:
         self.options = options or []
         self.multiple = multiple
         self.mode = mode
+        self.custom_value = custom_value
 
 
 class _SelectSelector:
@@ -221,6 +229,15 @@ def _install_homeassistant_stubs() -> None:
     stt_component.SpeechResult = SpeechResult
     sys.modules.setdefault("homeassistant.components.stt", stt_component)
     components.stt = stt_component
+
+    network_component = ModuleType("homeassistant.components.network")
+
+    async def async_get_adapters(hass: Any) -> list[dict[str, Any]]:
+        return getattr(hass, "network_adapters", [])
+
+    network_component.async_get_adapters = async_get_adapters
+    sys.modules.setdefault("homeassistant.components.network", network_component)
+    components.network = network_component
 
     conversation_component = ModuleType("homeassistant.components.conversation")
 
@@ -448,6 +465,7 @@ def _install_homeassistant_stubs() -> None:
     selector.NumberSelector = _NumberSelector
     selector.NumberSelectorConfig = _NumberSelectorConfig
     selector.NumberSelectorMode = SimpleNamespace(BOX="box")
+    selector.SelectSelectorMode = SimpleNamespace(DROPDOWN="dropdown")
     selector.TemplateSelector = _TemplateSelector
     selector.ObjectSelector = _ObjectSelector
     sys.modules.setdefault("homeassistant.helpers.selector", selector)
@@ -583,8 +601,12 @@ class FakeConfigEntries:
 
     def async_update_entry(self, entry: Any, **kwargs: Any) -> None:
         self.updated.append((entry, kwargs))
+        if "data" in kwargs:
+            entry.data = kwargs["data"]
         if "options" in kwargs:
             entry.options = kwargs["options"]
+        if "unique_id" in kwargs:
+            entry.unique_id = kwargs["unique_id"]
 
     async def async_reload(self, entry_id: str) -> None:
         self.reloaded = entry_id
@@ -1891,17 +1913,390 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_initial_config_flow_omits_default_model_selector(self) -> None:
+        import lemonade.config_flow as config_flow
         from lemonade.config_flow import LemonadeConfigFlow
 
         flow = LemonadeConfigFlow()
+        flow.hass = FakeHass()
+        flow._current_entries = []
 
-        result = await flow.async_step_user()
+        with patch.object(
+            config_flow,
+            "_async_discover_servers",
+            AsyncMock(return_value={}),
+        ):
+            result = await flow.async_step_user()
 
         self.assertEqual("form", result["type"])
         fields = _schema_fields(result["data_schema"])
         self.assertNotIn(CONF_MODEL, fields)
         self.assertEqual(120.0, fields[CONF_TIMEOUT][0].default)
         self.assertTrue(fields[CONF_VERIFY_SSL][0].default)
+
+    async def test_initial_config_flow_preselects_one_discovered_server(self) -> None:
+        import lemonade.config_flow as config_flow
+        from lemonade.beacon import DiscoveredServer
+        from lemonade.config_flow import LemonadeConfigFlow
+
+        flow = LemonadeConfigFlow()
+        flow.hass = FakeHass()
+        flow._current_entries = []
+        candidate = DiscoveredServer(
+            endpoint="http://192.168.1.20:8000",
+            hostname="workstation",
+        )
+
+        with patch.object(
+            config_flow,
+            "_async_discover_servers",
+            AsyncMock(return_value={candidate.endpoint: candidate}),
+        ):
+            result = await flow.async_step_user()
+
+        fields = _schema_fields(result["data_schema"])
+        self.assertEqual(candidate.endpoint, fields[CONF_URL][0].default)
+        self.assertEqual(candidate.title, fields[CONF_NAME][0].default)
+        self.assertTrue(fields[CONF_URL][1].config.custom_value)
+
+    async def test_initial_config_flow_requires_selection_for_multiple_servers(
+        self,
+    ) -> None:
+        import lemonade.config_flow as config_flow
+        from lemonade.beacon import DiscoveredServer
+        from lemonade.config_flow import LemonadeConfigFlow
+
+        candidates = {
+            "http://192.168.1.20:8000": DiscoveredServer(
+                endpoint="http://192.168.1.20:8000",
+                hostname="first",
+            ),
+            "http://192.168.1.21:8000": DiscoveredServer(
+                endpoint="http://192.168.1.21:8000",
+                hostname="second",
+            ),
+        }
+        flow = LemonadeConfigFlow()
+        flow.hass = FakeHass()
+        flow._current_entries = []
+
+        with patch.object(
+            config_flow,
+            "_async_discover_servers",
+            AsyncMock(return_value=candidates),
+        ):
+            result = await flow.async_step_user()
+
+        fields = _schema_fields(result["data_schema"])
+        self.assertIsNone(fields[CONF_URL][0].default)
+        self.assertEqual(
+            [
+                {"value": candidate.endpoint, "label": candidate.title}
+                for candidate in candidates.values()
+            ],
+            fields[CONF_URL][1].config.options,
+        )
+        self.assertTrue(fields[CONF_URL][1].config.custom_value)
+
+    async def test_initial_config_flow_filters_already_configured_endpoint(
+        self,
+    ) -> None:
+        import lemonade.config_flow as config_flow
+        from lemonade.beacon import DiscoveredServer
+        from lemonade.config_flow import LemonadeConfigFlow
+
+        configured = "http://192.168.1.20:8000"
+        candidate = DiscoveredServer(endpoint=configured, hostname="configured")
+        flow = LemonadeConfigFlow()
+        flow.hass = FakeHass()
+        flow._current_entries = [SimpleNamespace(data={CONF_URL: configured})]
+
+        with patch.object(
+            config_flow,
+            "_async_discover_servers",
+            AsyncMock(return_value={configured: candidate}),
+        ):
+            result = await flow.async_step_user()
+
+        fields = _schema_fields(result["data_schema"])
+        self.assertEqual("http://localhost:13305", fields[CONF_URL][0].default)
+        self.assertIs(fields[CONF_URL][1], str)
+
+    async def test_discovered_server_is_validated_before_entry_creation(self) -> None:
+        import lemonade.config_flow as config_flow
+        from lemonade.beacon import DiscoveredServer
+        from lemonade.config_flow import LemonadeConfigFlow
+
+        endpoint = "http://192.168.1.20:8000"
+        candidate = DiscoveredServer(endpoint=endpoint, hostname="workstation")
+        flow = LemonadeConfigFlow()
+        flow.hass = FakeHass()
+        flow._current_entries = []
+
+        with patch.object(
+            config_flow,
+            "_async_discover_servers",
+            AsyncMock(return_value={endpoint: candidate}),
+        ):
+            initial = await flow.async_step_user()
+        self.assertEqual("form", initial["type"])
+
+        submitted = {
+            CONF_NAME: candidate.title,
+            CONF_URL: endpoint,
+            CONF_API_KEY: " secret ",
+            CONF_TIMEOUT: 5,
+            CONF_VERIFY_SSL: False,
+        }
+        with patch.object(
+            config_flow,
+            "_async_validate_connection",
+            AsyncMock(return_value={}),
+        ) as validate:
+            result = await flow.async_step_user(submitted)
+
+        self.assertEqual("create_entry", result["type"])
+        self.assertEqual(endpoint, flow.unique_id)
+        self.assertEqual("secret", result["data"][CONF_API_KEY])
+        validate.assert_awaited_once_with(
+            flow.hass,
+            endpoint,
+            "secret",
+            5,
+            False,
+        )
+
+    async def test_discovered_server_validation_failure_returns_form(self) -> None:
+        import lemonade.config_flow as config_flow
+        from lemonade.config_flow import LemonadeConfigFlow
+
+        flow = LemonadeConfigFlow()
+        flow.hass = FakeHass()
+        flow._current_entries = []
+        submitted = {
+            CONF_NAME: "Lemonade Server",
+            CONF_URL: "http://192.168.1.20:8000",
+            CONF_TIMEOUT: 5,
+            CONF_VERIFY_SSL: True,
+        }
+
+        with patch.object(
+            config_flow,
+            "_async_validate_connection",
+            AsyncMock(return_value={"base": "invalid_auth"}),
+        ):
+            result = await flow.async_step_user(submitted)
+
+        self.assertEqual("form", result["type"])
+        self.assertEqual({"base": "invalid_auth"}, result["errors"])
+
+    async def test_endpoint_reconfiguration_requires_deliberate_selection(
+        self,
+    ) -> None:
+        import lemonade.config_flow as config_flow
+        from lemonade.beacon import DiscoveredServer
+        from lemonade.config_flow import LemonadeConfigFlow
+
+        current = SimpleNamespace(
+            data={CONF_URL: "http://192.168.1.10:8000"},
+            options={},
+            unique_id="http://192.168.1.10:8000",
+        )
+        candidate = DiscoveredServer(
+            endpoint="http://192.168.1.20:8000",
+            hostname="replacement",
+        )
+        flow = LemonadeConfigFlow()
+        flow.hass = FakeHass()
+        flow._reconfigure_entry = current
+        flow._current_entries = [current]
+
+        with patch.object(
+            config_flow,
+            "_async_discover_servers",
+            AsyncMock(return_value={candidate.endpoint: candidate}),
+        ):
+            result = await flow.async_step_reconfigure()
+
+        fields = _schema_fields(result["data_schema"])
+        self.assertIsNone(fields[CONF_URL][0].default)
+        self.assertEqual(
+            [{"value": candidate.endpoint, "label": candidate.title}],
+            fields[CONF_URL][1].config.options,
+        )
+        self.assertTrue(fields[CONF_URL][1].config.custom_value)
+
+    async def test_endpoint_reconfiguration_retains_manual_entry_without_results(
+        self,
+    ) -> None:
+        import lemonade.config_flow as config_flow
+        from lemonade.config_flow import LemonadeConfigFlow
+
+        current = SimpleNamespace(
+            data={CONF_URL: "http://192.168.1.10:8000"},
+            options={},
+            unique_id="http://192.168.1.10:8000",
+        )
+        flow = LemonadeConfigFlow()
+        flow.hass = FakeHass()
+        flow._reconfigure_entry = current
+        flow._current_entries = [current]
+
+        with patch.object(
+            config_flow,
+            "_async_discover_servers",
+            AsyncMock(return_value={}),
+        ):
+            result = await flow.async_step_reconfigure()
+
+        fields = _schema_fields(result["data_schema"])
+        self.assertEqual([], fields[CONF_URL][1].config.options)
+        self.assertTrue(fields[CONF_URL][1].config.custom_value)
+
+    async def test_endpoint_reconfiguration_updates_only_entry_identity_and_data(
+        self,
+    ) -> None:
+        import lemonade.config_flow as config_flow
+        from lemonade.config_flow import LemonadeConfigFlow
+
+        subentries = {"profile-1": object()}
+        current = SimpleNamespace(
+            data={
+                CONF_URL: "http://192.168.1.10:8000",
+                CONF_API_KEY: "secret",
+                CONF_TIMEOUT: 12.0,
+                CONF_VERIFY_SSL: True,
+                "future_setting": "preserve",
+            },
+            options={CONF_TIMEOUT: 30.0},
+            subentries=subentries,
+            unique_id="http://192.168.1.10:8000",
+        )
+        flow = LemonadeConfigFlow()
+        flow.hass = FakeHass()
+        flow._reconfigure_entry = current
+        flow._current_entries = [current]
+        replacement = "http://192.168.1.20:8000"
+
+        with patch.object(
+            config_flow,
+            "_async_validate_connection",
+            AsyncMock(return_value={}),
+        ) as validate:
+            result = await flow.async_step_reconfigure({CONF_URL: replacement})
+
+        self.assertEqual(
+            {"type": "abort", "reason": "reconfigure_successful"},
+            result,
+        )
+        validate.assert_awaited_once_with(
+            flow.hass,
+            replacement,
+            "secret",
+            30.0,
+            True,
+        )
+        self.assertIs(subentries, current.subentries)
+        self.assertEqual(replacement, current.unique_id)
+        self.assertEqual("preserve", current.data["future_setting"])
+        self.assertEqual(replacement, current.data[CONF_URL])
+        self.assertEqual({CONF_TIMEOUT: 30.0}, current.options)
+
+    async def test_endpoint_reconfiguration_rejects_endpoint_owned_by_other_entry(
+        self,
+    ) -> None:
+        import lemonade.config_flow as config_flow
+        from lemonade.config_flow import LemonadeConfigFlow
+
+        current = SimpleNamespace(
+            data={CONF_URL: "http://192.168.1.10:8000"},
+            options={},
+            unique_id="http://192.168.1.10:8000",
+        )
+        other = SimpleNamespace(
+            data={CONF_URL: "http://192.168.1.20:8000"},
+            options={},
+            unique_id="http://192.168.1.20:8000",
+        )
+        flow = LemonadeConfigFlow()
+        flow.hass = FakeHass()
+        flow._reconfigure_entry = current
+        flow._current_entries = [current, other]
+
+        with patch.object(
+            config_flow,
+            "_async_validate_connection",
+            AsyncMock(return_value={}),
+        ) as validate:
+            result = await flow.async_step_reconfigure(
+                {CONF_URL: "http://192.168.1.20:8000/"}
+            )
+
+        self.assertEqual("form", result["type"])
+        self.assertEqual({"base": "endpoint_in_use"}, result["errors"])
+        validate.assert_not_awaited()
+        self.assertEqual([], flow.hass.config_entries.updated)
+
+    async def test_endpoint_reconfiguration_validation_failure_preserves_entry(
+        self,
+    ) -> None:
+        import lemonade.config_flow as config_flow
+        from lemonade.config_flow import LemonadeConfigFlow
+
+        current = SimpleNamespace(
+            data={
+                CONF_URL: "http://192.168.1.10:8000",
+                CONF_TIMEOUT: 12.0,
+            },
+            options={},
+            unique_id="http://192.168.1.10:8000",
+        )
+        original_data = dict(current.data)
+        flow = LemonadeConfigFlow()
+        flow.hass = FakeHass()
+        flow._reconfigure_entry = current
+        flow._current_entries = [current]
+
+        with patch.object(
+            config_flow,
+            "_async_validate_connection",
+            AsyncMock(return_value={"base": "cannot_connect"}),
+        ):
+            result = await flow.async_step_reconfigure(
+                {CONF_URL: "http://192.168.1.20:8000"}
+            )
+
+        self.assertEqual("form", result["type"])
+        self.assertEqual({"base": "cannot_connect"}, result["errors"])
+        self.assertEqual(original_data, current.data)
+        self.assertEqual([], flow.hass.config_entries.updated)
+
+    async def test_endpoint_reconfiguration_rejects_unchanged_endpoint(self) -> None:
+        import lemonade.config_flow as config_flow
+        from lemonade.config_flow import LemonadeConfigFlow
+
+        endpoint = "http://192.168.1.10:8000"
+        current = SimpleNamespace(
+            data={CONF_URL: endpoint},
+            options={},
+            unique_id=endpoint,
+        )
+        flow = LemonadeConfigFlow()
+        flow.hass = FakeHass()
+        flow._reconfigure_entry = current
+        flow._current_entries = [current]
+
+        with patch.object(
+            config_flow,
+            "_async_validate_connection",
+            AsyncMock(return_value={}),
+        ) as validate:
+            result = await flow.async_step_reconfigure(
+                {CONF_URL: f"{endpoint}/"}
+            )
+
+        self.assertEqual({"base": "endpoint_unchanged"}, result["errors"])
+        validate.assert_not_awaited()
+        self.assertEqual([], flow.hass.config_entries.updated)
 
     async def test_ai_task_profile_subentry_flow_uses_ai_task_models(self) -> None:
         from lemonade.config_flow import LemonadeProfileSubentryFlow
@@ -4982,6 +5377,14 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             "The Lemonade Server entry is not loaded.",
             strings["config"]["abort"]["entry_not_loaded"],
         )
+        self.assertIn("reconfigure", strings["config"]["step"])
+        self.assertEqual(
+            "Replacement Server Endpoint",
+            strings["config"]["step"]["reconfigure"]["data"][CONF_URL],
+        )
+        self.assertIn("endpoint_in_use", strings["config"]["error"])
+        self.assertIn("endpoint_unchanged", strings["config"]["error"])
+        self.assertIn("reconfigure_successful", strings["config"]["abort"])
         self.assertEqual(
             "No Lemonade models are available.",
             strings["config"]["abort"]["no_models"],

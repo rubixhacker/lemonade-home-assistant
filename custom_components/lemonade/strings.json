@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Lemonade Server",
-        "description": "Connect Home Assistant to your local Lemonade Server.",
+        "description": "Connect Home Assistant to a Lemonade Server. Home Assistant briefly listens for Server Beacons; you can always enter an endpoint manually.",
         "data": {
           "name": "Name",
           "url": "Server URL",
@@ -12,7 +12,15 @@
           "verify_ssl": "Verify SSL certificate"
         },
         "data_description": {
+          "url": "Choose a Discovered Server or enter the Server Endpoint manually.",
           "timeout": "Allow enough time for Lemonade Server to load a cold model. The default is 120 seconds."
+        }
+      },
+      "reconfigure": {
+        "title": "Replace Server Endpoint",
+        "description": "Choose a discovered replacement or enter a Server Endpoint manually. The replacement is applied only after connection validation; profiles and settings are preserved.",
+        "data": {
+          "url": "Replacement Server Endpoint"
         }
       }
     },
@@ -20,10 +28,13 @@
       "cannot_connect": "Failed to connect to Lemonade Server.",
       "invalid_auth": "Invalid authentication.",
       "invalid_url": "Invalid URL.",
+      "endpoint_in_use": "That Server Endpoint belongs to another Lemonade Server entry.",
+      "endpoint_unchanged": "Choose a different Server Endpoint.",
       "unknown": "Unexpected error. Check the Home Assistant logs."
     },
     "abort": {
       "already_configured": "This Lemonade Server is already configured.",
+      "reconfigure_successful": "The Server Endpoint was replaced successfully.",
       "entry_not_loaded": "The Lemonade Server entry is not loaded.",
       "no_models": "No Lemonade models are available.",
       "unknown_profile_type": "Unsupported Lemonade profile type."
