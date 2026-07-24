@@ -9,6 +9,12 @@ DEFAULT_NAME = "Lemonade Server"
 DEFAULT_URL = "http://localhost:13305"
 DEFAULT_TIMEOUT = 120.0
 DEFAULT_SCAN_INTERVAL_SECONDS = 60
+STARTER_CONVERSATION_PROFILE_TITLE = "Lemonade Conversation"
+STARTER_PROMPT = """You are a voice assistant for Home Assistant.
+
+Answer questions about the world truthfully.
+Answer in plain text. Keep it simple and to the point.
+"""
 
 CONF_TIMEOUT = "timeout"
 CONF_VERIFY_SSL = "verify_ssl"

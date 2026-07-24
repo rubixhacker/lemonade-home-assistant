@@ -79,6 +79,7 @@
             "router_metadata": "Router metadata"
           },
           "data_description": {
+            "prompt": "Instruct how the LLM should respond. This can be a template.",
             "max_history": "Maximum number of non-system chat history messages to send to Lemonade each turn. 0 sends all history.",
             "keep_alive": "Duration in seconds for Lemonade to keep the model active. Leave blank for the Lemonade server default. -1 = indefinite, 0 = never.",
             "router_metadata": "Optional mapping passed unchanged to a Router Model. It is separate from the prompt; Home Assistant does not add identities, entity context, or profile details."
@@ -97,6 +98,7 @@
             "router_metadata": "Router metadata"
           },
           "data_description": {
+            "prompt": "Instruct how the LLM should respond. This can be a template.",
             "max_history": "Maximum number of non-system chat history messages to send to Lemonade each turn. 0 sends all history.",
             "keep_alive": "Duration in seconds for Lemonade to keep the model active. Leave blank for the Lemonade server default. -1 = indefinite, 0 = never.",
             "router_metadata": "Optional mapping passed unchanged to a Router Model. It is separate from the prompt; Home Assistant does not add identities, entity context, or profile details."
