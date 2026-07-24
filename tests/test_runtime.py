@@ -90,7 +90,12 @@ class _ConfigSubentryFlowBase(_FlowBase):
         return self._reconfigure_subentry_obj
 
     def async_update_and_abort(
-        self, config_entry: Any, subentry: Any, *, data: dict[str, Any]
+        self,
+        config_entry: Any,
+        subentry: Any,
+        *,
+        data: dict[str, Any],
+        title: str | None = None,
     ) -> dict[str, Any]:
         return {
             "type": "abort",
@@ -98,6 +103,7 @@ class _ConfigSubentryFlowBase(_FlowBase):
             "entry": config_entry,
             "subentry": subentry,
             "data": data,
+            "title": title,
         }
 
 
@@ -353,6 +359,23 @@ def _install_homeassistant_stubs() -> None:
     config_entries.ConfigFlow = _ConfigFlowBase
     config_entries.OptionsFlow = _OptionsFlowBase
     config_entries.ConfigSubentryFlow = _ConfigSubentryFlowBase
+
+    class ConfigSubentry:
+        def __init__(
+            self,
+            *,
+            data: dict[str, Any],
+            subentry_type: str,
+            title: str,
+            unique_id: str | None,
+        ) -> None:
+            self.data = MappingProxyType(data)
+            self.subentry_id = "starter-conversation"
+            self.subentry_type = subentry_type
+            self.title = title
+            self.unique_id = unique_id
+
+    config_entries.ConfigSubentry = ConfigSubentry
     sys.modules.setdefault("homeassistant.config_entries", config_entries)
 
     const = ModuleType("homeassistant.const")
@@ -574,6 +597,7 @@ from lemonade.const import (  # noqa: E402
     DEFAULT_SCAN_INTERVAL_SECONDS,
     DOMAIN,
     PLATFORMS,
+    STARTER_PROMPT,
     SUBENTRY_TYPE_AI_TASK,
     SUBENTRY_TYPE_CONVERSATION,
 )
@@ -587,10 +611,19 @@ from lemonade.models import (  # noqa: E402
 
 class FakeConfigEntries:
     def __init__(self) -> None:
+        self.added_subentries: list[tuple[Any, Any]] = []
         self.forwarded: list[tuple[Any, Any]] = []
         self.unloaded: list[tuple[Any, Any]] = []
         self.updated: list[tuple[Any, dict[str, Any]]] = []
         self.reloaded: str | None = None
+
+    def async_add_subentry(self, entry: Any, subentry: Any) -> bool:
+        self.added_subentries.append((entry, subentry))
+        entry.subentries = {
+            **getattr(entry, "subentries", {}),
+            subentry.subentry_id: subentry,
+        }
+        return True
 
     async def async_forward_entry_setups(self, entry: Any, platforms: Any) -> None:
         self.forwarded.append((entry, platforms))
@@ -601,12 +634,8 @@ class FakeConfigEntries:
 
     def async_update_entry(self, entry: Any, **kwargs: Any) -> None:
         self.updated.append((entry, kwargs))
-        if "data" in kwargs:
-            entry.data = kwargs["data"]
-        if "options" in kwargs:
-            entry.options = kwargs["options"]
-        if "unique_id" in kwargs:
-            entry.unique_id = kwargs["unique_id"]
+        for key, value in kwargs.items():
+            setattr(entry, key, value)
 
     async def async_reload(self, entry_id: str) -> None:
         self.reloaded = entry_id
@@ -1217,6 +1246,50 @@ class ProfileRuntimeTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(ai_task_fields[CONF_PROMPT].suggest_default_instructions)
         self.assertEqual(CAPABILITY_AI_TASK, ai_task_definition.model_policy.capability)
         self.assertTrue(ai_task_definition.model_policy.include_all_models)
+
+    def test_starter_profile_inherits_first_model_when_one_later_appears(
+        self,
+    ) -> None:
+        from homeassistant.exceptions import HomeAssistantError
+
+        from lemonade.profile_chat import resolve_conversation_profile_model
+        from lemonade.profiles import (
+            parse_conversation_profile,
+            starter_conversation_subentry_data,
+        )
+
+        starter = starter_conversation_subentry_data()
+        profile = parse_conversation_profile(
+            SimpleNamespace(
+                subentry_id="starter-conversation",
+                subentry_type=starter["subentry_type"],
+                data=starter["data"],
+            )
+        )
+        coordinator = SimpleNamespace(
+            catalog=model_catalog({CAPABILITY_CONVERSATION: []})
+        )
+        entry = SimpleNamespace(
+            data={},
+            options={},
+            runtime_data=SimpleNamespace(coordinator=coordinator),
+        )
+
+        self.assertIsNone(profile.model)
+        with self.assertRaisesRegex(
+            HomeAssistantError,
+            "No Lemonade conversation model is available",
+        ):
+            resolve_conversation_profile_model(entry, profile)
+
+        coordinator.catalog = model_catalog(
+            {CAPABILITY_CONVERSATION: ["chat-later"]}
+        )
+
+        self.assertEqual(
+            "chat-later",
+            resolve_conversation_profile_model(entry, profile),
+        )
 
     def test_capability_descriptions_project_canonical_production_policies(self) -> None:
         import lemonade.const as lemonade_const
@@ -2298,6 +2371,120 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         validate.assert_not_awaited()
         self.assertEqual([], flow.hass.config_entries.updated)
 
+    async def test_new_server_entry_includes_starter_conversation_profile(
+        self,
+    ) -> None:
+        import lemonade.config_flow as config_flow
+        from lemonade.const import STARTER_PROMPT
+
+        flow = config_flow.LemonadeConfigFlow()
+        flow.hass = FakeHass()
+        user_input = {
+            CONF_NAME: "Kitchen Lemonade",
+            CONF_URL: "http://lemonade.local/",
+            CONF_TIMEOUT: 12.0,
+            CONF_VERIFY_SSL: True,
+        }
+
+        with patch.object(
+            config_flow,
+            "_async_validate_connection",
+            return_value={},
+        ):
+            result = await flow.async_step_user(user_input)
+
+        self.assertEqual("create_entry", result["type"])
+        self.assertEqual("Kitchen Lemonade", result["title"])
+        self.assertEqual(
+            (
+                {
+                    "title": "Lemonade Conversation",
+                    "subentry_type": SUBENTRY_TYPE_CONVERSATION,
+                    "unique_id": None,
+                    "data": {
+                        CONF_NAME: "Lemonade Conversation",
+                        CONF_PROMPT: STARTER_PROMPT,
+                        CONF_MAX_HISTORY: DEFAULT_MAX_HISTORY,
+                    },
+                },
+            ),
+            result["subentries"],
+        )
+
+    async def test_migration_backfills_starter_when_no_conversation_profile_exists(
+        self,
+    ) -> None:
+        from lemonade.const import STARTER_PROMPT
+
+        entry = SimpleNamespace(
+            data={CONF_URL: "http://lemonade.local"},
+            minor_version=1,
+            subentries={},
+            version=1,
+        )
+        hass = FakeHass()
+
+        migrated = await integration.async_migrate_entry(hass, entry)
+
+        self.assertTrue(migrated)
+        self.assertEqual(2, entry.minor_version)
+        self.assertEqual(1, entry.version)
+        self.assertEqual(1, len(hass.config_entries.added_subentries))
+        subentry = next(iter(entry.subentries.values()))
+        self.assertEqual("Lemonade Conversation", subentry.title)
+        self.assertEqual(SUBENTRY_TYPE_CONVERSATION, subentry.subentry_type)
+        self.assertIsNone(subentry.unique_id)
+        self.assertEqual(
+            {
+                CONF_NAME: "Lemonade Conversation",
+                CONF_PROMPT: STARTER_PROMPT,
+                CONF_MAX_HISTORY: DEFAULT_MAX_HISTORY,
+            },
+            dict(subentry.data),
+        )
+
+    async def test_existing_conversation_profile_suppresses_starter_backfill(
+        self,
+    ) -> None:
+        existing = SimpleNamespace(
+            subentry_id="conversation-1",
+            subentry_type=SUBENTRY_TYPE_CONVERSATION,
+            title="Custom assistant",
+            data={CONF_NAME: "Custom assistant"},
+        )
+        entry = SimpleNamespace(
+            data={CONF_URL: "http://lemonade.local"},
+            minor_version=1,
+            subentries={existing.subentry_id: existing},
+            version=1,
+        )
+        hass = FakeHass()
+
+        migrated = await integration.async_migrate_entry(hass, entry)
+
+        self.assertTrue(migrated)
+        self.assertEqual(2, entry.minor_version)
+        self.assertEqual({existing.subentry_id: existing}, entry.subentries)
+        self.assertEqual([], hass.config_entries.added_subentries)
+
+    async def test_completed_starter_migration_does_not_recreate_deleted_profile(
+        self,
+    ) -> None:
+        entry = SimpleNamespace(
+            data={CONF_URL: "http://lemonade.local"},
+            minor_version=2,
+            subentries={},
+            version=1,
+        )
+        hass = FakeHass()
+
+        migrated = await integration.async_migrate_entry(hass, entry)
+
+        self.assertTrue(migrated)
+        self.assertEqual({}, entry.subentries)
+        self.assertEqual([], hass.config_entries.added_subentries)
+        self.assertEqual([], hass.config_entries.updated)
+
     async def test_ai_task_profile_subentry_flow_uses_ai_task_models(self) -> None:
         from lemonade.config_flow import LemonadeProfileSubentryFlow
 
@@ -2415,7 +2602,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 "prompt",
                 None,
                 None,
-                "Default Home Assistant instructions",
+                STARTER_PROMPT,
                 " Prompt ",
                 "Prompt",
             ),
@@ -2585,7 +2772,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(["chat-a", "chat-b"], fields[CONF_MODEL][1].config.options)
         self.assertIsInstance(fields[CONF_PROMPT][1], _TemplateSelector)
         self.assertEqual(
-            "Default Home Assistant instructions",
+            STARTER_PROMPT,
             fields[CONF_PROMPT][0].description["suggested_value"],
         )
         self.assertIsNone(fields[CONF_PROMPT][0].default)
@@ -2602,6 +2789,40 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertFalse(fields[CONF_LLM_HASS_API][1].config.multiple)
         self.assertIsInstance(fields[CONF_ROUTER_METADATA][1], _ObjectSelector)
+
+    async def test_conversation_prompt_suggestion_uses_repository_starter_prompt(
+        self,
+    ) -> None:
+        from homeassistant.helpers import llm
+
+        from lemonade.config_flow import LemonadeProfileSubentryFlow
+        from lemonade.const import STARTER_PROMPT
+
+        entry = SimpleNamespace(
+            state="loaded",
+            runtime_data=SimpleNamespace(
+                coordinator=SimpleNamespace(
+                    catalog=model_catalog(
+                        {CAPABILITY_CONVERSATION: ["chat-a"]}
+                    )
+                )
+            ),
+        )
+        flow = _profile_flow(entry, SUBENTRY_TYPE_CONVERSATION)
+        flow.hass = SimpleNamespace(llm_apis=[])
+
+        with patch.object(
+            llm,
+            "DEFAULT_INSTRUCTIONS_PROMPT",
+            "Changed upstream instructions",
+        ):
+            result = await flow.async_step_user()
+
+        fields = _schema_fields(result["data_schema"])
+        self.assertEqual(
+            STARTER_PROMPT,
+            fields[CONF_PROMPT][0].description["suggested_value"],
+        )
 
     async def test_profile_subentry_flow_reconfigures_existing_profile(self) -> None:
         from lemonade.const import CONF_ROUTER_METADATA
@@ -2657,7 +2878,58 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertIs(entry, result["entry"])
         self.assertIs(subentry, result["subentry"])
         self.assertEqual(submitted, result["data"])
-        self.assertNotIn("title", result)
+        self.assertEqual("New profile", result["title"])
+
+    async def test_profile_reconfiguration_persists_prompt_edits_and_clears(
+        self,
+    ) -> None:
+        subentry = SimpleNamespace(
+            data={
+                CONF_NAME: "Lemonade Conversation",
+                CONF_PROMPT: STARTER_PROMPT,
+                CONF_MAX_HISTORY: DEFAULT_MAX_HISTORY,
+            }
+        )
+        entry = SimpleNamespace(
+            state="loaded",
+            runtime_data=SimpleNamespace(
+                coordinator=SimpleNamespace(
+                    catalog=model_catalog(
+                        {CAPABILITY_CONVERSATION: ["chat-a"]}
+                    )
+                )
+            ),
+        )
+        flow = _profile_flow(entry, SUBENTRY_TYPE_CONVERSATION, subentry)
+        flow.hass = SimpleNamespace(llm_apis=[])
+
+        edited = await flow.async_step_reconfigure(
+            {
+                CONF_NAME: "Lemonade Conversation",
+                CONF_PROMPT: "  Answer with a haiku.\n",
+                CONF_MAX_HISTORY: DEFAULT_MAX_HISTORY,
+            }
+        )
+        cleared = await flow.async_step_reconfigure(
+            {
+                CONF_NAME: "Lemonade Conversation",
+                CONF_PROMPT: "",
+                CONF_MAX_HISTORY: DEFAULT_MAX_HISTORY,
+            }
+        )
+
+        self.assertEqual(
+            "  Answer with a haiku.\n",
+            edited["data"][CONF_PROMPT],
+        )
+        self.assertNotIn(CONF_PROMPT, cleared["data"])
+        self.assertEqual(
+            {
+                CONF_NAME: "Lemonade Conversation",
+                CONF_MAX_HISTORY: DEFAULT_MAX_HISTORY,
+            },
+            cleared["data"],
+        )
 
     async def test_options_flow_builds_schema_from_loaded_runtime_catalog(self) -> None:
         from lemonade.config_flow import LemonadeConfigFlow, LemonadeOptionsFlow
@@ -5343,8 +5615,12 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
     def test_strings_define_options_and_profile_subentry_translations(self) -> None:
         strings = json.loads(Path("custom_components/lemonade/strings.json").read_text())
+        translations = json.loads(
+            Path("custom_components/lemonade/translations/en.json").read_text()
+        )
 
         self.assertIn("options", strings)
+        self.assertEqual(strings, translations)
         option_data = strings["options"]["step"]["init"]["data"]
         self.assertIn(CONF_VERIFY_SSL, strings["config"]["step"]["user"]["data"])
         self.assertIn(CONF_VERIFY_SSL, option_data)
@@ -5367,6 +5643,13 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
         conversation_data = subentries[SUBENTRY_TYPE_CONVERSATION]["step"]["user"]["data"]
         ai_task_data = subentries[SUBENTRY_TYPE_AI_TASK]["step"]["user"]["data"]
+        for step_id in ("user", "reconfigure"):
+            self.assertEqual(
+                "Instruct how the LLM should respond. This can be a template.",
+                subentries[SUBENTRY_TYPE_CONVERSATION]["step"][step_id][
+                    "data_description"
+                ][CONF_PROMPT],
+            )
         self.assertIn(CONF_LLM_HASS_API, conversation_data)
         self.assertIn(CONF_MAX_HISTORY, conversation_data)
         self.assertIn(CONF_KEEP_ALIVE, conversation_data)

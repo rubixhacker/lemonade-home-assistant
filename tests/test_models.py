@@ -2,7 +2,7 @@
 
 from pathlib import Path
 import sys
-from types import ModuleType, SimpleNamespace
+from types import MappingProxyType, ModuleType, SimpleNamespace
 from typing import Any
 import unittest
 
@@ -72,7 +72,12 @@ class _ConfigSubentryFlowBase(_FlowBase):
         return self._reconfigure_subentry_obj
 
     def async_update_and_abort(
-        self, config_entry: Any, subentry: Any, *, data: dict[str, Any]
+        self,
+        config_entry: Any,
+        subentry: Any,
+        *,
+        data: dict[str, Any],
+        title: str | None = None,
     ) -> dict[str, Any]:
         return {
             "type": "abort",
@@ -80,6 +85,7 @@ class _ConfigSubentryFlowBase(_FlowBase):
             "entry": config_entry,
             "subentry": subentry,
             "data": data,
+            "title": title,
         }
 
 
@@ -116,6 +122,23 @@ def _install_homeassistant_stubs() -> None:
     config_entries.ConfigFlow = _ConfigFlowBase
     config_entries.OptionsFlow = _FlowBase
     config_entries.ConfigSubentryFlow = _ConfigSubentryFlowBase
+
+    class ConfigSubentry:
+        def __init__(
+            self,
+            *,
+            data: dict[str, Any],
+            subentry_type: str,
+            title: str,
+            unique_id: str | None,
+        ) -> None:
+            self.data = MappingProxyType(data)
+            self.subentry_id = "starter-conversation"
+            self.subentry_type = subentry_type
+            self.title = title
+            self.unique_id = unique_id
+
+    config_entries.ConfigSubentry = ConfigSubentry
     sys.modules.setdefault("homeassistant.config_entries", config_entries)
 
     const = ModuleType("homeassistant.const")

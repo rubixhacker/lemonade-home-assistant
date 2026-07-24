@@ -21,6 +21,8 @@ from .const import (
     CONF_MAX_HISTORY,
     CONF_ROUTER_METADATA,
     DEFAULT_MAX_HISTORY,
+    STARTER_CONVERSATION_PROFILE_TITLE,
+    STARTER_PROMPT,
     SUBENTRY_TYPE_AI_TASK,
     SUBENTRY_TYPE_CONVERSATION,
 )
@@ -318,6 +320,20 @@ PROFILE_DEFINITIONS = (
 PROFILE_DEFINITION_BY_TYPE = MappingProxyType(
     {definition.profile_type: definition for definition in PROFILE_DEFINITIONS}
 )
+
+
+def starter_conversation_subentry_data() -> dict[str, Any]:
+    """Return the initial ordinary Conversation Profile subentry data."""
+    return {
+        "title": STARTER_CONVERSATION_PROFILE_TITLE,
+        "subentry_type": SUBENTRY_TYPE_CONVERSATION,
+        "unique_id": None,
+        "data": {
+            CONF_NAME: STARTER_CONVERSATION_PROFILE_TITLE,
+            CONF_PROMPT: STARTER_PROMPT,
+            CONF_MAX_HISTORY: DEFAULT_MAX_HISTORY,
+        },
+    }
 
 
 def profile_definitions() -> tuple[ProfileDefinition, ...]:

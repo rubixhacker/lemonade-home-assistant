@@ -32,6 +32,14 @@ _Avoid_: Profile, assistant setting, AI task setting, image setting
 A user-created Lemonade assistant for Assist or voice pipelines, with its own model choice, optional prompt, optional Home Assistant control access, chat history limit, optional model keep-alive override, and its own Home Assistant subentry device.
 _Avoid_: Default profile, server entry
 
+**Starter Conversation Profile**:
+The initial Lemonade assistant provided to make Assist usable before a person designs a custom assistant. It begins with the Starter Prompt, inherited model selection, and no Home Assistant control access; it remains an ordinary, editable, and removable Conversation Profile.
+_Avoid_: Default conversation profile, mandatory profile
+
+**Starter Prompt**:
+The repository-owned initial instructions offered to a new Starter Conversation Profile. Its initial wording derives from Home Assistant's standard conversation instructions; once saved, the prompt is ordinary profile-owned data.
+_Avoid_: Ollama prompt, GUI3-optimized prompt, fine-tuned model
+
 **AI Task Profile**:
 A user-created Lemonade AI task target with its own model choice, optional prompt, chat history limit, optional model keep-alive override, and its own Home Assistant subentry device. Depending on the selected model and task, it can process images as input for data generation or generate images as output.
 _Avoid_: Default profile, server entry

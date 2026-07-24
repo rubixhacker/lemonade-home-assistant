@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from types import MappingProxyType
 
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import CONF_API_KEY, CONF_URL
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import (
@@ -29,7 +30,9 @@ from .const import (
     DEFAULT_TIMEOUT,
     DOMAIN,
     PLATFORMS,
+    SUBENTRY_TYPE_CONVERSATION,
 )
+from .profiles import profile_subentries, starter_conversation_subentry_data
 from .server_capabilities import repair_issue_identities
 from .services import async_register_services
 
@@ -42,6 +45,33 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up Lemonade Server."""
     hass.data.setdefault(DOMAIN, {})
     async_register_services(hass)
+    return True
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate a Server Entry and consider its one-time starter backfill."""
+    if entry.version != 1:
+        return False
+    if entry.minor_version >= 2:
+        return True
+
+    if not profile_subentries(entry, SUBENTRY_TYPE_CONVERSATION):
+        starter = starter_conversation_subentry_data()
+        hass.config_entries.async_add_subentry(
+            entry,
+            ConfigSubentry(
+                data=MappingProxyType(starter["data"]),
+                subentry_type=starter["subentry_type"],
+                title=starter["title"],
+                unique_id=starter["unique_id"],
+            ),
+        )
+
+    hass.config_entries.async_update_entry(
+        entry,
+        version=1,
+        minor_version=2,
+    )
     return True
 
 

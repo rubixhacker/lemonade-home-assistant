@@ -10,7 +10,7 @@ import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.components import network
-from homeassistant.const import CONF_API_KEY, CONF_MODEL, CONF_NAME, CONF_URL
+from homeassistant.const import CONF_API_KEY, CONF_MODEL, CONF_NAME, CONF_PROMPT, CONF_URL
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import config_validation as cv, llm, selector
@@ -36,15 +36,18 @@ from .const import (
     DEFAULT_TIMEOUT,
     DEFAULT_URL,
     DOMAIN,
+    STARTER_PROMPT,
     SUBENTRY_TYPE_CONVERSATION,
 )
 from .profiles import (
     ProfileDefinition,
     ProfileFieldInterpretation,
     ProfileFieldPresentation,
+    ProfileKind,
     interpret_profile_field,
     profile_definition,
     profile_definitions,
+    starter_conversation_subentry_data,
 )
 from .server_capabilities import default_model_selector_definitions, runtime_model_view
 
@@ -98,10 +101,9 @@ def _number_box_selector(
     )
 
 
-def _default_instructions_prompt() -> str | None:
-    """Return Home Assistant's default LLM instructions prompt, if available."""
-    prompt = getattr(llm, "DEFAULT_INSTRUCTIONS_PROMPT", None)
-    return prompt if isinstance(prompt, str) and prompt else None
+def _default_instructions_prompt() -> str:
+    """Return the repository-owned Starter Prompt."""
+    return STARTER_PROMPT
 
 
 def _profile_model_ids(
@@ -262,6 +264,7 @@ class LemonadeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Lemonade Server."""
 
     VERSION = 1
+    MINOR_VERSION = 2
 
     @staticmethod
     def async_get_options_flow(
@@ -339,6 +342,7 @@ class LemonadeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_create_entry(
             title=user_input.get(CONF_NAME, DEFAULT_NAME),
             data=data,
+            subentries=(starter_conversation_subentry_data(),),
         )
 
     async def async_step_reconfigure(
@@ -506,12 +510,17 @@ class LemonadeProfileSubentryFlow(config_entries.ConfigSubentryFlow):
             or context_type
         )
 
-    def _async_update_subentry(self, data: dict[str, Any]) -> FlowResult:
+    def _async_update_subentry(
+        self,
+        data: dict[str, Any],
+        title: str,
+    ) -> FlowResult:
         """Update a profile subentry."""
         return self.async_update_and_abort(
             self._get_entry(),
             self._get_reconfigure_subentry(),
             data=data,
+            title=title,
         )
 
     def _profile_schema(
@@ -594,12 +603,19 @@ class LemonadeProfileSubentryFlow(config_entries.ConfigSubentryFlow):
             return self.async_abort(reason="no_models")
 
         if user_input is not None:
-            title = user_input[CONF_NAME]
+            persisted_data = dict(user_input)
+            if (
+                subentry is not None
+                and definition.profile_type is ProfileKind.CONVERSATION
+                and persisted_data.get(CONF_PROMPT) == ""
+            ):
+                persisted_data.pop(CONF_PROMPT)
+            title = persisted_data[CONF_NAME]
             if subentry is not None:
-                return self._async_update_subentry(user_input)
+                return self._async_update_subentry(persisted_data, title)
             return self.async_create_entry(
                 title=title,
-                data=user_input,
+                data=persisted_data,
             )
 
         return self.async_show_form(
