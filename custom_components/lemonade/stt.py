@@ -8,6 +8,7 @@ from typing import Any, assert_never
 
 from homeassistant.components import stt
 from homeassistant.core import HomeAssistant
+from homeassistant.generated.languages import LANGUAGES
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .data import LemonadeConfigEntry
@@ -49,7 +50,7 @@ class LemonadeSTTEntity(stt.SpeechToTextEntity):
     @property
     def supported_languages(self) -> list[str]:
         """Return supported languages."""
-        return ["en"]
+        return sorted(LANGUAGES)
 
     @property
     def supported_formats(self) -> list[stt.AudioFormats]:

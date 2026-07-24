@@ -174,6 +174,14 @@ def _install_homeassistant_stubs() -> None:
     homeassistant.__path__ = []
     sys.modules.setdefault("homeassistant", homeassistant)
 
+    generated = ModuleType("homeassistant.generated")
+    generated.__path__ = []
+    sys.modules.setdefault("homeassistant.generated", generated)
+
+    languages = ModuleType("homeassistant.generated.languages")
+    languages.LANGUAGES = {"en", "fr", "pt-BR", "zh-Hant"}
+    sys.modules.setdefault("homeassistant.generated.languages", languages)
+
     components = ModuleType("homeassistant.components")
     components.__path__ = []
     sys.modules.setdefault("homeassistant.components", components)
@@ -6752,7 +6760,10 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("entry-1_tts", entity._attr_unique_id)
         self.assertIsNone(getattr(entity, "_attr_device_info", None))
         self.assertEqual("en", entity._attr_default_language)
-        self.assertEqual(["en"], entity._attr_supported_languages)
+        self.assertEqual(
+            ["en", "fr", "pt-BR", "zh-Hant"],
+            entity._attr_supported_languages,
+        )
         self.assertEqual(
             ["voice", "model", "response_format"],
             entity._attr_supported_options,
@@ -6900,7 +6911,10 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(entity._attr_has_entity_name)
         self.assertEqual("entry-1_stt", entity._attr_unique_id)
         self.assertIsNone(getattr(entity, "_attr_device_info", None))
-        self.assertEqual(["en"], entity.supported_languages)
+        self.assertEqual(
+            ["en", "fr", "pt-BR", "zh-Hant"],
+            entity.supported_languages,
+        )
         self.assertEqual([stt.AudioFormats.WAV], entity.supported_formats)
         self.assertEqual([stt.AudioCodecs.PCM], entity.supported_codecs)
         self.assertEqual([stt.AudioBitRates.BITRATE_16], entity.supported_bit_rates)

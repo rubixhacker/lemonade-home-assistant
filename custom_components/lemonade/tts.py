@@ -6,6 +6,7 @@ from typing import Any
 
 from homeassistant.components.tts import TextToSpeechEntity
 from homeassistant.core import HomeAssistant
+from homeassistant.generated.languages import LANGUAGES
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .data import LemonadeConfigEntry
@@ -36,7 +37,7 @@ class LemonadeTTSEntity(TextToSpeechEntity):
     _attr_name = "Lemonade Server text-to-speech"
     _attr_has_entity_name = False
     _attr_default_language = "en"
-    _attr_supported_languages = ["en"]
+    _attr_supported_languages = sorted(LANGUAGES)
     _attr_supported_options = ["voice", "model", "response_format"]
 
     def __init__(self, entry: LemonadeConfigEntry) -> None:
