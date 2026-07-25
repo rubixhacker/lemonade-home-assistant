@@ -4,8 +4,8 @@ Use this checklist before publishing a Lemonade Server Home Assistant beta or st
 
 ## Current target
 
-- Tag: `v1.0.0`
-- Manifest version: `1.0.0`
+- Tag: `v1.1.0`
+- Manifest version: `1.1.0`
 - Install source: built HACS release artifact, not a direct working-tree copy
 - Lemonade source: real Lemonade Server, not a fake endpoint
 
@@ -14,7 +14,10 @@ Use this checklist before publishing a Lemonade Server Home Assistant beta or st
 Run from the repository root:
 
 ```bash
-python3 -m unittest tests.test_models tests.test_runtime -v
+python3 -m venv /tmp/lemonade-ha-e2e
+/tmp/lemonade-ha-e2e/bin/pip install -r requirements-e2e.txt
+/tmp/lemonade-ha-e2e/bin/pytest tests/e2e -v
+python3 -m unittest tests.test_models tests.test_runtime tests.test_beacon -v
 python3 -m py_compile custom_components/lemonade/*.py
 python3 -m json.tool custom_components/lemonade/manifest.json >/tmp/lemonade-manifest.json
 python3 -m json.tool custom_components/lemonade/strings.json >/tmp/lemonade-strings.json
@@ -27,6 +30,8 @@ unzip -l dist/lemonade.zip | grep "custom_components/lemonade/brand/icon.png"
 
 Expected result:
 
+- End-to-end feature tests pass against real Home Assistant config flows,
+  services, entities, HTTP, and UDP boundaries.
 - Unit tests pass.
 - Python files compile.
 - JSON files validate.
@@ -44,18 +49,29 @@ Use the 120-second request timeout for cold-model testing. A model that returns 
 ### Required checks
 
 - Add a Lemonade Server Entry from the UI.
+- Confirm a Lemonade Server beacon can pre-fill setup when advertised.
+- Confirm Endpoint Reconfiguration validates and replaces a test Server Endpoint
+  without changing its profiles.
 - Confirm the integration loads without startup errors.
 - Confirm the integration page shows status and model-count entities.
-- Create one Conversation Profile.
+- Confirm a new Server Entry has one Starter Conversation Profile.
+- Create one Router-backed Conversation Profile with Router Metadata.
 - Select the Conversation Profile in Assist or a voice pipeline.
 - Send one Assist prompt and confirm a response is returned.
-- Create one AI Task Profile.
+- Create one Omni-backed AI Task Profile.
 - Run one AI task data-generation path and confirm a response is returned.
+- Run `lemonade.classify_text` and confirm the Lemonade score mapping is returned
+  unchanged.
+- Run `lemonade.chat_completion` with `route_trace: true` and confirm its raw
+  response contains a Route Decision.
+- Confirm the native Lemonade TTS and STT providers advertise at least one
+  non-English Home Assistant locale.
 - Confirm direct service schemas are visible for:
   - `lemonade.chat_completion`
   - `lemonade.generate_image`
   - `lemonade.transcribe_audio`
   - `lemonade.text_to_speech`
+  - `lemonade.classify_text`
 
 ### Conditional checks
 
@@ -87,9 +103,9 @@ If Lemonade does not advertise an STT model:
 After the smoke passes:
 
 ```bash
-git tag v1.0.0
+git tag v1.1.0
 git push origin main
-git push origin v1.0.0
+git push origin v1.1.0
 ```
 
 Tags containing `-alpha`, `-beta`, or `-rc` are published as GitHub pre-releases by the release workflow.
