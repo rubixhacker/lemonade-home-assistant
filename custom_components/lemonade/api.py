@@ -204,6 +204,7 @@ class LemonadeClient:
         model: str | None = None,
         voice: str | None = None,
         response_format: str | None = None,
+        lang_code: str | None = None,
     ) -> tuple[bytes, str | None]:
         """Convert text to speech and return audio bytes."""
         payload: dict[str, Any] = {"input": text}
@@ -213,6 +214,8 @@ class LemonadeClient:
             payload["voice"] = voice
         if response_format:
             payload["response_format"] = response_format
+        if lang_code:
+            payload["lang_code"] = lang_code
         return await self._request_bytes("POST", ENDPOINT_AUDIO_SPEECH, json=payload)
 
     async def transcribe_audio(

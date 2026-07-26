@@ -1053,6 +1053,19 @@ class ServerCapabilityViewTest(unittest.TestCase):
 
                 self.assertEqual(expected, state.server_status)
 
+    def test_runtime_state_parses_semantic_health_version(self) -> None:
+        from lemonade.coordinator import LemonadeRuntimeState
+
+        for health, expected in (
+            ({"version": "10.0.1"}, "10.0.1"),
+            ({}, None),
+            ({"version": 10001}, None),
+        ):
+            with self.subTest(health=health):
+                state = LemonadeRuntimeState.from_server_payload(health, {})
+
+                self.assertEqual(expected, state.server_version)
+
     def test_runtime_state_has_no_raw_or_duplicate_model_fields(self) -> None:
         from lemonade.coordinator import LemonadeRuntimeState
         from lemonade.models import LemonadeModel
@@ -3085,6 +3098,39 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 "POST",
                 "http://server/v1/classify",
                 {"headers": {}, "json": {"text": "Please help today", "model": "classifier", "top_k": 3}},
+            ),
+            session.requests[-1],
+        )
+
+    async def test_api_text_to_speech_serializes_kokoro_language_code(self) -> None:
+        session = FakeHttpSession(
+            FakeHttpResponse(
+                status=200,
+                content=b"audio",
+                content_type="audio/mpeg",
+            )
+        )
+        client = LemonadeClient(session, "http://server")
+
+        result = await client.text_to_speech(
+            text="Olá, mundo",
+            model="kokoro-v1",
+            lang_code="pt-BR",
+        )
+
+        self.assertEqual((b"audio", "audio/mpeg"), result)
+        self.assertEqual(
+            (
+                "POST",
+                "http://server/v1/audio/speech",
+                {
+                    "headers": {},
+                    "json": {
+                        "input": "Olá, mundo",
+                        "model": "kokoro-v1",
+                        "lang_code": "pt-BR",
+                    },
+                },
             ),
             session.requests[-1],
         )
@@ -7430,6 +7476,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         coordinator = SimpleNamespace(
             catalog=model_catalog({CAPABILITY_TTS: ["catalog-tts"]}),
             last_update_success=True,
+            server_version="11.5.0",
         )
         entry = FakeEntry()
         entry.options = {CONF_DEFAULT_TTS_MODEL: "entry-tts"}
@@ -7457,8 +7504,8 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(entity.available)
 
         extension, audio = await entity.async_get_tts_audio(
-            "Hello",
-            "en",
+            "Bonjour tout le monde",
+            "fr",
             {"model": "request-tts", "voice": "alloy", "response_format": "wav"},
         )
 
@@ -7466,10 +7513,11 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             [
                 {
-                    "text": "Hello",
+                    "text": "Bonjour tout le monde",
                     "model": "request-tts",
                     "voice": "alloy",
                     "response_format": "wav",
+                    "lang_code": "fr",
                 }
             ],
             client.calls,
@@ -7510,6 +7558,54 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
                 with self.assertRaisesRegex(HomeAssistantError, expected_message):
                     await entity.async_get_tts_audio("Hello", "en")
+
+    async def test_tts_rejects_multilingual_locale_for_unsupported_server(
+        self,
+    ) -> None:
+        from homeassistant.exceptions import HomeAssistantError
+
+        tts_module = _require_module("lemonade.tts")
+
+        class Client:
+            def __init__(self) -> None:
+                self.calls: list[dict[str, Any]] = []
+
+            async def text_to_speech(self, **kwargs: Any) -> tuple[bytes, str]:
+                self.calls.append(kwargs)
+                return b"voice-bytes", "audio/mpeg"
+
+        for server_version in ("10.0.0", "10.0.1-rc.1", None):
+            with self.subTest(server_version=server_version):
+                client = Client()
+                entry = FakeEntry()
+                entry.options = {CONF_DEFAULT_TTS_MODEL: "kokoro-v1"}
+                entry.runtime_data = SimpleNamespace(
+                    client=client,
+                    coordinator=SimpleNamespace(
+                        catalog=model_catalog({CAPABILITY_TTS: ["kokoro-v1"]}),
+                        server_version=server_version,
+                    ),
+                )
+                entity = tts_module.LemonadeTTSEntity(entry)
+
+                await entity.async_get_tts_audio("Hello", "en")
+                with self.assertRaisesRegex(
+                    HomeAssistantError,
+                    "Multilingual TTS requires Lemonade Server v10.0.1 or later",
+                ):
+                    await entity.async_get_tts_audio("Bonjour", "fr")
+
+                self.assertEqual(
+                    [
+                        {
+                            "text": "Hello",
+                            "model": "kokoro-v1",
+                            "voice": None,
+                            "response_format": None,
+                        }
+                    ],
+                    client.calls,
+                )
 
     async def test_tts_entity_is_unavailable_without_model(self) -> None:
         from homeassistant.exceptions import HomeAssistantError

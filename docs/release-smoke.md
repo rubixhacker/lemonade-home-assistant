@@ -4,8 +4,8 @@ Use this checklist before publishing a Lemonade Server Home Assistant beta or st
 
 ## Current target
 
-- Tag: `v1.1.0`
-- Manifest version: `1.1.0`
+- Tag: `v1.1.1`
+- Manifest version: `1.1.1`
 - Install source: built HACS release artifact, not a direct working-tree copy
 - Lemonade source: real Lemonade Server, not a fake endpoint
 
@@ -43,6 +43,7 @@ Expected result:
 Install `dist/lemonade.zip` into a Home Assistant instance as the release artifact under test, then restart Home Assistant.
 
 Use a real Lemonade Server URL reachable from Home Assistant. The server must have at least one downloaded chat-capable model. Image, TTS, and STT checks are conditional on the models Lemonade advertises through `/v1/models`.
+Multilingual native TTS verification requires Lemonade Server v10.0.1 or later.
 
 Use the 120-second request timeout for cold-model testing. A model that returns a server-side `model_load_error` may be retried once after its backend starts; a repeated error fails the smoke test.
 
@@ -84,8 +85,9 @@ If Lemonade advertises an image-generation model:
 If Lemonade advertises a TTS model:
 
 - Confirm the Lemonade Server TTS entity is available.
-- Generate speech through the native TTS path or `lemonade.text_to_speech`.
-- Confirm audio data is returned.
+- Generate speech through the native TTS path with an explicitly selected
+  non-English locale.
+- Confirm audio data is returned in that locale.
 
 If Lemonade advertises an STT model with `stt`, `transcription`, or `speech-to-text` metadata:
 
@@ -103,9 +105,9 @@ If Lemonade does not advertise an STT model:
 After the smoke passes:
 
 ```bash
-git tag v1.1.0
+git tag v1.1.1
 git push origin main
-git push origin v1.1.0
+git push origin v1.1.1
 ```
 
 Tags containing `-alpha`, `-beta`, or `-rc` are published as GitHub pre-releases by the release workflow.

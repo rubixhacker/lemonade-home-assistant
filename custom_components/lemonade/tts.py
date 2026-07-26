@@ -68,5 +68,6 @@ class LemonadeTTSEntity(TextToSpeechEntity):
             explicit_model=options.get("model"),
             voice=options.get("voice"),
             response_format=options.get("response_format"),
+            language=language,
         )
         return result.extension, result.audio

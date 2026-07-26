@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterable, Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
+import re
 from typing import Any
 
 from homeassistant.exceptions import HomeAssistantError
@@ -34,6 +35,12 @@ _SPEECH_SYNTHESIS_ERROR_ACTION = "Error generating speech with Lemonade"
 _NO_TTS_MODEL_ERROR = "No Lemonade TTS model is available"
 _NO_STT_MODEL_ERROR = "No Lemonade STT model is available"
 _INVALID_TEXT_ERROR = "Lemonade transcription response missing valid text"
+_MULTILINGUAL_TTS_MIN_SERVER_VERSION = "10.0.1"
+_SERVER_VERSION_PATTERN = re.compile(
+    r"^v?(\d+)\.(\d+)\.(\d+)"
+    r"(?P<prerelease>-[0-9A-Za-z.-]+)?"
+    r"(?:\+[0-9A-Za-z.-]+)?$"
+)
 
 
 @dataclass(frozen=True)
@@ -44,6 +51,7 @@ class SpeechSynthesisRequest:
     model: str
     voice: str | None
     response_format: str | None
+    language: str | None = None
 
 
 @dataclass(frozen=True)
@@ -102,6 +110,47 @@ def require_speech_synthesis_model(entry: Any, explicit_model: Any = None) -> st
     raise HomeAssistantError(_NO_TTS_MODEL_ERROR)
 
 
+def _semantic_version_key(version: str | None) -> tuple[int, int, int, int] | None:
+    """Return a comparison key with stable releases after matching prereleases."""
+    if version is None:
+        return None
+    match = _SERVER_VERSION_PATTERN.match(version.strip())
+    if match is None:
+        return None
+    major, minor, patch = (int(part) for part in match.groups()[:3])
+    stable = 1 if match.group("prerelease") is None else 0
+    return major, minor, patch, stable
+
+
+def _server_supports_multilingual_tts(entry: Any) -> bool:
+    """Return whether the connected server supports Kokoros lang_code."""
+    coordinator = getattr(getattr(entry, "runtime_data", None), "coordinator", None)
+    version = getattr(coordinator, "server_version", None)
+    current = _semantic_version_key(version if isinstance(version, str) else None)
+    minimum = _semantic_version_key(_MULTILINGUAL_TTS_MIN_SERVER_VERSION)
+    return current is not None and minimum is not None and current >= minimum
+
+
+def require_speech_synthesis_language(
+    entry: Any,
+    language: str | None,
+) -> str | None:
+    """Return a supported TTS locale or raise for unsupported multilingual TTS."""
+    if language is None:
+        return None
+
+    if _server_supports_multilingual_tts(entry):
+        return language
+
+    if language.strip().lower().replace("_", "-") in {"en", "en-us"}:
+        return None
+
+    raise HomeAssistantError(
+        "Multilingual TTS requires Lemonade Server "
+        f"v{_MULTILINGUAL_TTS_MIN_SERVER_VERSION} or later"
+    )
+
+
 def resolve_speech_transcription_model(
     entry: Any, explicit_model: Any = None
 ) -> str | None:
@@ -129,6 +178,7 @@ def speech_synthesis_request(
     explicit_model: Any = None,
     voice: str | None = None,
     response_format: str | None = None,
+    language: str | None = None,
 ) -> SpeechSynthesisRequest:
     """Build a resolved Lemonade speech synthesis request."""
     return SpeechSynthesisRequest(
@@ -136,6 +186,7 @@ def speech_synthesis_request(
         model=require_speech_synthesis_model(entry, explicit_model),
         voice=voice,
         response_format=response_format,
+        language=require_speech_synthesis_language(entry, language),
     )
 
 
@@ -163,13 +214,16 @@ async def synthesize_speech(
     request: SpeechSynthesisRequest,
 ) -> SpeechSynthesisResult:
     """Generate speech audio and translate Lemonade client failures."""
+    request_options = {
+        "text": request.text,
+        "model": request.model,
+        "voice": request.voice,
+        "response_format": request.response_format,
+    }
+    if request.language is not None:
+        request_options["lang_code"] = request.language
     try:
-        audio, content_type = await client.text_to_speech(
-            text=request.text,
-            model=request.model,
-            voice=request.voice,
-            response_format=request.response_format,
-        )
+        audio, content_type = await client.text_to_speech(**request_options)
     except LEMONADE_CLIENT_EXCEPTIONS as err:
         raise lemonade_home_assistant_error(err, _SPEECH_SYNTHESIS_ERROR_ACTION) from err
 
@@ -187,6 +241,7 @@ async def synthesize_entry_speech(
     explicit_model: Any = None,
     voice: str | None = None,
     response_format: str | None = None,
+    language: str | None = None,
 ) -> SpeechSynthesisResult:
     """Resolve a config entry model and generate speech audio."""
     request = speech_synthesis_request(
@@ -195,6 +250,7 @@ async def synthesize_entry_speech(
         explicit_model=explicit_model,
         voice=voice,
         response_format=response_format,
+        language=language,
     )
     return await synthesize_speech(entry.runtime_data.client, request)
 

@@ -108,6 +108,13 @@ The integration exposes native platforms for:
 
 STT requires a Lemonade model whose labels include stt, transcription, or speech-to-text. The sample model list provided by the user had no STT-capable model, so STT will show unavailable until Lemonade advertises one.
 
+Native multilingual TTS requires Lemonade Server v10.0.1 or later, which first
+included a Kokoros backend with `lang_code` support. The integration sends the
+Home Assistant TTS locale unchanged as Kokoros's `lang_code`. Older Lemonade
+Server releases remain usable for default English TTS. Selecting a non-English
+locale on an older server returns a clear upgrade error instead of silently
+using Kokoro's voice-derived language.
+
 If the voice assistant text-to-speech picker shows both a Lemonade Server entry and an older `lemonade-*` engine, remove the older legacy TTS provider or custom component from Home Assistant. The Lemonade Server integration exposes its current TTS support as the Lemonade Server text-to-speech entity.
 
 ## Services

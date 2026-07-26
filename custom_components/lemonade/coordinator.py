@@ -25,6 +25,7 @@ class LemonadeRuntimeState:
 
     server_status: str | None
     catalog: LemonadeModelCatalog
+    server_version: str | None = None
 
     @property
     def model_view(self) -> RuntimeCapabilityView:
@@ -39,9 +40,11 @@ class LemonadeRuntimeState:
     ) -> "LemonadeRuntimeState":
         """Build runtime state from Lemonade Server responses."""
         status = health.get("status")
+        version = health.get("version")
         return cls(
             server_status=status if isinstance(status, str) else None,
             catalog=parse_models_response(raw_models),
+            server_version=version if isinstance(version, str) else None,
         )
 
 
@@ -94,4 +97,11 @@ class LemonadeCoordinator(DataUpdateCoordinator[LemonadeRuntimeState]):
         """Return the latest Lemonade Server status string."""
         if self.runtime_state is not None:
             return self.runtime_state.server_status
+        return None
+
+    @property
+    def server_version(self) -> str | None:
+        """Return the latest Lemonade Server version string."""
+        if self.runtime_state is not None:
+            return self.runtime_state.server_version
         return None

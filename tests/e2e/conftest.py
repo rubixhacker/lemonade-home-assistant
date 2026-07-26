@@ -40,8 +40,8 @@ MODELS = (
         "downloaded": True,
     },
     {
-        "id": "voice-tts",
-        "recipe": "transformers",
+        "id": "kokoro-v1",
+        "recipe": "tts",
         "labels": ["tts"],
         "downloaded": True,
     },
@@ -105,14 +105,21 @@ async def lemonade_server(
             }
         )
 
+    async def text_to_speech(request: web.Request) -> web.Response:
+        payload = await request.json()
+        requests.append({"path": request.path, "payload": payload})
+        return web.Response(body=b"voice-bytes", content_type="audio/mpeg")
+
     app.router.add_get("/v1/health", health)
     app.router.add_get("/v1/models", models)
     app.router.add_post("/v1/chat/completions", chat)
     app.router.add_post("/v1/classify", classify)
+    app.router.add_post("/v1/audio/speech", text_to_speech)
     app.router.add_get("/replacement/v1/health", health)
     app.router.add_get("/replacement/v1/models", models)
     app.router.add_post("/replacement/v1/chat/completions", chat)
     app.router.add_post("/replacement/v1/classify", classify)
+    app.router.add_post("/replacement/v1/audio/speech", text_to_speech)
     server = await aiohttp_server(app)
     yield str(server.make_url("")).rstrip("/"), requests
 
