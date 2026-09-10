@@ -321,10 +321,11 @@ async def test_native_speech_entities_advertise_non_english_locales(
     hass: HomeAssistant,
     lemonade_entry: tuple[Any, str, list[dict[str, Any]]],
 ) -> None:
-    """The native STT and TTS provider surfaces expose all HA locales."""
+    """The native speech surfaces advertise supported non-English locales."""
     del lemonade_entry
     assert {"de", "es", "fr"} <= stt.async_get_speech_to_text_languages(hass)
-    assert {"de", "es", "fr"} <= tts.async_get_text_to_speech_languages(hass)
+    assert {"es", "fr"} <= tts.async_get_text_to_speech_languages(hass)
+    assert "de" not in tts.async_get_text_to_speech_languages(hass)
 
 
 async def _send_beacon(endpoint: str, port: int) -> None:
