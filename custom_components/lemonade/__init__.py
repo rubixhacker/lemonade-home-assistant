@@ -26,7 +26,9 @@ from .connection import (
 )
 from .const import (
     CONF_TIMEOUT,
+    CONF_INFERENCE_TIMEOUT,
     CONF_VERIFY_SSL,
+    DEFAULT_INFERENCE_TIMEOUT,
     DEFAULT_TIMEOUT,
     DOMAIN,
     PLATFORMS,
@@ -99,6 +101,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     timeout = entry.options.get(
         CONF_TIMEOUT, entry.data.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)
     )
+    inference_timeout = entry.options.get(
+        CONF_INFERENCE_TIMEOUT,
+        entry.data.get(
+            CONF_INFERENCE_TIMEOUT,
+            max(
+                DEFAULT_INFERENCE_TIMEOUT,
+                float(timeout),
+            ),
+        ),
+    )
     verify_ssl = entry.options.get(
         CONF_VERIFY_SSL,
         entry.data.get(CONF_VERIFY_SSL, True),
@@ -107,6 +119,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry.data[CONF_URL],
         api_key=api_key,
         timeout=timeout,
+        inference_timeout=inference_timeout,
         verify_ssl=verify_ssl,
     )
 

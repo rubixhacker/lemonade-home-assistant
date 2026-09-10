@@ -29,11 +29,13 @@ from .connection import (
 )
 from .const import (
     CONF_KEEP_ALIVE,
+    CONF_INFERENCE_TIMEOUT,
     CONF_MAX_HISTORY,
     CONF_TIMEOUT,
     CONF_VERIFY_SSL,
     DEFAULT_NAME,
     DEFAULT_TIMEOUT,
+    DEFAULT_INFERENCE_TIMEOUT,
     DEFAULT_URL,
     DOMAIN,
     STARTER_PROMPT,
@@ -123,6 +125,9 @@ DATA_SCHEMA = vol.Schema(
         vol.Required(CONF_URL, default=DEFAULT_URL): str,
         vol.Optional(CONF_API_KEY): str,
         vol.Optional(CONF_TIMEOUT, default=DEFAULT_TIMEOUT): vol.Coerce(float),
+        vol.Optional(
+            CONF_INFERENCE_TIMEOUT, default=DEFAULT_INFERENCE_TIMEOUT
+        ): vol.Coerce(float),
         vol.Optional(CONF_VERIFY_SSL, default=True): cv.boolean,
     }
 )
@@ -199,6 +204,9 @@ def _server_schema(
             url_marker: _endpoint_selector(discovered),
             vol.Optional(CONF_API_KEY): str,
             vol.Optional(CONF_TIMEOUT, default=DEFAULT_TIMEOUT): vol.Coerce(float),
+            vol.Optional(
+                CONF_INFERENCE_TIMEOUT, default=DEFAULT_INFERENCE_TIMEOUT
+            ): vol.Coerce(float),
             vol.Optional(CONF_VERIFY_SSL, default=True): cv.boolean,
         }
     )
@@ -305,6 +313,9 @@ class LemonadeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if isinstance(api_key, str):
             api_key = api_key.strip() or None
         timeout = user_input.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)
+        inference_timeout = user_input.get(
+            CONF_INFERENCE_TIMEOUT, DEFAULT_INFERENCE_TIMEOUT
+        )
         verify_ssl = user_input.get(CONF_VERIFY_SSL, True)
 
         try:
@@ -334,6 +345,7 @@ class LemonadeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         data: dict[str, Any] = {
             CONF_URL: url,
             CONF_TIMEOUT: timeout,
+            CONF_INFERENCE_TIMEOUT: inference_timeout,
             CONF_VERIFY_SSL: verify_ssl,
         }
         if api_key:
@@ -464,6 +476,21 @@ class LemonadeOptionsFlow(config_entries.OptionsFlow):
                 CONF_TIMEOUT,
                 default=_entry_current_value(
                     config_entry, CONF_TIMEOUT, DEFAULT_TIMEOUT
+                ),
+            ): vol.Coerce(float),
+            vol.Required(
+                CONF_INFERENCE_TIMEOUT,
+                default=_entry_current_value(
+                    config_entry,
+                    CONF_INFERENCE_TIMEOUT,
+                    max(
+                        DEFAULT_INFERENCE_TIMEOUT,
+                        float(
+                            _entry_current_value(
+                                config_entry, CONF_TIMEOUT, DEFAULT_TIMEOUT
+                            )
+                        ),
+                    ),
                 ),
             ): vol.Coerce(float),
             vol.Required(

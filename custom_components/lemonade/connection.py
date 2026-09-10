@@ -9,7 +9,7 @@ from typing import Any
 import aiohttp
 
 from .api import LemonadeAuthError, LemonadeClient, LemonadeError
-from .const import DEFAULT_TIMEOUT
+from .const import DEFAULT_INFERENCE_TIMEOUT, DEFAULT_TIMEOUT
 
 
 @dataclass(frozen=True)
@@ -19,6 +19,7 @@ class ConnectionSettings:
     url: str
     api_key: str | None = None
     timeout: float = DEFAULT_TIMEOUT
+    inference_timeout: float = DEFAULT_INFERENCE_TIMEOUT
     verify_ssl: bool = True
 
     def __post_init__(self) -> None:
@@ -59,6 +60,7 @@ async def async_create_verified_client(
         settings.url,
         api_key=settings.api_key,
         timeout=settings.timeout,
+        inference_timeout=settings.inference_timeout,
         verify_ssl=settings.verify_ssl,
     )
 

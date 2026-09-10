@@ -8,12 +8,14 @@
           "name": "Name",
           "url": "Server URL",
           "api_key": "API key",
-          "timeout": "Request timeout (seconds)",
+          "timeout": "Health and catalog timeout (seconds)",
+          "inference_timeout": "Inference timeout (seconds)",
           "verify_ssl": "Verify SSL certificate"
         },
         "data_description": {
           "url": "Choose a Discovered Server or enter the Server Endpoint manually.",
-          "timeout": "Allow enough time for Lemonade Server to load a cold model. The default is 120 seconds."
+          "timeout": "Timeout for health and model catalog requests. The default is 120 seconds.",
+          "inference_timeout": "Timeout for model inference requests. The default is 600 seconds."
         }
       },
       "reconfigure": {
@@ -47,13 +49,15 @@
         "description": "Configure Lemonade Server request settings and speech default models.",
         "data": {
           "api_key": "API key",
-          "timeout": "Request timeout (seconds)",
+          "timeout": "Health and catalog timeout (seconds)",
+          "inference_timeout": "Inference timeout (seconds)",
           "verify_ssl": "Verify SSL certificate",
           "default_tts_model": "Default text-to-speech model",
           "default_stt_model": "Default speech-to-text model"
         },
         "data_description": {
-          "timeout": "Allow enough time for Lemonade Server to load a cold model. Existing entries can be increased to 120 seconds here."
+          "timeout": "Timeout for health and model catalog requests. Existing entries retain their configured value (120 seconds by default).",
+          "inference_timeout": "Timeout for model inference requests. The default is 600 seconds."
         }
       }
     }

@@ -94,6 +94,9 @@ def _install_homeassistant_stubs() -> None:
     aiohttp = ModuleType("aiohttp")
     aiohttp.ClientError = type("ClientError", (Exception,), {})
     aiohttp.ClientSession = type("ClientSession", (), {})
+    aiohttp.ClientTimeout = type(
+        "ClientTimeout", (), {"__init__": lambda self, total=None, **kwargs: setattr(self, "total", total)}
+    )
     aiohttp.FormData = type("FormData", (), {"add_field": lambda self, *args, **kwargs: None})
     sys.modules.setdefault("aiohttp", aiohttp)
 
