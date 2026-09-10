@@ -65,6 +65,11 @@ class STTLanguageContractTest(unittest.TestCase):
 
         self.assertEqual("pt", language_code("pt-BR"))
         self.assertEqual("zh", language_code("zh_Hant"))
+        self.assertEqual("no", language_code("nb"))
+        self.assertEqual(
+            ["fr", "nb"],
+            supported_model_languages(whisper, {"nb", "fr"}),
+        )
         self.assertEqual(
             "en",
             require_model_language(whisper, "en-GB", {"en-GB", "fr"}),

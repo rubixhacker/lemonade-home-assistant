@@ -15,6 +15,7 @@ from .server_capabilities import runtime_model_view
 from .speech import (
     audio_extension,
     resolve_speech_synthesis_model,
+    speech_server_supports_multilingual_tts,
     synthesize_entry_speech,
 )
 from .speech_voices import (
@@ -66,13 +67,29 @@ class LemonadeTTSEntity(TextToSpeechEntity):
     @property
     def supported_languages(self) -> list[str]:
         """Return languages represented by currently available Kokoro voices."""
-        return supported_languages(self._runtime_models())
+        languages = supported_languages(self._runtime_models())
+        if speech_server_supports_multilingual_tts(self.entry):
+            return languages
+        # Unknown versions are handled conservatively by the shared speech
+        # helper too. English dialects remain selectable because Kokoro derives
+        # their pipeline from the selected voice when lang_code is omitted.
+        return [
+            language
+            for language in languages
+            if language in {"en", "en-US", "en-GB"}
+        ]
 
     @callback
     def async_get_supported_voices(self, language: str) -> list[Voice] | None:
         """Return model-labelled voices for the selected language."""
+        normalized_language = language.strip().replace("_", "-").casefold()
+        if (
+            not speech_server_supports_multilingual_tts(self.entry)
+            and normalized_language not in {"en", "en-us", "en-gb"}
+        ):
+            return []
         return [
-            Voice(voice.selection_id, voice.name)
+            Voice(voice.selection_id, voice.name_for_language(language))
             for voice in voices_for_language(self._runtime_models(), language)
         ]
 
@@ -119,6 +136,16 @@ class LemonadeTTSEntity(TextToSpeechEntity):
             # the Server Entry's default changes between selection and use.
             explicit_model = selected_model
             voice = native_voice
+        synthesis_language = language
+        if (
+            selected_voice is not None
+            and not speech_server_supports_multilingual_tts(self.entry)
+            and isinstance(language, str)
+            and language.strip().replace("_", "-").casefold() == "en-gb"
+        ):
+            # Older servers reject lang_code=en-GB. A model-bound British
+            # voice remains safe because Kokoro derives its dialect from bf/bm.
+            synthesis_language = None
         result = await synthesize_entry_speech(
             self.entry,
             text=message,
@@ -126,6 +153,6 @@ class LemonadeTTSEntity(TextToSpeechEntity):
             voice=voice,
             response_format=options.get("response_format"),
             speed=options.get("speed"),
-            language=language,
+            language=synthesis_language,
         )
         return result.extension, result.audio
