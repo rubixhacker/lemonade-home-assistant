@@ -71,3 +71,11 @@ _Avoid_: Omni profile, multimodal router, Home Assistant model collection
 **Context Length**:
 The model context window managed by Lemonade Server. Home Assistant profiles should not force this; they only control how many history messages are sent.
 _Avoid_: Max history, message limit
+
+**Speech Voice**:
+A selectable way for a Lemonade speech model to speak, available for one or more supported languages. A Speech Voice identifies both the model and its voice choice so that similarly named voices remain distinguishable.
+_Avoid_: Conversation Profile, speech backend
+
+**Saved Speech Voice**:
+A reusable Speech Voice whose entire lifecycle belongs to Lemonade/OpenMOSS. Home Assistant selects it without owning its creation, reference samples, storage, or deletion.
+_Avoid_: Home Assistant voice profile, local voice library
