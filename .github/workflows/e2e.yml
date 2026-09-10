@@ -1,0 +1,48 @@
+name: Container E2E
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ha_image:
+        description: Home Assistant image (tag or digest)
+        default: ghcr.io/home-assistant/home-assistant:stable
+        type: string
+      lemonade_image:
+        description: Lemonade image (tag or digest)
+        default: ghcr.io/lemonade-sdk/lemonade-server:latest
+        type: string
+      model:
+        description: CPU chat model to download
+        default: Qwen3-0.6B-GGUF
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      HA_IMAGE: ${{ inputs.ha_image || 'ghcr.io/home-assistant/home-assistant:stable' }}
+      LEMONADE_IMAGE: ${{ inputs.lemonade_image || 'ghcr.io/lemonade-sdk/lemonade-server:latest' }}
+      E2E_MODEL: ${{ inputs.model || 'Qwen3-0.6B-GGUF' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test real Home Assistant and Lemonade
+        run: scripts/test-e2e.sh
+      - name: Save logs and resolved image digests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-e2e
+          path: dist/e2e/
+      - name: Clean up after interruption
+        if: always()
+        run: |
+          docker compose ls --format json | python3 -c 'import json,sys; [print(p["Name"]) for p in json.load(sys.stdin) if p["Name"].startswith("lemonade-e2e-" + sys.argv[1] + "-")]' "$GITHUB_RUN_ID" | while read -r project; do
+            docker compose -p "$project" -f tests/e2e/compose.yaml down --volumes --remove-orphans
+          done

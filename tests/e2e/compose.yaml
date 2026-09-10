@@ -1,0 +1,19 @@
+services:
+  lemonade:
+    image: ${LEMONADE_IMAGE:-ghcr.io/lemonade-sdk/lemonade-server:latest}
+    platform: linux/amd64
+    command: [sh, -c, "cp /e2e/lemonade.json /opt/lemonade/.config/lemonade/config.json && exec ./lemond --host 0.0.0.0"]
+    volumes:
+      - ./lemonade.json:/e2e/lemonade.json:ro
+  homeassistant:
+    image: ${HA_IMAGE:-ghcr.io/home-assistant/home-assistant:stable}
+    platform: linux/amd64
+    entrypoint: [python, -u, /e2e/run.py]
+    environment:
+      E2E_MODEL: ${E2E_MODEL:-Qwen3-0.6B-GGUF}
+      PYTHONPATH: /config
+    volumes:
+      - ../../custom_components:/config/custom_components:ro
+      - ./run.py:/e2e/run.py:ro
+    depends_on:
+      - lemonade

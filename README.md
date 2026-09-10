@@ -92,3 +92,48 @@ assistant content.
 - Direct services for chat completion, image generation, transcription, and text-to-speech.
 
 See [custom_components/lemonade/README.md](custom_components/lemonade/README.md) for integration usage details.
+
+## Container end-to-end tests
+
+Run the same real-server test locally and in GitHub Actions:
+
+```bash
+scripts/test-e2e.sh
+```
+
+Requires Docker Engine/Desktop with Compose, internet access, and enough disk
+space for both upstream images and a small model download. The stack uses
+Linux AMD64 containers (emulated on Apple Silicon), CPU inference, and no host
+ports or GPU devices. Home Assistant runs its real runtime inside the official
+image with this checkout's `custom_components` mounted read-only. Lemonade runs
+in a separate container on the private Compose network.
+
+Every run pulls Home Assistant `stable` and Lemonade `latest`, downloads
+`Qwen3-0.6B-GGUF`, and checks the Server Entry config flow, platform setup,
+status/model-count sensors, a real `lemonade.chat_completion` response, reload,
+and unload. Model output is checked for nonempty content rather than exact
+wording. This covers the runtime/service path; it does not test browser
+onboarding, Assist profiles, speech, image generation, or GPU backends.
+
+Override either complete image reference (including a digest) or the model:
+
+```bash
+HA_IMAGE=ghcr.io/home-assistant/home-assistant:beta \
+LEMONADE_IMAGE=ghcr.io/lemonade-sdk/lemonade-server:latest \
+E2E_MODEL=Qwen3-0.6B-GGUF scripts/test-e2e.sh
+```
+
+For reproducible runs, use the image digests recorded in
+`dist/e2e/images.jsonl`. Logs and the resolved Compose configuration are saved
+alongside them. Set `E2E_ARTIFACTS` to keep runs in separate output directories.
+Containers and test volumes are removed on exit; model downloads are ephemeral.
+CPU inference and first-time image/model downloads can take several minutes,
+especially under emulation.
+
+The **Container E2E** workflow runs on pull requests and main pushes. Its manual
+**Run workflow** inputs select image references and a model without editing
+files. Floating tags test upstream compatibility at run time; upstream changes
+can therefore fail a previously passing checkout. No scheduled jobs are added.
+
+Lemonade's CPU configuration follows its
+[official Docker guide](https://lemonade-server.ai/docs/guide/install/docker/).
