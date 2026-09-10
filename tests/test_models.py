@@ -444,6 +444,71 @@ class ParseModelsResponseTest(unittest.TestCase):
             catalog.model_ids(CAPABILITY_TOOL_CALLING),
         )
 
+    def test_reranking_models_are_not_classified_as_chat(self) -> None:
+        """Lemonade 11.9 reserved-directory models are non-chat models."""
+        catalog = parse_models_response(
+            {
+                "data": [
+                    {
+                        "id": "extra.reranker-Q4_K_M",
+                        "recipe": "llamacpp",
+                        "labels": ["custom", "reranking"],
+                    },
+                    {
+                        "id": "extra.embedding-model",
+                        "recipe": "llamacpp",
+                        "labels": ["embeddings"],
+                    },
+                    {
+                        "id": "extra.chat-model",
+                        "recipe": "llamacpp",
+                        "labels": ["chat"],
+                    },
+                ]
+            }
+        )
+
+        self.assertEqual(
+            ["extra.embedding-model"],
+            catalog.model_ids(CAPABILITY_EMBEDDINGS),
+        )
+        self.assertEqual(
+            ["extra.chat-model"],
+            catalog.model_ids(CAPABILITY_CONVERSATION),
+        )
+
+    def test_legacy_extra_ids_remain_parseable_saved_model_values(self) -> None:
+        """11.9 hides old folder aliases, but persisted IDs remain opaque values."""
+        catalog = parse_models_response(
+            {
+                "data": [
+                    {
+                        "id": "extra.chat",
+                        "recipe": "llamacpp",
+                        "labels": ["chat"],
+                    },
+                    {
+                        "id": "extra.embeddings",
+                        "recipe": "llamacpp",
+                        "labels": ["embeddings"],
+                    },
+                    {
+                        "id": "extra.reranking",
+                        "recipe": "llamacpp",
+                        "labels": ["reranking"],
+                    },
+                ]
+            }
+        )
+
+        self.assertEqual(
+            ["extra.chat"], catalog.model_ids(CAPABILITY_CONVERSATION)
+        )
+        self.assertEqual(
+            ["extra.embeddings"], catalog.model_ids(CAPABILITY_EMBEDDINGS)
+        )
+        self.assertNotIn("extra.reranking", catalog.model_ids(CAPABILITY_CONVERSATION))
+
     def test_image_edit_accepts_edit_label(self) -> None:
         catalog = parse_models_response(
             {
