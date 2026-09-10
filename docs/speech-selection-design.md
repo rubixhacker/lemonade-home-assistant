@@ -1,6 +1,6 @@
 # Speech selection design interview
 
-Status: Product direction confirmed. Implementation and independent verification in progress.
+Status: Kokoro voice selection and model-supported STT implemented. Independent Sol contract and adversarial reviews completed; the legacy British-English finding has a regression fix. OpenMOSS saved-voice selection remains blocked on the upstream public interface.
 
 ## Agreed direction
 
