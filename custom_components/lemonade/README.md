@@ -117,6 +117,29 @@ Server releases remain usable for default English TTS. Selecting a non-English
 locale on an older server returns a clear upgrade error instead of silently
 using Kokoro's voice-derived language.
 
+### Choosing a speech voice
+
+In your voice assistant settings, select **Lemonade Server text-to-speech**,
+then a language and a voice. The native voice picker lists Kokoro voices for
+that language with the model name included. Use Home Assistant's **Try voice**
+control to preview your selection. The selected voice keeps its model even if
+the Server Entry's default TTS model changes. If that voice or model is no
+longer available, select another voice; the integration does not silently
+substitute one.
+
+Home Assistant filters the speech language dropdowns using the assistant's
+main **Language** setting. An English assistant consequently shows English
+variants. To configure another language, change the assistant's main language
+first, then choose a supported speech language and voice.
+
+Lemonade/OpenMOSS owns saved-voice creation, storage, and deletion. Saved
+OpenMOSS voices cannot yet be listed here: OpenMOSS has a voice registry, but
+Lemonade does not yet enable it or expose its discovery and invocation
+contract through the public server connection. Configure those
+voices in Lemonade; this integration does not create a second voice library or
+copy reference samples into Home Assistant. A generic TTS model in the Server
+Entry's model selector is not proof that it supplies voices for this picker.
+
 If the voice assistant text-to-speech picker shows both a Lemonade Server entry and an older `lemonade-*` engine, remove the older legacy TTS provider or custom component from Home Assistant. The Lemonade Server integration exposes its current TTS support as the Lemonade Server text-to-speech entity.
 
 ## Services
