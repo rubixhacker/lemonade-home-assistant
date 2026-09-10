@@ -8,7 +8,7 @@ from typing import Any, assert_never
 
 from homeassistant.components import stt
 from homeassistant.core import HomeAssistant
-from homeassistant.generated.languages import LANGUAGES
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .data import LemonadeConfigEntry
@@ -18,6 +18,8 @@ from .speech import (
     resolve_speech_transcription_model,
     transcribe_entry_stream_result,
 )
+from .server_capabilities import runtime_model_view
+from .stt_languages import require_model_language, supported_model_languages
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -49,8 +51,11 @@ class LemonadeSTTEntity(stt.SpeechToTextEntity):
 
     @property
     def supported_languages(self) -> list[str]:
-        """Return supported languages."""
-        return sorted(LANGUAGES)
+        """Return locales supported by the currently selected STT model."""
+        model = self._resolve_model_record()
+        if model is None:
+            return []
+        return supported_model_languages(model)
 
     @property
     def supported_formats(self) -> list[stt.AudioFormats]:
@@ -81,10 +86,24 @@ class LemonadeSTTEntity(stt.SpeechToTextEntity):
         """Return the configured or first catalog STT model."""
         return resolve_speech_transcription_model(self.entry)
 
+    def _resolve_model_record(self) -> Any | None:
+        """Return the catalog record for the currently selected STT model."""
+        model_id = self._resolve_model()
+        if model_id is None:
+            return None
+        return next(
+            (
+                model
+                for model in runtime_model_view(self.entry).catalog.models
+                if str(model.id) == model_id
+            ),
+            None,
+        )
+
     @property
     def available(self) -> bool:
-        """Return true when an STT model is available."""
-        return self._resolve_model() is not None
+        """Return true when a known-language STT model is available."""
+        return bool(self.supported_languages)
 
     async def async_process_audio_stream(
         self,
@@ -97,11 +116,24 @@ class LemonadeSTTEntity(stt.SpeechToTextEntity):
             _LOGGER.warning("No Lemonade STT model is available")
             return _error_result()
 
+        model_record = self._resolve_model_record()
+        if model_record is None:
+            _LOGGER.error("Lemonade STT model %s is not in the runtime catalog", model)
+            return _error_result()
+        try:
+            language = require_model_language(
+                model_record,
+                getattr(metadata, "language", None),
+            )
+        except HomeAssistantError as err:
+            _LOGGER.error("Cannot transcribe audio with Lemonade: %s", err)
+            return _error_result()
+
         result = await transcribe_entry_stream_result(
             self.entry,
             stream,
             explicit_model=model,
-            language=getattr(metadata, "language", None),
+            language=language,
         )
         if isinstance(result, SpeechTranscriptionFailure):
             _LOGGER.error("Error transcribing audio with Lemonade: %s", result.error)
