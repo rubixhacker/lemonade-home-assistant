@@ -27,12 +27,33 @@ def _kokoro_models(*model_ids: str):
     ).models
 
 
+def _tts_entity(server_version: str | None):
+    from custom_components.lemonade.tts import LemonadeTTSEntity
+
+    catalog = parse_models_response(
+        {"data": [{"id": "kokoro-v1", "recipe": "kokoro", "labels": ["tts"]}]}
+    )
+    return LemonadeTTSEntity(
+        SimpleNamespace(
+            entry_id="entry-1",
+            options={},
+            data={},
+            runtime_data=SimpleNamespace(
+                client=SimpleNamespace(),
+                coordinator=SimpleNamespace(
+                    catalog=catalog, server_version=server_version
+                ),
+            ),
+        )
+    )
+
+
 def test_kokoro_catalog_matches_authoritative_builtin_voice_count() -> None:
     voices = speech_voice_catalog(_kokoro_models("kokoro-v1"))
 
     assert len(voices) == 54
     assert voices[0].selection_id == "kokoro-v1::af_heart"
-    assert voices[0].name == "kokoro-v1: af_heart"
+    assert voices[0].name == "kokoro-v1 — Heart"
     assert voices[-1].voice_id == "pm_santa"
 
 
@@ -66,6 +87,26 @@ def test_voice_selection_identity_round_trips_model_and_native_voice() -> None:
     assert parse_voice_selection("kokoro-v1::") is None
     assert language_matches("en", "en-US")
     assert not language_matches("en-GB", "en-US")
+
+
+def test_modern_server_advertises_all_catalog_languages() -> None:
+    entity = _tts_entity("10.0.1")
+
+    assert "fr" in entity.supported_languages
+    assert entity.async_get_supported_voices("fr")[0].name == "kokoro-v1 — Siwis"
+
+
+@pytest.mark.parametrize("server_version", ["10.0.0", None])
+def test_old_or_unknown_server_advertises_only_usable_english_languages(
+    server_version: str | None,
+) -> None:
+    entity = _tts_entity(server_version)
+
+    assert entity.supported_languages == ["en", "en-US"]
+    assert entity.async_get_supported_voices("fr") == []
+    assert entity.async_get_supported_voices("en")[0].name.endswith(
+        "(American English)"
+    )
 
 
 @pytest.mark.asyncio

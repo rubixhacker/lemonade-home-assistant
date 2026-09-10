@@ -137,6 +137,10 @@ _KNOWN_MULTILINGUAL_WHISPER_MODELS = frozenset(
 
 _WHISPER_ENGLISH_ONLY_SUFFIX = re.compile(r"\.en(?:[-.]|$)", re.IGNORECASE)
 
+# Home Assistant uses the distinct Bokmål locale ``nb``; whisper.cpp exposes
+# Norwegian under the ISO-639-1 token ``no``.
+_BACKEND_LANGUAGE_ALIASES = {"nb": "no"}
+
 
 def language_code(locale: Any) -> str | None:
     """Return the base ISO language code from a Home Assistant locale."""
@@ -145,7 +149,8 @@ def language_code(locale: Any) -> str | None:
     value = locale.strip().replace("_", "-").lower()
     if not value:
         return None
-    return value.partition("-")[0]
+    code = value.partition("-")[0]
+    return _BACKEND_LANGUAGE_ALIASES.get(code, code)
 
 
 def model_language_codes(model: Any) -> frozenset[str] | None:

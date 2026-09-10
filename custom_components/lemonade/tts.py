@@ -15,6 +15,7 @@ from .server_capabilities import runtime_model_view
 from .speech import (
     audio_extension,
     resolve_speech_synthesis_model,
+    speech_server_supports_multilingual_tts,
     synthesize_entry_speech,
 )
 from .speech_voices import (
@@ -66,13 +67,25 @@ class LemonadeTTSEntity(TextToSpeechEntity):
     @property
     def supported_languages(self) -> list[str]:
         """Return languages represented by currently available Kokoro voices."""
-        return supported_languages(self._runtime_models())
+        languages = supported_languages(self._runtime_models())
+        if speech_server_supports_multilingual_tts(self.entry):
+            return languages
+        # Unknown versions are handled conservatively by the shared speech
+        # helper too. ``en-GB`` is excluded because older servers only accept
+        # ``en`` and ``en-US`` without a lang_code extension.
+        return [language for language in languages if language in {"en", "en-US"}]
 
     @callback
     def async_get_supported_voices(self, language: str) -> list[Voice] | None:
         """Return model-labelled voices for the selected language."""
+        normalized_language = language.strip().replace("_", "-").casefold()
+        if (
+            not speech_server_supports_multilingual_tts(self.entry)
+            and normalized_language not in {"en", "en-us"}
+        ):
+            return []
         return [
-            Voice(voice.selection_id, voice.name)
+            Voice(voice.selection_id, voice.name_for_language(language))
             for voice in voices_for_language(self._runtime_models(), language)
         ]
 
