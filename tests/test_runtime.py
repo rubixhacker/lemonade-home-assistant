@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import namedtuple
 import importlib
 import inspect
 import json
@@ -218,6 +219,7 @@ def _install_homeassistant_stubs() -> None:
 
     tts_component = ModuleType("homeassistant.components.tts")
     tts_component.TextToSpeechEntity = type("TextToSpeechEntity", (), {})
+    tts_component.Voice = namedtuple("Voice", ("voice_id", "name"))
     sys.modules.setdefault("homeassistant.components.tts", tts_component)
     components.tts = tts_component
 
@@ -7504,10 +7506,9 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("entry-1_tts", entity._attr_unique_id)
         self.assertIsNone(getattr(entity, "_attr_device_info", None))
         self.assertEqual("en", entity._attr_default_language)
-        self.assertEqual(
-            ["en", "fr", "pt-BR", "zh-Hant"],
-            entity._attr_supported_languages,
-        )
+        # A synthetic model without a known voice catalog must not advertise
+        # every Home Assistant language.
+        self.assertEqual([], entity.supported_languages)
         self.assertEqual(
             ["voice", "model", "response_format", "speed"],
             entity._attr_supported_options,
