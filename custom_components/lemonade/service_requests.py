@@ -20,6 +20,7 @@ from .const import (
     ATTR_ROUTE_TRACE,
     ATTR_ROUTER_METADATA,
     ATTR_RESPONSE_FORMAT,
+    ATTR_SPEED,
     ATTR_SAVE,
     ATTR_SIZE,
     ATTR_SYSTEM_PROMPT,
@@ -124,6 +125,7 @@ class TextToSpeechRequest:
     text: str
     voice: str | None
     response_format: str | None
+    speed: float | None
 
     @classmethod
     def from_service_call(cls, call: ServiceCall) -> "TextToSpeechRequest":
@@ -134,6 +136,7 @@ class TextToSpeechRequest:
             text=call.data[ATTR_TEXT],
             voice=call.data.get(ATTR_VOICE),
             response_format=call.data.get(ATTR_RESPONSE_FORMAT),
+            speed=call.data.get(ATTR_SPEED),
         )
 
 

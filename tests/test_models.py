@@ -109,6 +109,8 @@ def _install_homeassistant_stubs() -> None:
     )
     voluptuous.Schema = _VolSchema
     voluptuous.Coerce = lambda value_type: value_type
+    voluptuous.All = lambda *validators: validators
+    voluptuous.Range = lambda **kwargs: lambda value: value
     sys.modules.setdefault("voluptuous", voluptuous)
 
     homeassistant = ModuleType("homeassistant")

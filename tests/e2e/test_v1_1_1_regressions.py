@@ -19,7 +19,7 @@ async def test_native_tts_serializes_selected_locale_as_kokoro_lang_code(
         message="Bonjour tout le monde",
         engine=engine,
         language="fr",
-        options={"model": "kokoro-v1"},
+        options={"model": "kokoro-v1", "speed": 1.25},
         cache=False,
     )
 
@@ -33,6 +33,7 @@ async def test_native_tts_serializes_selected_locale_as_kokoro_lang_code(
                 "input": "Bonjour tout le monde",
                 "model": "kokoro-v1",
                 "lang_code": "fr",
+                "speed": 1.25,
             },
         }
     ]

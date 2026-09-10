@@ -38,7 +38,7 @@ class LemonadeTTSEntity(TextToSpeechEntity):
     _attr_has_entity_name = False
     _attr_default_language = "en"
     _attr_supported_languages = sorted(LANGUAGES)
-    _attr_supported_options = ["voice", "model", "response_format"]
+    _attr_supported_options = ["voice", "model", "response_format", "speed"]
 
     def __init__(self, entry: LemonadeConfigEntry) -> None:
         """Initialize the Lemonade text-to-speech entity."""
@@ -68,6 +68,7 @@ class LemonadeTTSEntity(TextToSpeechEntity):
             explicit_model=options.get("model"),
             voice=options.get("voice"),
             response_format=options.get("response_format"),
+            speed=options.get("speed"),
             language=language,
         )
         return result.extension, result.audio

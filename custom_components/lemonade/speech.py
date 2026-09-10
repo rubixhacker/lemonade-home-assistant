@@ -43,6 +43,19 @@ _SERVER_VERSION_PATTERN = re.compile(
 )
 
 
+def normalize_speech_speed(value: Any) -> float | None:
+    """Validate and normalize the optional TTS playback speed."""
+    if value is None:
+        return None
+    try:
+        speed = float(value)
+    except (TypeError, ValueError) as err:
+        raise HomeAssistantError("TTS speed must be between 0.25 and 4.0") from err
+    if not 0.25 <= speed <= 4.0:
+        raise HomeAssistantError("TTS speed must be between 0.25 and 4.0")
+    return speed
+
+
 @dataclass(frozen=True)
 class SpeechSynthesisRequest:
     """Prepared Lemonade text-to-speech request."""
@@ -52,6 +65,7 @@ class SpeechSynthesisRequest:
     voice: str | None
     response_format: str | None
     language: str | None = None
+    speed: float | None = None
 
 
 @dataclass(frozen=True)
@@ -178,6 +192,7 @@ def speech_synthesis_request(
     explicit_model: Any = None,
     voice: str | None = None,
     response_format: str | None = None,
+    speed: float | None = None,
     language: str | None = None,
 ) -> SpeechSynthesisRequest:
     """Build a resolved Lemonade speech synthesis request."""
@@ -186,6 +201,7 @@ def speech_synthesis_request(
         model=require_speech_synthesis_model(entry, explicit_model),
         voice=voice,
         response_format=response_format,
+        speed=normalize_speech_speed(speed),
         language=require_speech_synthesis_language(entry, language),
     )
 
@@ -220,6 +236,8 @@ async def synthesize_speech(
         "voice": request.voice,
         "response_format": request.response_format,
     }
+    if request.speed is not None:
+        request_options["speed"] = request.speed
     if request.language is not None:
         request_options["lang_code"] = request.language
     try:
@@ -241,6 +259,7 @@ async def synthesize_entry_speech(
     explicit_model: Any = None,
     voice: str | None = None,
     response_format: str | None = None,
+    speed: float | None = None,
     language: str | None = None,
 ) -> SpeechSynthesisResult:
     """Resolve a config entry model and generate speech audio."""
@@ -250,6 +269,7 @@ async def synthesize_entry_speech(
         explicit_model=explicit_model,
         voice=voice,
         response_format=response_format,
+        speed=speed,
         language=language,
     )
     return await synthesize_speech(entry.runtime_data.client, request)

@@ -56,6 +56,7 @@ from .const import (
     ATTR_ROUTE_TRACE,
     ATTR_ROUTER_METADATA,
     ATTR_RESPONSE_FORMAT,
+    ATTR_SPEED,
     ATTR_SAVE,
     ATTR_SIZE,
     ATTR_SYSTEM_PROMPT,
@@ -125,6 +126,7 @@ TEXT_TO_SPEECH_SCHEMA = vol.Schema(
         vol.Required(ATTR_TEXT): cv.string,
         vol.Optional(ATTR_VOICE): cv.string,
         vol.Optional(ATTR_RESPONSE_FORMAT): cv.string,
+        vol.Optional(ATTR_SPEED): vol.All(vol.Coerce(float), vol.Range(min=0.25, max=4.0)),
     }
 )
 
@@ -321,6 +323,7 @@ async def _invoke_text_to_speech(
             model=context.model,
             voice=request.voice,
             response_format=request.response_format,
+            speed=request.speed,
         ),
     )
     return {

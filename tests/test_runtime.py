@@ -177,6 +177,8 @@ def _install_homeassistant_stubs() -> None:
     )
     voluptuous.Schema = _VolSchema
     voluptuous.Coerce = lambda value_type: value_type
+    voluptuous.All = lambda *validators: validators
+    voluptuous.Range = lambda **kwargs: lambda value: value
     voluptuous.Invalid = type("Invalid", (Exception,), {})
 
     voluptuous_openapi = ModuleType("voluptuous_openapi")
@@ -7507,7 +7509,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             entity._attr_supported_languages,
         )
         self.assertEqual(
-            ["voice", "model", "response_format"],
+            ["voice", "model", "response_format", "speed"],
             entity._attr_supported_options,
         )
         self.assertTrue(entity.available)
