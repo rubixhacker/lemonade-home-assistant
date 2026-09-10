@@ -63,6 +63,8 @@ automatic endpoint change.
 
 ## Assist and AI task profiles
 
+Conversation Profiles stream response text into Assist as Lemonade generates it. Tool calls are assembled before Home Assistant executes them. Cancelling a conversation closes its response stream. AI task data generation and direct chat service responses remain complete JSON responses.
+
 The integration creates default model controls for text-to-speech and speech-to-text. Conversation, AI task, and image-capable task models are configured on explicit profiles:
 
 1. Go to **Settings → Devices & services → Lemonade Server**.
@@ -162,3 +164,7 @@ Pass `filename` to choose a filename under `/media/lemonade`; path components ar
 ### Speech speed
 
 Both native TTS options and `lemonade.text_to_speech` accept optional `speed` from `0.25` to `4.0`; `1.0` is normal speed. When omitted, Lemonade chooses its default. Speed support depends on the selected server speech backend.
+
+### Custom model compatibility
+
+Lemonade 11.9 advertises individual files in its reserved custom-model folders. Models labeled `reranking` are excluded from chat capability detection. Existing explicit `extra.chat`, `extra.embeddings`, and `extra.reranking` selections are passed to Lemonade unchanged so its legacy alias resolution remains authoritative. The integration does not guess a replacement model from filenames.

@@ -129,6 +129,18 @@ async def test_new_server_entry_provisions_starter_conversation_profile(
         CONF_MAX_HISTORY: DEFAULT_MAX_HISTORY,
     }
 
+    entity_id = _profile_entity_id(hass, entry, starter, CONVERSATION_DOMAIN)
+    response = await hass.services.async_call(
+        CONVERSATION_DOMAIN,
+        SERVICE_PROCESS,
+        {CONVERSATION_TEXT: "Say hello", ATTR_AGENT_ID: entity_id},
+        blocking=True,
+        return_response=True,
+    )
+    assert response["response"]["speech"]["plain"]["speech"] == (
+        "Lemonade end-to-end response"
+    )
+
 
 async def test_classification_service_preserves_server_scores(
     hass: HomeAssistant,

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
+import json
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any
 
 import aiohttp
@@ -189,7 +190,57 @@ class LemonadeClient:
             "POST", ENDPOINT_CHAT, json=payload, request_timeout=self.inference_timeout
         )
 
+    async def stream_chat_completion(
+        self, *, model: str, messages: list[dict[str, Any]], **options: Any
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Yield decoded Server-Sent Events from a streaming chat completion."""
+        options.pop("stream", None)
+        payload = {"model": model, "messages": messages, "stream": True, **options}
+        request_kwargs: dict[str, Any] = {"json": payload}
+        request_kwargs["timeout"] = aiohttp.ClientTimeout(total=self.inference_timeout)
+        if not self.verify_ssl:
+            request_kwargs["ssl"] = False
+        async with asyncio.timeout(self.inference_timeout):
+            completed = False
+            async with self.session.request(
+                "POST",
+                f"{self.url}{ENDPOINT_CHAT}",
+                headers=self.headers,
+                **request_kwargs,
+            ) as response:
+                await self._raise_for_response_status(response)
+                async for line in response.content:
+                    line = line.strip()
+                    if not line or not line.startswith(b"data:"):
+                        continue
+                    data = line[5:].strip()
+                    if data == b"[DONE]":
+                        completed = True
+                        return
+                    try:
+                        decoded = json.loads(data)
+                    except json.JSONDecodeError as err:
+                        raise LemonadeError(
+                            "Invalid streaming response from Lemonade Server"
+                        ) from err
+                    if isinstance(decoded, dict):
+                        if "error" in decoded:
+                            raise LemonadeError(
+                                f"Lemonade Server streaming error: {decoded['error']}"
+                            )
+                        yield decoded
+            if not completed:
+                raise LemonadeError(
+                    "Lemonade Server streaming response ended before [DONE]"
+                )
 
+    def chat_completion_stream(
+        self, *, model: str, messages: list[dict[str, Any]], **options: Any
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Return the streaming chat iterator using the adapter naming convention."""
+        return self.stream_chat_completion(
+            model=model, messages=messages, **options
+        )
 
     async def generate_image(
         self,

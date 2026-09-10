@@ -158,6 +158,7 @@ async def async_execute_conversation_profile_turn(
             max_history=turn.max_history,
             keep_alive=turn.keep_alive,
             router_metadata=turn.router_metadata,
+            stream=True,
         )
     except LEMONADE_CLIENT_EXCEPTIONS as err:
         raise lemonade_home_assistant_error(

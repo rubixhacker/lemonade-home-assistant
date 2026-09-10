@@ -1,6 +1,7 @@
 """Home Assistant end-to-end test fixtures."""
 
 from collections.abc import AsyncIterator
+import json
 from typing import Any
 
 from aiohttp import web
@@ -77,6 +78,25 @@ async def lemonade_server(
     async def chat(request: web.Request) -> web.Response:
         payload = await request.json()
         requests.append({"path": request.path, "payload": payload})
+        if payload.get("stream"):
+            response = web.StreamResponse(
+                status=200,
+                headers={"Content-Type": "text/event-stream"},
+            )
+            await response.prepare(request)
+            for index, content in enumerate(("Lemonade end-to-end ", "response")):
+                delta = {"content": content}
+                if index == 0:
+                    delta["role"] = "assistant"
+                await response.write(
+                    ("data: " + json.dumps({
+                        "model": payload["model"],
+                        "choices": [{"delta": delta}],
+                    }) + "\n\n").encode()
+                )
+            await response.write(b"data: [DONE]\n\n")
+            await response.write_eof()
+            return response
         response: dict[str, Any] = {
             "model": payload["model"],
             "choices": [

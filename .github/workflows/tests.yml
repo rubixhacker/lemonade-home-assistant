@@ -1,0 +1,22 @@
+name: Integration tests
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Install Home Assistant test dependencies
+        run: python -m pip install -r requirements-e2e.txt
+      - name: Unit regressions
+        env:
+          PYTHONPATH: tests
+        run: python -m unittest test_beacon test_models test_runtime test_schema test_streaming
+      - name: Home Assistant runtime regressions
+        run: python -m pytest tests/e2e tests/test_timeout_speed.py -q

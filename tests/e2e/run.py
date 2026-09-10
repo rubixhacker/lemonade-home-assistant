@@ -57,8 +57,12 @@ async def exercise(hass):
             for item in er.async_entries_for_config_entry(registry, entry.entry_id)
             if item.domain == "sensor"
         }
-        status = [state for key, state in sensors.items() if key == f"{entry.entry_id}_server_status"]
-        counts = [state for key, state in sensors.items() if key == f"{entry.entry_id}_model_count"]
+        status = [state for key, state in sensors.items() if key.endswith("_server_status")]
+        counts = [
+            state
+            for key, state in sensors.items()
+            if key == f"{entry.entry_id}_model_count"
+        ]
         assert len(status) == 1 and status[0].state == "online", sensors
         assert len(counts) == 1 and int(counts[0].state) >= 1, sensors
 
@@ -71,13 +75,36 @@ async def exercise(hass):
     )
     assert isinstance(response.get("content"), str) and response["content"].strip(), response
     print("Chat response:", json.dumps(response))
+    # Exercise the actual Assist conversation pipeline, including its streamed
+    # chat completion path. The starter profile creates the agent entity.
+    registry = er.async_get(hass)
+    agents = [
+        item.entity_id
+        for item in er.async_entries_for_config_entry(registry, entry.entry_id)
+        if item.domain == "conversation"
+    ]
+    assert agents, "Conversation profile entity was not created"
+    assist = await hass.services.async_call(
+        "conversation", "process",
+        {"agent_id": agents[0], "text": "Say hello briefly. /no_think"},
+        blocking=True, return_response=True,
+    )
+    speech = (
+        assist.get("response", {})
+        .get("speech", {})
+        .get("plain", {})
+        .get("speech", "")
+        if isinstance(assist, dict) else ""
+    )
+    assert isinstance(speech, str) and speech.strip(), assist
+    print("Assist response:", json.dumps(assist))
     assert await hass.config_entries.async_reload(entry.entry_id), "Reload failed"
     await hass.async_block_till_done()
     assert entry.state is ConfigEntryState.LOADED, entry.state
     check_sensors()
     assert await hass.config_entries.async_unload(entry.entry_id), "Unload failed"
     assert entry.entry_id not in hass.data.get("lemonade", {}), "Runtime leaked"
-    print("PASS: config flow, setup, sensors, CPU chat inference, reload, unload")
+    print("PASS: config flow, setup, sensors, CPU chat inference, streamed Assist, reload, unload")
 
 
 async def main():

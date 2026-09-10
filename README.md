@@ -85,11 +85,12 @@ assistant content.
 
 - Sensors for server status and model counts.
 - Select entities for default TTS and STT models.
-- Conversation profile subentries for Assist and voice pipelines.
+- Conversation profile subentries with streamed Assist responses and tool calls.
 - AI task profile entities with data and image generation support.
-- TTS provider support.
+- TTS provider support with voice and speaking-speed options.
 - STT provider support.
 - Direct services for chat completion, image generation, transcription, and text-to-speech.
+- Separate health/catalog and inference timeout settings for cold model starts.
 
 See [custom_components/lemonade/README.md](custom_components/lemonade/README.md) for integration usage details.
 
@@ -110,10 +111,10 @@ in a separate container on the private Compose network.
 
 Every run pulls Home Assistant `stable` and Lemonade `latest`, downloads
 `Qwen3-0.6B-GGUF`, and checks the Server Entry config flow, platform setup,
-status/model-count sensors, a real `lemonade.chat_completion` response, reload,
-and unload. Model output is checked for nonempty content rather than exact
+status/model-count sensors, a real `lemonade.chat_completion` response, a streamed
+Assist conversation through the starter Conversation Profile, reload, and unload. Model output is checked for nonempty content rather than exact
 wording. This covers the runtime/service path; it does not test browser
-onboarding, Assist profiles, speech, image generation, or GPU backends.
+onboarding, tool execution, speech, image generation, or GPU backends.
 
 Override either complete image reference (including a digest) or the model:
 
@@ -137,3 +138,14 @@ can therefore fail a previously passing checkout. No scheduled jobs are added.
 
 Lemonade's CPU configuration follows its
 [official Docker guide](https://lemonade-server.ai/docs/guide/install/docker/).
+
+## Regression tests
+
+Install `requirements-e2e.txt` in a Python 3.14 environment. Run the stub unit suite and real Home Assistant suite in separate processes because the unit fixtures replace imported HA modules:
+
+```bash
+PYTHONPATH=tests python -m unittest test_beacon test_models test_runtime test_schema test_streaming
+python -m pytest tests/e2e tests/test_timeout_speed.py -q
+```
+
+The Integration tests workflow runs both suites. The pinned test environment currently uses Home Assistant 2026.7.3; the separate container workflow exercises the current stable Home Assistant and Lemonade images.

@@ -47,3 +47,35 @@ async def test_long_connection_timeout_raises_default_inference_budget(
     assert entry.runtime_data.client.inference_timeout == 900.0
 
 
+async def test_persisted_profile_model_alias_is_forwarded_without_catalog_entry(
+    hass: Any,
+    lemonade_entry: tuple[Any, str, list[dict[str, Any]]],
+) -> None:
+    """A persisted profile keeps using a model absent from the refreshed catalog."""
+    entry, _, requests = lemonade_entry
+    profile = await _create_profile(
+        hass,
+        entry,
+        SUBENTRY_TYPE_CONVERSATION,
+        {
+            CONF_NAME: "Legacy model profile",
+            CONF_MODEL: "local-chat",
+        },
+    )
+    assert hass.config_entries.async_update_subentry(
+        entry,
+        profile,
+        data={**profile.data, CONF_MODEL: "extra.chat"},
+    )
+    await hass.async_block_till_done()
+    profile = next(item for item in entry.subentries.values() if item.subentry_id == profile.subentry_id)
+    entity_id = _profile_entity_id(hass, entry, profile, CONVERSATION_DOMAIN)
+    await hass.services.async_call(
+        CONVERSATION_DOMAIN,
+        SERVICE_PROCESS,
+        {ATTR_AGENT_ID: entity_id, ATTR_TEXT: "Hello"},
+        blocking=True,
+        return_response=True,
+    )
+    chat = [item for item in requests if item["path"] == "/v1/chat/completions"][-1]
+    assert chat["payload"]["model"] == "extra.chat"
