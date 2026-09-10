@@ -37,7 +37,7 @@ try:
     from homeassistant.util.json import json_loads
 except ImportError:  # pragma: no cover - Home Assistant always provides this
     json_loads = json.loads
-from voluptuous_openapi import convert
+from .schema import convert
 
 from .chat_messages import (
     AssistantMessage,

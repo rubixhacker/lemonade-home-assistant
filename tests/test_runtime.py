@@ -3314,7 +3314,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
         from homeassistant.exceptions import HomeAssistantError
 
-        llm_module = _require_module("lemonade.llm")
+        llm_module = _require_module("lemonade.chat")
         tool = SimpleNamespace(
             name="HassTurnOn",
             description="Turn on an entity",
@@ -3411,7 +3411,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
         from homeassistant.components.conversation import AssistantContent, UserContent
 
-        llm_module = _require_module("lemonade.llm")
+        llm_module = _require_module("lemonade.chat")
 
         user_message = llm_module.parse_message(
             UserContent(
@@ -3461,7 +3461,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             UserContent,
         )
 
-        llm_module = _require_module("lemonade.llm")
+        llm_module = _require_module("lemonade.chat")
         messages = (
             llm_module.parse_message(SystemContent("You are helpful")),
             llm_module.parse_message(UserContent("Old question")),
@@ -3533,7 +3533,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
 
     def test_llm_normalized_messages_round_trip_through_openai_mappings(self) -> None:
-        llm_module = _require_module("lemonade.llm")
+        llm_module = _require_module("lemonade.chat")
         messages = (
             llm_module.SystemMessage("You are helpful"),
             llm_module.UserMessage(
@@ -3571,7 +3571,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
     def test_llm_plain_text_openai_tool_result_round_trips_without_json_quotes(self) -> None:
         from homeassistant.components.conversation import ToolResultContent
 
-        llm_module = _require_module("lemonade.llm")
+        llm_module = _require_module("lemonade.chat")
         openai_message = {
             "role": "tool",
             "content": "success",
@@ -3589,7 +3589,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
 
     def test_llm_message_constructors_freeze_iterable_fields(self) -> None:
-        llm_module = _require_module("lemonade.llm")
+        llm_module = _require_module("lemonade.chat")
         parts = [llm_module.ImagePart("image/png", "https://example/image.png")]
         tool_calls = [
             llm_module.ToolCall(
@@ -3615,14 +3615,14 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             assistant_message.tool_calls[0].arguments["target"]["entity_id"] = "light.porch"
 
     def test_llm_assistant_message_requires_content_or_tool_calls(self) -> None:
-        llm_module = _require_module("lemonade.llm")
+        llm_module = _require_module("lemonade.chat")
 
         with self.assertRaises(ValueError):
             llm_module.AssistantMessage(None)
         self.assertEqual("", llm_module.AssistantMessage("").content)
 
     def test_llm_tool_call_argument_aliases_round_trip_to_canonical_arguments(self) -> None:
-        llm_module = _require_module("lemonade.llm")
+        llm_module = _require_module("lemonade.chat")
         expected_arguments = {"entity_id": "light.kitchen"}
         cases = (
             (
@@ -3662,7 +3662,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                     json.loads(serialized["tool_calls"][0]["function"]["arguments"]),
                 )
     def test_llm_message_constructors_reject_non_string_content(self) -> None:
-        llm_module = _require_module("lemonade.llm")
+        llm_module = _require_module("lemonade.chat")
 
         for constructor, content in (
             (llm_module.SystemMessage, 0),
@@ -3685,7 +3685,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
     def test_llm_openai_mappings_reject_non_string_message_content(self) -> None:
         from homeassistant.exceptions import HomeAssistantError
 
-        llm_module = _require_module("lemonade.llm")
+        llm_module = _require_module("lemonade.chat")
 
         for message in (
             {"role": "system", "content": 0},
@@ -3698,7 +3698,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                     llm_module.parse_message(message)
 
     def test_llm_tool_records_deep_freeze_direct_constructor_payloads(self) -> None:
-        llm_module = _require_module("lemonade.llm")
+        llm_module = _require_module("lemonade.chat")
         arguments = {
             "target": {"entity_id": "light.kitchen"},
             "steps": [{"name": "turn_on"}],
@@ -3736,7 +3736,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
     def test_llm_content_to_message_converts_from_normalized_records(self) -> None:
         from homeassistant.components.conversation import AssistantContent, UserContent
 
-        llm_module = _require_module("lemonade.llm")
+        llm_module = _require_module("lemonade.chat")
         seen_messages: list[Any] = []
         original_converter = llm_module.serialize_message
 
@@ -3786,7 +3786,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
     def test_llm_converts_tool_result_object_payloads(self) -> None:
         from homeassistant.components.conversation import ToolResultContent
 
-        llm_module = _require_module("lemonade.llm")
+        llm_module = _require_module("lemonade.chat")
 
         message = llm_module.content_to_message(
             ToolResultContent(
@@ -3812,7 +3812,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
     def test_llm_assistant_content_without_text_or_tool_calls_uses_empty_string(self) -> None:
         from homeassistant.components.conversation import AssistantContent
 
-        llm_module = _require_module("lemonade.llm")
+        llm_module = _require_module("lemonade.chat")
 
         message = llm_module.content_to_message(AssistantContent(None))
 
@@ -3821,7 +3821,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
     def test_llm_preserves_tool_result_mapping_payload_without_using_payload_metadata(self) -> None:
         from homeassistant.components.conversation import ToolResultContent
 
-        llm_module = _require_module("lemonade.llm")
+        llm_module = _require_module("lemonade.chat")
         payload = {
             "result": "ok",
             "other": 1,
@@ -3839,7 +3839,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
     def test_llm_response_to_delta_returns_single_chat_log_delta(self) -> None:
         from homeassistant.helpers.llm import ToolInput
 
-        llm_module = _require_module("lemonade.llm")
+        llm_module = _require_module("lemonade.chat")
         seen_tool_calls: list[Any] = []
         original_converter = llm_module._tool_call_to_tool_input
 
@@ -3891,7 +3891,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(seen_tool_calls[0], llm_module.ToolCall)
 
     def test_llm_response_assistant_content_ignores_malformed_tool_calls(self) -> None:
-        llm_module = _require_module("lemonade.llm")
+        llm_module = _require_module("lemonade.chat")
 
         class UnsupportedToolCall(dict[str, Any]):
             def __contains__(self, key: object) -> bool:
@@ -3916,7 +3916,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("Direct answer", content)
 
     def test_llm_response_to_delta_thaws_mapping_tool_arguments_for_ha(self) -> None:
-        llm_module = _require_module("lemonade.llm")
+        llm_module = _require_module("lemonade.chat")
 
         delta = llm_module.response_to_delta(
             {
@@ -3959,7 +3959,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
     def test_llm_builds_chat_completion_payload_without_running_tool_loop(self) -> None:
         from homeassistant.components.conversation import SystemContent, UserContent
 
-        llm_module = _require_module("lemonade.llm")
+        llm_module = _require_module("lemonade.chat")
         chat_log = SimpleNamespace(
             content=[SystemContent("You are helpful"), UserContent("Hi")],
             llm_api=SimpleNamespace(
@@ -4015,7 +4015,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             UserContent,
         )
 
-        llm_module = _require_module("lemonade.llm")
+        llm_module = _require_module("lemonade.chat")
         chat_log = SimpleNamespace(
             content=[
                 SystemContent("You are helpful"),
@@ -4089,7 +4089,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
     def test_llm_converts_schema_structure_to_response_format(self) -> None:
         import voluptuous as vol
 
-        llm_module = _require_module("lemonade.llm")
+        llm_module = _require_module("lemonade.chat")
         chat_log = SimpleNamespace(content=[], llm_api=None)
         structure = vol.Schema({"answer": str})
 
@@ -4117,7 +4117,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_llm_applies_response_delta_with_legacy_stream_signature(self) -> None:
-        llm_module = _require_module("lemonade.llm")
+        llm_module = _require_module("lemonade.chat")
 
         class LegacyChatLog:
             def __init__(self) -> None:
@@ -4138,7 +4138,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([{"content": "Done"}], chat_log.deltas)
 
     async def test_llm_consumes_returned_delta_content_stream(self) -> None:
-        llm_module = _require_module("lemonade.llm")
+        llm_module = _require_module("lemonade.chat")
 
         class GeneratorChatLog:
             def __init__(self) -> None:
@@ -4174,7 +4174,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         from homeassistant.components.conversation import SystemContent, UserContent
         from homeassistant.helpers.llm import ToolInput
 
-        llm_module = _require_module("lemonade.llm")
+        llm_module = _require_module("lemonade.chat")
 
         class Client:
             def __init__(self) -> None:
@@ -4289,7 +4289,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             UserContent,
         )
 
-        llm_module = _require_module("lemonade.llm")
+        llm_module = _require_module("lemonade.chat")
 
         class Client:
             def __init__(self) -> None:
@@ -4739,7 +4739,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
     def test_ai_task_final_assistant_content_requires_assistant_role(self) -> None:
         ai_task_module = _require_module("lemonade.ai_task")
-        llm_module = _require_module("lemonade.llm")
+        llm_module = _require_module("lemonade.chat")
         chat_log = SimpleNamespace(
             content=[
                 SimpleNamespace(role="assistant", content="assistant text"),
@@ -6198,7 +6198,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             ATTR_ROUTER_METADATA,
             ATTR_SYSTEM_PROMPT,
         )
-        from lemonade.llm import SystemMessage, UserMessage
+        from lemonade.chat import SystemMessage, UserMessage
         from lemonade.service_requests import ChatCompletionRequest
 
         request = ChatCompletionRequest.from_service_call(
@@ -6248,7 +6248,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
     def test_chat_completion_request_normalizes_all_supported_message_variants(self) -> None:
         from lemonade.const import ATTR_MESSAGES
-        from lemonade.llm import (
+        from lemonade.chat import (
             AssistantMessage,
             ImagePart,
             SystemMessage,

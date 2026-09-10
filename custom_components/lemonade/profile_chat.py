@@ -13,7 +13,7 @@ from homeassistant.exceptions import HomeAssistantError
 
 from .const import CAPABILITY_AI_TASK, CAPABILITY_CONVERSATION, DOMAIN
 from .errors import LEMONADE_CLIENT_EXCEPTIONS, lemonade_home_assistant_error
-from .llm import (
+from .chat import (
     async_execute_chat_log_turn,
     async_generate_chat_log_data,
 )

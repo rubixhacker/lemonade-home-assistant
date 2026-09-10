@@ -4,8 +4,8 @@ Use this checklist before publishing a Lemonade Server Home Assistant beta or st
 
 ## Current target
 
-- Tag: `v1.1.1`
-- Manifest version: `1.1.1`
+- Tag: `v1.1.2`
+- Manifest version: `1.1.2`
 - Install source: built HACS release artifact, not a direct working-tree copy
 - Lemonade source: real Lemonade Server, not a fake endpoint
 
