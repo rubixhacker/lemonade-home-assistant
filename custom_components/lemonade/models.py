@@ -22,7 +22,11 @@ from .const import (
     CAPABILITY_VISION,
 )
 
-EXCLUDED_LLM_LABELS = {"image", "tts", "embeddings"}
+# Lemonade 11.9 advertises imported models from the reserved ``reranking``
+# directory as llamacpp records with a ``reranking`` label.  Keep those out of
+# the chat/AI task group just like embeddings and speech/image models.  This is
+# deliberately metadata-only: model IDs and filenames are not capabilities.
+EXCLUDED_LLM_LABELS = {"image", "tts", "embeddings", "reranking"}
 CHAT_COLLECTION_RECIPES = frozenset({"router", "omni"})
 TOOL_CALLING_LABELS = {"tool-calling", "tool_calling"}
 STT_LABELS = {"stt", "transcription", "speech-to-text"}
@@ -183,15 +187,18 @@ def _raw_models(response: Any) -> Iterable[Any]:
 def _labels(raw: Mapping[str, Any]) -> frozenset[str]:
     """Return normalized labels for a raw model."""
     labels = raw.get("labels", ())
+    normalized: set[str] = set()
     if isinstance(labels, str):
-        return frozenset({labels.strip().lower()} if labels.strip() else ())
-    if isinstance(labels, Iterable):
-        return frozenset(
+        if labels.strip():
+            normalized.add(labels.strip().lower())
+    elif isinstance(labels, Iterable):
+        normalized.update(
             label.strip().lower()
             for label in labels
             if isinstance(label, str) and label.strip()
         )
-    return frozenset()
+
+    return frozenset(normalized)
 
 
 def _recipe(raw: Mapping[str, Any]) -> str:
