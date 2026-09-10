@@ -177,3 +177,12 @@ text_to_speech:
       description: Optional format such as mp3, wav, or opus, if supported by the backend.
       selector:
         text:
+    speed:
+      name: Speed
+      description: Optional playback speed from 0.25 (slower) to 4.0 (faster).
+      selector:
+        number:
+          min: 0.25
+          max: 4
+          step: 0.05
+          mode: box

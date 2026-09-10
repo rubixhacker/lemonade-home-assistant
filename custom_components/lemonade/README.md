@@ -158,3 +158,7 @@ Lemonade Server owns execution locality. Its mutable routing policy may send req
 ```
 
 Pass `filename` to choose a filename under `/media/lemonade`; path components are stripped to avoid traversal. If omitted, the default filename uses the decoded image extension, e.g. `lemonade_*.jpg` for JPEG responses and `lemonade_*.png` when no extension is decoded.
+
+### Speech speed
+
+Both native TTS options and `lemonade.text_to_speech` accept optional `speed` from `0.25` to `4.0`; `1.0` is normal speed. When omitted, Lemonade chooses its default. Speed support depends on the selected server speech backend.

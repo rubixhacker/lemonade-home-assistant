@@ -56,6 +56,14 @@ async def test_health_and_inference_use_separate_transport_budgets():
     assert session.calls[1][2]["timeout"].total == DEFAULT_INFERENCE_TIMEOUT
 
 
+@pytest.mark.asyncio
+async def test_tts_speed_is_sent_only_when_requested():
+    session = _Session()
+    client = LemonadeClient(session, "http://server")
+
+    await client.text_to_speech(text="hello", speed=1.25)
+
+    assert session.calls[-1][2]["json"]["speed"] == 1.25
 
 
 
