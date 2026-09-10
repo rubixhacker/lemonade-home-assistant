@@ -47,8 +47,8 @@ MODELS = (
         "downloaded": True,
     },
     {
-        "id": "voice-stt",
-        "recipe": "transformers",
+        "id": "Whisper-Base",
+        "recipe": "whispercpp",
         "labels": ["stt"],
         "downloaded": True,
     },
@@ -130,6 +130,14 @@ async def lemonade_server(
         requests.append({"path": request.path, "payload": payload})
         return web.Response(body=b"voice-bytes", content_type="audio/mpeg")
 
+    async def transcribe(request: web.Request) -> web.Response:
+        fields = await request.post()
+        requests.append({"path": request.path, "payload": {
+            "model": fields.get("model"), "language": fields.get("language"),
+        }})
+        return web.json_response({"text": "bonjour"})
+
+    app.router.add_post("/v1/audio/transcriptions", transcribe)
     app.router.add_get("/v1/health", health)
     app.router.add_get("/v1/models", models)
     app.router.add_post("/v1/chat/completions", chat)
