@@ -102,11 +102,59 @@ def test_old_or_unknown_server_advertises_only_usable_english_languages(
 ) -> None:
     entity = _tts_entity(server_version)
 
-    assert entity.supported_languages == ["en", "en-US"]
+    assert entity.supported_languages == ["en", "en-US", "en-GB"]
     assert entity.async_get_supported_voices("fr") == []
     assert entity.async_get_supported_voices("en")[0].name.endswith(
         "(American English)"
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("server_version", ["10.0.0", None])
+async def test_legacy_server_derives_british_dialect_from_selected_voice(
+    server_version: str | None,
+) -> None:
+    from custom_components.lemonade.tts import LemonadeTTSEntity
+
+    class Client:
+        def __init__(self) -> None:
+            self.calls: list[dict[str, object]] = []
+
+        async def text_to_speech(self, **kwargs: object) -> tuple[bytes, str]:
+            self.calls.append(kwargs)
+            return b"audio", "audio/mpeg"
+
+    client = Client()
+    catalog = parse_models_response(
+        {"data": [{"id": "kokoro-v1", "recipe": "kokoro", "labels": ["tts"]}]}
+    )
+    entry = SimpleNamespace(
+        entry_id="entry-1",
+        options={},
+        data={},
+        runtime_data=SimpleNamespace(
+            client=client,
+            coordinator=SimpleNamespace(
+                catalog=catalog, server_version=server_version
+            ),
+        ),
+    )
+    entity = LemonadeTTSEntity(entry)
+
+    await entity.async_get_tts_audio(
+        "Hello",
+        "en-GB",
+        {"voice": "kokoro-v1::bf_emma"},
+    )
+
+    assert client.calls == [
+        {
+            "text": "Hello",
+            "model": "kokoro-v1",
+            "voice": "bf_emma",
+            "response_format": None,
+        }
+    ]
 
 
 @pytest.mark.asyncio
