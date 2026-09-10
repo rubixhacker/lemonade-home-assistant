@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from typing import Any
 
 
+# Catalog: https://huggingface.co/hexgrad/Kokoro-82M/blob/c3327e9/VOICES.md
+# Lemonade serves the voices-v1.0.bin pack via https://github.com/lemonade-sdk/Kokoros
 # These are the built-in voices shipped by Kokoro-82M.  The language values
 # are BCP-47 tags used by Home Assistant; the Kokoro pipeline code is derived
 # by Lemonade/Kokoros from the voice prefix at request time.

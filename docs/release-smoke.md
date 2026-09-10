@@ -132,7 +132,8 @@ HTTP-boundary test fixtures do not establish speech quality or device playback.
    language. Speak in that language and inspect the transcription. Change to an
    English-only model and confirm unsupported languages are no longer offered.
 5. On Lemonade versions before 10.0.1, confirm the TTS picker offers only the
-   existing default-English-compatible language choices.
+   English language choices, including British English. Preview a British
+   voice and verify it works without the newer language request parameter.
 
 OpenMOSS saved voices require Lemonade to enable and expose its backend voice
 registry. Do not mark that qualification complete by testing inline samples or
