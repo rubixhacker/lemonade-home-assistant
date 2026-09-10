@@ -24,8 +24,9 @@ jobs:
         id: release
         env:
           DISPATCH_TAG: ${{ inputs.tag }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
             tag="${DISPATCH_TAG}"
           else
             tag="${GITHUB_REF_NAME}"
@@ -49,11 +50,27 @@ jobs:
           ref: ${{ steps.release.outputs.tag }}
 
       - name: Verify HACS package shape
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
           scripts/build-hacs-release.sh
           unzip -t dist/lemonade.zip
           unzip -l dist/lemonade.zip | grep "custom_components/lemonade/manifest.json"
           unzip -l dist/lemonade.zip | grep "custom_components/lemonade/brand/icon.png"
+          RELEASE_TAG="${RELEASE_TAG}" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          tag = os.environ["RELEASE_TAG"]
+          version = json.loads(
+              Path("custom_components/lemonade/manifest.json").read_text()
+          )["version"]
+          if tag.removeprefix("v") != version:
+              raise SystemExit(
+                  f"release tag {tag!r} does not match manifest version {version!r}"
+              )
+          PY
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
@@ -62,3 +79,5 @@ jobs:
           name: ${{ steps.release.outputs.tag }}
           prerelease: ${{ steps.release.outputs.prerelease }}
           generate_release_notes: true
+          files: dist/lemonade.zip
+          fail_on_unmatched_files: true

@@ -4420,7 +4420,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("conv-1", entity._attr_unique_id)
         self.assertIsNone(entity._attr_name)
         self.assertTrue(entity._attr_has_entity_name)
-        self.assertFalse(entity._attr_supports_streaming)
+        self.assertTrue(entity._attr_supports_streaming)
         self.assertEqual(
             {
                 "identifiers": {(DOMAIN, "conv-1")},

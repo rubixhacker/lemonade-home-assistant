@@ -73,6 +73,7 @@ class ChatTurnRequest:
     max_history: int | None = None
     keep_alive: int | None = None
     router_metadata: Mapping[str, Any] | None = None
+    stream: bool = False
 
 
 @dataclass(frozen=True)
@@ -364,6 +365,16 @@ def response_to_delta(
 
     tool_calls = message.get("tool_calls")
     if isinstance(tool_calls, list) and tool_calls:
+        for tool_call in tool_calls:
+            function = _value(tool_call, "function")
+            arguments = _value(function, "arguments") if function is not None else _value(tool_call, "arguments")
+            if isinstance(arguments, str):
+                try:
+                    parsed_arguments = json.loads(arguments)
+                except json.JSONDecodeError as err:
+                    raise HomeAssistantError("Lemonade returned incomplete tool arguments") from err
+                if not isinstance(parsed_arguments, dict):
+                    raise HomeAssistantError("Lemonade returned invalid tool arguments")
         parsed_tool_calls = [
             _tool_call_record_from_interop(tool_call) for tool_call in tool_calls
         ]
@@ -389,11 +400,12 @@ async def _async_add_delta_content_stream(
 ) -> None:
     """Add a non-streaming response delta stream to a chat log."""
     method = chat_log.async_add_delta_content_stream
+    stream = delta if isinstance(delta, AsyncIterable) else _async_delta_stream(delta)
     try:
-        result = method(entity_id, _async_delta_stream(delta))
+        result = method(entity_id, stream)
     except TypeError as original_err:
         try:
-            result = method(_async_delta_stream(delta))
+            result = method(stream)
         except TypeError:
             raise original_err
 
@@ -510,6 +522,99 @@ async def _apply_chat_response_to_chat_log(
     return delta
 
 
+def _stream_chunk_delta(chunk: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    """Return the first streamed choice delta."""
+    message = response_message(chunk)
+    return message
+
+
+async def _async_execute_streaming_response(
+    request: ChatTurnRequest,
+) -> tuple[Mapping[str, Any], str]:
+    """Consume one OpenAI SSE response, forwarding text deltas to HA."""
+    stream_method = getattr(request.client, "stream_chat_completion", None)
+    if stream_method is None:
+        # Accept the alternate spelling used by a few OpenAI-compatible clients.
+        stream_method = getattr(request.client, "chat_completion_stream", None)
+    if stream_method is None:
+        # Older clients can still participate in the conversation flow.
+        response = await request.client.chat_completion(
+            **build_chat_turn_payload(
+                request.model, request.chat_log, request.structure,
+                request.max_history, request.keep_alive, request.router_metadata,
+            ).to_chat_completion_kwargs()
+        )
+        return response, response_assistant_content(response) or ""
+
+    payload = build_chat_turn_payload(
+        request.model, request.chat_log, request.structure,
+        request.max_history, request.keep_alive, request.router_metadata,
+    ).to_chat_completion_kwargs()
+    response_stream = stream_method(**payload)
+    if inspect.isawaitable(response_stream):
+        response_stream = await response_stream
+
+    text_parts: list[str] = []
+    tool_calls: dict[int, dict[str, Any]] = {}
+    finish_reason: str | None = None
+    async def live_deltas() -> AsyncIterator[AssistantContentDeltaDict]:
+      nonlocal finish_reason
+      try:
+        async for chunk in response_stream:
+            if not isinstance(chunk, Mapping):
+                continue
+            delta = _stream_chunk_delta(chunk)
+            choices = chunk.get("choices")
+            if choices and isinstance(choices[0], Mapping):
+                finish_reason = choices[0].get("finish_reason")
+            if delta is None:
+                continue
+            content = delta.get("content")
+            if isinstance(content, str) and content:
+                text_parts.append(content)
+                yield {"content": content}
+            raw_tool_calls = delta.get("tool_calls")
+            if isinstance(raw_tool_calls, list):
+                for position, raw_call in enumerate(raw_tool_calls):
+                    if not isinstance(raw_call, Mapping):
+                        continue
+                    index = raw_call.get("index", position)
+                    if not isinstance(index, int):
+                        index = position
+                    assembled = tool_calls.setdefault(
+                        index, {"id": None, "type": "function", "function": {}}
+                    )
+                    if raw_call.get("id"):
+                        assembled["id"] = raw_call["id"]
+                    function = raw_call.get("function")
+                    if isinstance(function, Mapping):
+                        target = assembled["function"]
+                        if function.get("name"):
+                            target["name"] = target.get("name", "") + function["name"]
+                        if function.get("arguments"):
+                            target["arguments"] = target.get("arguments", "") + function["arguments"]
+      finally:
+        close = getattr(response_stream, "aclose", None)
+        if close is not None:
+            result = close()
+            if inspect.isawaitable(result):
+                await result
+
+    await _async_add_delta_content_stream(
+        request.chat_log, request.entity_id, live_deltas()
+    )
+
+    message: dict[str, Any] = {
+        "content": "".join(text_parts) or None,
+    }
+    if tool_calls:
+        message["tool_calls"] = [tool_calls[index] for index in sorted(tool_calls)]
+    choice: dict[str, Any] = {"message": message}
+    if finish_reason is not None:
+        choice["finish_reason"] = finish_reason
+    return {"choices": [choice]}, "".join(text_parts)
+
+
 def final_assistant_content(chat_log: Any) -> str:
     """Return the latest assistant text from a chat log."""
     for delta in reversed(getattr(chat_log, "deltas", []) or []):
@@ -553,22 +658,45 @@ async def async_execute_chat_turn(request: ChatTurnRequest) -> ChatTurnOutcome:
             request.keep_alive,
             request.router_metadata,
         )
-        response = await request.client.chat_completion(
-            **payload.to_chat_completion_kwargs()
-        )
+        if request.stream:
+            response, streamed_content = await _async_execute_streaming_response(request)
+            choices = response.get("choices", [])
+            if choices and isinstance(choices[0], Mapping) and choices[0].get("finish_reason") == "length" and choices[0].get("message", {}).get("tool_calls"):
+                raise HomeAssistantError("Lemonade truncated a tool call")
+            final_delta = response_to_delta(response)
+            if (
+                getattr(request.client, "stream_chat_completion", None) is None
+                and getattr(request.client, "chat_completion_stream", None) is None
+            ):
+                await _async_add_delta_content_stream(
+                    request.chat_log, request.entity_id, final_delta
+                )
+            # Streaming text was already appended incrementally. Apply only the
+            # completed tool call delta, otherwise HA would execute a partial call.
+            elif final_delta and final_delta.get("tool_calls"):
+                await _async_add_delta_content_stream(
+                    request.chat_log, request.entity_id,
+                    {"tool_calls": final_delta["tool_calls"]},
+                )
+            final_assistant = streamed_content
+        else:
+            response = await request.client.chat_completion(
+                **payload.to_chat_completion_kwargs()
+            )
+            final_delta = await _apply_chat_response_to_chat_log(
+                request.chat_log,
+                request.entity_id,
+                response,
+            )
+            final_assistant = final_assistant_content(request.chat_log)
         responses.append(response)
-        final_delta = await _apply_chat_response_to_chat_log(
-            request.chat_log,
-            request.entity_id,
-            response,
-        )
 
         if not getattr(request.chat_log, "unresponded_tool_results", []):
             return ChatTurnOutcome(
                 iterations=iteration,
                 responses=tuple(responses),
                 final_delta=final_delta,
-                final_assistant_content=final_assistant_content(request.chat_log),
+                final_assistant_content=final_assistant,
             )
 
     raise HomeAssistantError("Maximum Lemonade tool call iterations reached")
@@ -584,6 +712,7 @@ async def async_execute_chat_log_turn(
     max_history: int | None = None,
     keep_alive: int | None = None,
     router_metadata: Mapping[str, Any] | None = None,
+    stream: bool = False,
 ) -> ChatTurnOutcome:
     """Execute one Lemonade chat log turn, including any required tool loop."""
     return await async_execute_chat_turn(
@@ -596,6 +725,7 @@ async def async_execute_chat_log_turn(
             max_history=max_history,
             keep_alive=keep_alive,
             router_metadata=router_metadata,
+            stream=stream,
         )
     )
 

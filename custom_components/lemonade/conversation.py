@@ -45,7 +45,7 @@ class LemonadeConversationEntity(
 ):
     """Conversation agent backed by a Lemonade conversation profile."""
 
-    _attr_supports_streaming = False
+    _attr_supports_streaming = True
     _attr_name = None
     _attr_has_entity_name = True
     _attr_supported_features = 0
