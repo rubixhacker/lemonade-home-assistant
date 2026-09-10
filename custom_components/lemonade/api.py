@@ -9,6 +9,7 @@ from typing import Any
 import aiohttp
 
 from .const import (
+    DEFAULT_INFERENCE_TIMEOUT,
     DEFAULT_TIMEOUT,
     ENDPOINT_AUDIO_SPEECH,
     ENDPOINT_CLASSIFY_TEXT,
@@ -37,6 +38,7 @@ class LemonadeClient:
         url: str,
         api_key: str | None = None,
         timeout: float = DEFAULT_TIMEOUT,
+        inference_timeout: float = DEFAULT_INFERENCE_TIMEOUT,
         verify_ssl: bool = True,
     ) -> None:
         """Initialize the client."""
@@ -44,6 +46,7 @@ class LemonadeClient:
         self.url = url.rstrip("/")
         self.api_key = api_key.strip() if api_key else None
         self.timeout = timeout
+        self.inference_timeout = inference_timeout
         self.verify_ssl = verify_ssl
 
     @property
@@ -101,11 +104,13 @@ class LemonadeClient:
         **kwargs: Any,
     ) -> Any:
         """Request data from Lemonade Server and classify response status."""
-        request_kwargs = kwargs
+        request_timeout = kwargs.pop("request_timeout", self.timeout)
+        request_kwargs = dict(kwargs)
+        request_kwargs["timeout"] = aiohttp.ClientTimeout(total=request_timeout)
         if not self.verify_ssl:
-            request_kwargs = {**kwargs, "ssl": False}
+            request_kwargs["ssl"] = False
 
-        async with asyncio.timeout(self.timeout):
+        async with asyncio.timeout(request_timeout):
             async with self.session.request(
                 method,
                 f"{self.url}{path}",
@@ -180,7 +185,11 @@ class LemonadeClient:
             payload["route_trace"] = route_trace
         if metadata is not None:
             payload["metadata"] = metadata
-        return await self._request_json("POST", ENDPOINT_CHAT, json=payload)
+        return await self._request_json(
+            "POST", ENDPOINT_CHAT, json=payload, request_timeout=self.inference_timeout
+        )
+
+
 
     async def generate_image(
         self,
@@ -195,7 +204,12 @@ class LemonadeClient:
             payload["model"] = model
         if size:
             payload["size"] = size
-        return await self._request_json("POST", ENDPOINT_IMAGES_GENERATIONS, json=payload)
+        return await self._request_json(
+            "POST",
+            ENDPOINT_IMAGES_GENERATIONS,
+            json=payload,
+            request_timeout=self.inference_timeout,
+        )
 
     async def text_to_speech(
         self,
@@ -216,7 +230,12 @@ class LemonadeClient:
             payload["response_format"] = response_format
         if lang_code:
             payload["lang_code"] = lang_code
-        return await self._request_bytes("POST", ENDPOINT_AUDIO_SPEECH, json=payload)
+        return await self._request_bytes(
+            "POST",
+            ENDPOINT_AUDIO_SPEECH,
+            json=payload,
+            request_timeout=self.inference_timeout,
+        )
 
     async def transcribe_audio(
         self,
@@ -238,7 +257,12 @@ class LemonadeClient:
             form.add_field("model", model)
         if language:
             form.add_field("language", language)
-        return await self._request_json("POST", ENDPOINT_AUDIO_TRANSCRIPTIONS, data=form)
+        return await self._request_json(
+            "POST",
+            ENDPOINT_AUDIO_TRANSCRIPTIONS,
+            data=form,
+            request_timeout=self.inference_timeout,
+        )
 
     async def classify_text(
         self,
@@ -251,4 +275,9 @@ class LemonadeClient:
         payload: dict[str, Any] = {"text": text, "model": model}
         if top_k is not None:
             payload["top_k"] = top_k
-        return await self._request_json("POST", ENDPOINT_CLASSIFY_TEXT, json=payload)
+        return await self._request_json(
+            "POST",
+            ENDPOINT_CLASSIFY_TEXT,
+            json=payload,
+            request_timeout=self.inference_timeout,
+        )

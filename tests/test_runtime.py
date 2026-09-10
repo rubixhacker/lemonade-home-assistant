@@ -160,6 +160,9 @@ def _install_homeassistant_stubs() -> None:
     aiohttp = ModuleType("aiohttp")
     aiohttp.ClientError = type("ClientError", (Exception,), {})
     aiohttp.ClientSession = type("ClientSession", (), {})
+    aiohttp.ClientTimeout = type(
+        "ClientTimeout", (), {"__init__": lambda self, total=None, **kwargs: setattr(self, "total", total)}
+    )
     aiohttp.FormData = type(
         "FormData", (), {"add_field": lambda self, *args, **kwargs: None}
     )
@@ -699,6 +702,8 @@ class FakeSession:
         self.requests: list[tuple[str, str, dict[str, Any]]] = []
 
     def request(self, method: str, url: str, **kwargs: Any) -> FakeResponse:
+        # Keep legacy request-shape assertions focused on payload semantics.
+        kwargs.pop("timeout", None)
         self.requests.append((method, url, kwargs))
         return FakeResponse(self.payload)
 
@@ -743,6 +748,7 @@ class FakeHttpSession:
         self.requests: list[tuple[str, str, dict[str, Any]]] = []
 
     def request(self, method: str, url: str, **kwargs: Any) -> FakeHttpResponse:
+        kwargs.pop("timeout", None)
         self.requests.append((method, url, kwargs))
         return self.response
 
@@ -1847,12 +1853,14 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 url: str,
                 api_key: str | None = None,
                 timeout: float = 30.0,
+                inference_timeout: float = 600.0,
                 verify_ssl: bool = True,
             ) -> None:
                 self.session = session
                 self.url = url
                 self.api_key = api_key
                 self.timeout = timeout
+                self.inference_timeout = inference_timeout
                 self.verify_ssl = verify_ssl
 
             async def health(self) -> dict[str, str]:
@@ -7205,6 +7213,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 self.url = url
                 self.api_key = api_key
                 self.timeout = timeout
+                self.inference_timeout = 600.0
                 self.verify_ssl = verify_ssl
 
             async def health(self) -> dict[str, Any]:
