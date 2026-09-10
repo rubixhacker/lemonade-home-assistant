@@ -17,6 +17,6 @@ jobs:
       - name: Unit regressions
         env:
           PYTHONPATH: tests
-        run: python -m unittest test_beacon test_models test_runtime test_schema test_streaming
+        run: python -m unittest test_beacon test_models test_runtime test_schema test_streaming test_stt
       - name: Home Assistant runtime regressions
         run: python -m pytest tests/e2e tests/test_timeout_speed.py tests/test_speech_selection.py -q
