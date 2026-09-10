@@ -108,7 +108,17 @@ The integration exposes native platforms for:
 - TTS provider support.
 - STT provider support.
 
-STT requires a Lemonade model whose labels include stt, transcription, or speech-to-text. The sample model list provided by the user had no STT-capable model, so STT will show unavailable until Lemonade advertises one.
+STT requires an advertised transcription model with known language support.
+Select the **Default speech-to-text model** on the Server Entry. Known
+multilingual Whisper models offer their supported Home Assistant languages;
+English-only Whisper variants and current Moonshine models offer English.
+Unknown/custom models with unverified language support are unavailable in the
+native picker rather than claiming every language. Direct transcription
+services remain available for explicit custom-model requests.
+
+The selected STT language is sent explicitly to Lemonade. Regional tags are
+normalized to the backend language code, such as `pt-BR` to `pt`. Unsupported
+languages fail before a transcription request is sent.
 
 Native multilingual TTS requires Lemonade Server v10.0.1 or later, which first
 included a Kokoros backend with `lang_code` support. The integration sends the

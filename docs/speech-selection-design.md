@@ -17,11 +17,18 @@ Home Assistant supports returning voices for a selected language through `async_
 
 At implementation baseline a8e840a, the integration does not implement that voice list. Both speech entities advertise Home Assistant's entire language registry; STT forwards the selected language unchanged. Upstream main already forwards TTS locales and speaking speed, superseding the older interview checkout. The reported English-only STT picker has not yet been reproduced against the installed system.
 
-Bounded upstream research found no documented saved-voice discovery API. Lemonade's app stores user/assistant reference samples in local app settings, while the speech API accepts a reference sample per request rather than a saved-voice identifier. Therefore automatic discovery of saved OpenMOSS voices is not established. Sources: https://github.com/lemonade-sdk/lemonade/blob/main/src/app/src/renderer/tabs/TTSSettings.tsx and https://github.com/lemonade-sdk/lemonade/blob/main/src/app/src/renderer/utils/appSettings.ts and https://lemonade-server.ai/docs/api/openai/
+Independent Sol review verified OpenMOSS's saved-voice registry (`GET /v1/voices` and saved-ID speech invocation). Lemonade's wrapper does not launch OpenMOSS with `--voice-dir` or expose that registry through its public API. Integration-side saved-voice discovery therefore remains blocked on Lemonade enabling and exposing the backend-owned registry; Home Assistant must not address the private dynamic backend port or store reference samples.
+
+Sources checked at implementation time:
+- OpenMOSS registry: https://github.com/pwilkin/openmoss/blob/bfb1f465e0a86fb5a52bbf93e67ceba4b7d0b4e1/src/server/moss_tts_server.cpp#L978-L1098
+- Lemonade wrapper: https://github.com/lemonade-sdk/lemonade/blob/788dfb92adfe48e0ff611faf633130270163a568/src/cpp/server/backends/openmoss/openmoss_server.cpp#L181-L224
+- Home Assistant filters provider languages against the assistant's main language: https://github.com/home-assistant/core/blob/2026.9.1/homeassistant/components/stt/__init__.py#L425-L462
+
+The English/British-English list is consistent with Home Assistant's native assistant-language filtering. A real Home Assistant WebSocket regression exercises English and French selection; the user's live installation has not been changed.
 
 ## Remaining discovery
 
 - Identify or establish the upstream contract for discovering and invoking saved voices, including stable identity, supported languages, and availability. Missing discovery is an upstream dependency, not authorization to move voice lifecycle ownership into Home Assistant.
-- Reproduce the reported STT language restriction against the installed provider and version.
+- Qualify speech output on a live Lemonade server and the user's voice device; automated Home Assistant tests use a controlled HTTP server at the Lemonade boundary.
 
 The user confirmed this product direction and authorized implementation with Luna subagents and independent Sol verification, submitted as stacked PRs.
