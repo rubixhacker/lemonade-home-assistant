@@ -795,6 +795,25 @@ def model_catalog(model_ids: dict[str, list[str]]) -> LemonadeModelCatalog:
     return LemonadeModelCatalog(tuple(models))
 
 
+def stt_model_catalog(
+    model_ids: list[str],
+    *,
+    recipe: str = "whispercpp",
+) -> LemonadeModelCatalog:
+    """Build a catalog containing real, language-aware STT model records."""
+    return LemonadeModelCatalog(
+        tuple(
+            LemonadeModel(
+                ModelId(model_id),
+                frozenset({"transcription"}),
+                recipe,
+                downloaded=True,
+            )
+            for model_id in model_ids
+        )
+    )
+
+
 class ServerCapabilityViewTest(unittest.TestCase):
 
     def test_resolve_model_prefers_explicit_profile_default_then_catalog(self) -> None:
@@ -7688,11 +7707,11 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
 
         client = Client()
         coordinator = SimpleNamespace(
-            catalog=model_catalog({CAPABILITY_STT: ["catalog-stt", "entry-stt"]}),
+            catalog=stt_model_catalog(["Whisper-Tiny", "Whisper-Base"]),
             last_update_success=True,
         )
         entry = FakeEntry()
-        entry.options = {CONF_DEFAULT_STT_MODEL: "entry-stt"}
+        entry.options = {CONF_DEFAULT_STT_MODEL: "Whisper-Base"}
         entry.runtime_data = SimpleNamespace(client=client, coordinator=coordinator)
         added: list[Any] = []
 
@@ -7730,7 +7749,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 {
                     "audio": b"turn on",
                     "filename": "speech.wav",
-                    "model": "entry-stt",
+                    "model": "Whisper-Base",
                     "language": "en",
                 }
             ],
@@ -7792,7 +7811,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
                 entry.runtime_data = SimpleNamespace(
                     client=Client(),
                     coordinator=SimpleNamespace(
-                        catalog=model_catalog({CAPABILITY_STT: ["catalog-stt"]})
+                        catalog=stt_model_catalog(["Whisper-Tiny"])
                     ),
                 )
                 entity = stt_module.LemonadeSTTEntity(entry)
@@ -7823,7 +7842,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         entry.runtime_data = SimpleNamespace(
             client=Client(),
             coordinator=SimpleNamespace(
-                catalog=model_catalog({CAPABILITY_STT: ["catalog-stt"]})
+                catalog=stt_model_catalog(["Whisper-Tiny"])
             ),
         )
         entity = stt_module.LemonadeSTTEntity(entry)
@@ -7854,7 +7873,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         entry.runtime_data = SimpleNamespace(
             client=Client(),
             coordinator=SimpleNamespace(
-                catalog=model_catalog({CAPABILITY_STT: ["catalog-stt"]})
+                catalog=stt_model_catalog(["Whisper-Tiny"])
             ),
         )
         entity = stt_module.LemonadeSTTEntity(entry)
@@ -7888,7 +7907,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         entry.runtime_data = SimpleNamespace(
             client=Client(),
             coordinator=SimpleNamespace(
-                catalog=model_catalog({CAPABILITY_STT: ["catalog-stt"]})
+                catalog=stt_model_catalog(["Whisper-Tiny"])
             ),
         )
         entity = stt_module.LemonadeSTTEntity(entry)
@@ -7926,7 +7945,7 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, len(request_calls))
         self.assertIs(request_calls[0]["entry"], entry)
         self.assertEqual(b"audio", request_calls[0]["audio"])
-        self.assertEqual("catalog-stt", request_calls[0]["model"])
+        self.assertEqual("Whisper-Tiny", request_calls[0]["model"])
         self.assertEqual("en", request_calls[0]["language"])
         self.assertIn("Error transcribing audio with Lemonade", logs.output[0])
         self.assertIsNone(result.text)
