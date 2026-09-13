@@ -111,3 +111,30 @@ git push origin v1.1.1
 ```
 
 Tags containing `-alpha`, `-beta`, or `-rc` are published as GitHub pre-releases by the release workflow.
+
+## Native speech selection
+
+Use a Lemonade Server with a downloaded Kokoro model and a known multilingual
+Whisper model. These checks require a live server and playback device; the
+HTTP-boundary test fixtures do not establish speech quality or device playback.
+
+1. Select Lemonade Server text-to-speech in an Assist pipeline. Select English,
+   then confirm model-labelled voice names and use Try voice to hear the result.
+2. Select British English and confirm that American English voices are absent.
+   Change the assistant's main Language to French, choose French speech output,
+   and preview a French voice. Home Assistant filters speech languages by the
+   assistant's main language.
+3. Change the Server Entry's default TTS model, then repeat the saved voice
+   preview. Its selected model must remain unchanged. Remove that model from
+   Lemonade and try an uncached phrase: expect an error requiring a new voice,
+   not a replacement model or voice.
+4. Select a known multilingual Whisper model for STT and a supported assistant
+   language. Speak in that language and inspect the transcription. Change to an
+   English-only model and confirm unsupported languages are no longer offered.
+5. On Lemonade versions before 10.0.1, confirm the TTS picker offers only the
+   English language choices, including British English. Preview a British
+   voice and verify it works without the newer language request parameter.
+
+OpenMOSS saved voices require Lemonade to enable and expose its backend voice
+registry. Do not mark that qualification complete by testing inline samples or
+connecting Home Assistant directly to the private backend subprocess.

@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from typing import Any
 
 
+# Catalog: https://huggingface.co/hexgrad/Kokoro-82M/blob/c3327e9/VOICES.md
+# Lemonade serves the voices-v1.0.bin pack via https://github.com/lemonade-sdk/Kokoros
 # These are the built-in voices shipped by Kokoro-82M.  The language values
 # are BCP-47 tags used by Home Assistant; the Kokoro pipeline code is derived
 # by Lemonade/Kokoros from the voice prefix at request time.
@@ -118,7 +120,18 @@ class SpeechVoice:
     @property
     def name(self) -> str:
         """Return a voice label that keeps the model visible in the picker."""
-        return f"{self.model}: {self.voice_id}"
+        voice_name = self.voice_id.partition("_")[2].replace("_", " ").title()
+        return f"{self.model} — {voice_name}"
+
+    def name_for_language(self, language: str) -> str:
+        """Return a picker label, disambiguating broad English selections."""
+        voice_name = self.name
+        if language.strip().replace("_", "-").casefold() == "en":
+            if self.language == "en-US":
+                voice_name += " (American English)"
+            elif self.language == "en-GB":
+                voice_name += " (British English)"
+        return voice_name
 
 
 def parse_voice_selection(value: Any) -> tuple[str, str] | None:

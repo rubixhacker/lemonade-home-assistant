@@ -145,6 +145,11 @@ def _server_supports_multilingual_tts(entry: Any) -> bool:
     return current is not None and minimum is not None and current >= minimum
 
 
+def speech_server_supports_multilingual_tts(entry: Any) -> bool:
+    """Return whether the connected server accepts non-English TTS locales."""
+    return _server_supports_multilingual_tts(entry)
+
+
 def require_speech_synthesis_language(
     entry: Any,
     language: str | None,
