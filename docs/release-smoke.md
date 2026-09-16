@@ -2,10 +2,11 @@
 
 Use this checklist before publishing a Lemonade Server Home Assistant beta or stable release.
 
-## Current target
+## Release source of truth
 
-- Tag: `v1.1.2`
-- Manifest version: `1.1.2`
+- Version: [`custom_components/lemonade/manifest.json`](../custom_components/lemonade/manifest.json)
+- Tag: `v` followed by the manifest version; the release workflow rejects a
+  mismatch
 - Install source: built HACS release artifact, not a direct working-tree copy
 - Lemonade source: real Lemonade Server, not a fake endpoint
 
@@ -18,6 +19,7 @@ python3 -m venv /tmp/lemonade-ha-e2e
 /tmp/lemonade-ha-e2e/bin/pip install -r requirements-e2e.txt
 /tmp/lemonade-ha-e2e/bin/pytest tests/e2e -v
 python3 -m unittest tests.test_models tests.test_runtime tests.test_beacon -v
+scripts/test-e2e.sh
 python3 -m py_compile custom_components/lemonade/*.py
 python3 -m json.tool custom_components/lemonade/manifest.json >/tmp/lemonade-manifest.json
 python3 -m json.tool custom_components/lemonade/strings.json >/tmp/lemonade-strings.json
@@ -33,6 +35,8 @@ Expected result:
 - End-to-end feature tests pass against real Home Assistant config flows,
   services, entities, HTTP, and UDP boundaries.
 - Unit tests pass.
+- The container E2E passes Home Assistant-native temporal values in a tool-result
+  message through a real Home Assistant runtime and Lemonade Server.
 - Python files compile.
 - JSON files validate.
 - `dist/lemonade.zip` contains `custom_components/lemonade/`.
@@ -59,6 +63,8 @@ Use the 120-second request timeout for cold-model testing. A model that returns 
 - Create one Router-backed Conversation Profile with Router Metadata.
 - Select the Conversation Profile in Assist or a voice pipeline.
 - Send one Assist prompt and confirm a response is returned.
+- Ask Assist for the current time, date, and a combined date/time value; confirm
+  each native Home Assistant tool result reaches Lemonade and returns a response.
 - Create one Omni-backed AI Task Profile.
 - Run one AI task data-generation path and confirm a response is returned.
 - Run `lemonade.classify_text` and confirm the Lemonade score mapping is returned
@@ -105,9 +111,10 @@ If Lemonade does not advertise an STT model:
 After the smoke passes:
 
 ```bash
-git tag v1.1.1
+LEMONADE_VERSION="$(python3 -c 'import json; print(json.load(open("custom_components/lemonade/manifest.json"))["version"])')"
+git tag "v${LEMONADE_VERSION}"
 git push origin main
-git push origin v1.1.1
+git push origin "v${LEMONADE_VERSION}"
 ```
 
 Tags containing `-alpha`, `-beta`, or `-rc` are published as GitHub pre-releases by the release workflow.

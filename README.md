@@ -36,21 +36,8 @@ The generated asset is written to `dist/lemonade.zip`.
 
 ## Release
 
-Create a version tag and push it:
-
-```bash
-git tag v0.2.1
-git push origin v0.2.1
-```
-
-Testing tags are marked as GitHub pre-releases:
-
-```bash
-git tag v0.2.1-beta.1
-git push origin v0.2.1-beta.1
-```
-
-The release workflow verifies the HACS package shape and publishes release notes. Tags containing `-alpha`, `-beta`, or `-rc` are published as pre-releases; plain version tags are published as stable releases.
+Follow the [release smoke checklist](docs/release-smoke.md) to verify and tag
+the version owned by the integration manifest.
 
 ## Manual install
 
@@ -111,10 +98,12 @@ in a separate container on the private Compose network.
 
 Every run pulls Home Assistant `stable` and Lemonade `latest`, downloads
 `Qwen3-0.6B-GGUF`, and checks the Server Entry config flow, platform setup,
-status/model-count sensors, a real `lemonade.chat_completion` response, a streamed
-Assist conversation through the starter Conversation Profile, reload, and unload. Model output is checked for nonempty content rather than exact
-wording. This covers the runtime/service path; it does not test browser
-onboarding, tool execution, speech, image generation, or GPU backends.
+status/model-count sensors, a real `lemonade.chat_completion` response, transport
+of Home Assistant-native date, time, and datetime tool results, a streamed Assist
+conversation through the starter Conversation Profile, reload, and unload. Model
+output is checked for nonempty content rather than exact wording. This covers the
+runtime/service path; it does not test browser onboarding, end-to-end tool
+discovery or execution, speech, image generation, or GPU backends.
 
 Override either complete image reference (including a digest) or the model:
 
