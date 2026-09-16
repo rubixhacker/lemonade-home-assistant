@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import namedtuple
+import datetime
 import importlib
 import inspect
 import json
@@ -423,10 +424,23 @@ def _install_homeassistant_stubs() -> None:
     helpers.__path__ = []
     sys.modules.setdefault("homeassistant.helpers", helpers)
 
+    helpers_json = ModuleType("homeassistant.helpers.json")
+
+    def json_encoder_default(value: Any) -> str:
+        if isinstance(value, (datetime.date, datetime.datetime, datetime.time)):
+            return value.isoformat()
+        raise TypeError
+
+    helpers_json.json_dumps = lambda value: json.dumps(
+        value, default=json_encoder_default, sort_keys=True
+    )
+    sys.modules.setdefault("homeassistant.helpers.json", helpers_json)
+
     util = ModuleType("homeassistant.util")
     util.__path__ = []
     util_json = ModuleType("homeassistant.util.json")
     util_json.json_dumps = lambda value: json.dumps(value, sort_keys=True)
+    util_json.json_loads = json.loads
     sys.modules.setdefault("homeassistant.util", util)
     sys.modules.setdefault("homeassistant.util.json", util_json)
 
@@ -3820,6 +3834,35 @@ class RuntimeSetupTest(unittest.IsolatedAsyncioTestCase):
             },
             message,
         )
+
+    def test_llm_serializes_home_assistant_temporal_tool_results(self) -> None:
+        from homeassistant.components.conversation import ToolResultContent
+
+        llm_module = _require_module("lemonade.chat")
+        message = llm_module.content_to_message(
+            ToolResultContent(
+                {
+                    "speech_slots": {"time": datetime.time(7, 30)},
+                    "date": datetime.date(2026, 9, 16),
+                    "timestamp": datetime.datetime(
+                        2026, 9, 16, 12, 0, tzinfo=datetime.UTC
+                    ),
+                },
+                tool_call_id="call-time",
+                tool_name="GetCurrentTime",
+            )
+        )
+
+        self.assertEqual(
+            {
+                "date": "2026-09-16",
+                "speech_slots": {"time": "07:30:00"},
+                "timestamp": "2026-09-16T12:00:00+00:00",
+            },
+            json.loads(message["content"]),
+        )
+        self.assertEqual("call-time", message["tool_call_id"])
+        self.assertEqual("GetCurrentTime", message["name"])
 
     def test_llm_assistant_content_without_text_or_tool_calls_uses_empty_string(self) -> None:
         from homeassistant.components.conversation import AssistantContent

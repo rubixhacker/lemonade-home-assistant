@@ -29,14 +29,8 @@ except ImportError:  # pragma: no cover - compatibility with HA module layouts
     )
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import llm as hass_llm
-try:
-    from homeassistant.util.json import json_dumps
-except ImportError:  # pragma: no cover - Home Assistant always provides this
-    json_dumps = json.dumps
-try:
-    from homeassistant.util.json import json_loads
-except ImportError:  # pragma: no cover - Home Assistant always provides this
-    json_loads = json.loads
+from homeassistant.helpers.json import json_dumps
+from homeassistant.util.json import json_loads
 from .schema import convert
 
 from .chat_messages import (
@@ -172,10 +166,13 @@ def _attribute_value(obj: Any, *names: str, default: Any = None) -> Any:
 
 
 def _tool_result_json_value(tool_result: Any) -> Any:
-    """Return JSON payload without treating mappings as result wrappers."""
-    if isinstance(tool_result, Mapping):
-        return tool_result
-    return _attribute_value(tool_result, "result", default=tool_result)
+    """Return a JSON payload using Home Assistant's object serializer."""
+    value = (
+        tool_result
+        if isinstance(tool_result, Mapping)
+        else _attribute_value(tool_result, "result", default=tool_result)
+    )
+    return json_loads(json_dumps(value))
 
 
 def format_tool(tool: Any, custom_serializer: Any) -> dict[str, Any]:
